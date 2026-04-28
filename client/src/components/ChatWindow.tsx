@@ -17,6 +17,9 @@ interface Props {
   // MEMO blocks and shows an "apply to workspace" CTA targeting this id.
   onboardingTargetWorkspaceId?: string;
   onMemoApplied?: () => void;
+  // Auto-fork: when agent suggests a fork via marker, this callback opens
+  // the target agent in a new tab with the suggested message as first input.
+  onAcceptFork?: (toAgentId: string, message: string, fromAgentName: string) => void;
 }
 
 interface Msg {
@@ -24,6 +27,79 @@ interface Msg {
   content: string;
   ts: number;
   partial?: boolean;
+}
+
+interface ParsedFork {
+  agentId: string;
+  reason: string;
+  message: string;
+  raw: string;
+}
+
+function parseFork(content: string): ParsedFork | null {
+  const m = content.match(/===\s*FORK:\s*([a-z0-9][a-z0-9_-]+)\s*===\s*\n([\s\S]*?)\n---\n([\s\S]*?)\n===\s*END\s*FORK\s*===/i);
+  if (!m) return null;
+  return {
+    agentId: m[1].trim(),
+    reason: m[2].trim().replace(/^原因\s*[::]\s*/, ""),
+    message: m[3].trim(),
+    raw: m[0],
+  };
+}
+
+function ForkBanner({
+  fork, agents, fromAgentName, onAccept, dismissed, onDismiss,
+}: {
+  fork: ParsedFork;
+  agents?: { id: string; name: string; category: string }[];
+  fromAgentName: string;
+  onAccept?: (toAgentId: string, message: string, fromAgentName: string) => void;
+  dismissed: boolean;
+  onDismiss: () => void;
+}) {
+  const target = agents?.find((a) => a.id === fork.agentId);
+  if (dismissed) return null;
+  if (!target) {
+    return (
+      <div className="mt-2 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-xs text-zinc-400 flex items-center justify-between gap-2">
+        <span>⚠️ AI 建議分支到 <code className="text-rose-400">{fork.agentId}</code> — 但找不到這位 agent(可能拼錯了)</span>
+        <button onClick={onDismiss} className="text-zinc-500 hover:text-zinc-200">×</button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 px-3 py-2 bg-gradient-to-r from-sky-950/40 to-indigo-950/40 border border-sky-500/40 rounded">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-xs">
+            <span className="text-sky-300">🔀 AI 建議分支到</span>
+            <span className="ml-1 font-medium text-zinc-100">{target.name}</span>
+            <span className="ml-2 text-[10px] px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400">{target.category}</span>
+          </div>
+          <div className="text-xs text-zinc-400 mt-1">
+            <span className="text-zinc-500">原因:</span>{fork.reason}
+          </div>
+          <div className="text-xs text-zinc-500 mt-1 italic line-clamp-2">
+            將傳送:「{fork.message.slice(0, 100)}{fork.message.length > 100 ? "…" : ""}」
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          <button
+            onClick={() => { onAccept?.(fork.agentId, fork.message, fromAgentName); onDismiss(); }}
+            className="text-xs px-3 py-1 bg-sky-600 hover:bg-sky-500 rounded text-white whitespace-nowrap"
+          >
+            接受 →
+          </button>
+          <button
+            onClick={onDismiss}
+            className="text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400"
+          >
+            忽略
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HandoffButton({
@@ -122,7 +198,7 @@ function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
 
 export function ChatWindow({
   sessionId, agentId, agentName, onStatusChange, onOpenAgentById, onHandoff,
-  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied,
+  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork,
 }: Props) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -166,6 +242,7 @@ export function ChatWindow({
 
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [dismissedForks, setDismissedForks] = useState<Set<number>>(new Set());
   const [summary, setSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -314,6 +391,40 @@ export function ChatWindow({
     }
     return null;
   }, [messages, onboardingTargetWorkspaceId]);
+
+  // detect ```workflow JSON block (any chat — orchestrator drafts these)
+  const detectedWorkflow = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== "assistant" || m.partial) continue;
+      const match = m.content.match(/```workflow\s*\n([\s\S]*?)\n```/);
+      if (!match) continue;
+      try {
+        const wf = JSON.parse(match[1]);
+        if (wf?.name && Array.isArray(wf?.steps)) return wf;
+      } catch { /* keep scanning earlier */ }
+    }
+    return null;
+  }, [messages]);
+
+  const [applyingWf, setApplyingWf] = useState(false);
+  const [appliedWf, setAppliedWf] = useState(false);
+
+  const applyWorkflow = async () => {
+    if (!detectedWorkflow) return;
+    // assume current workspace = the one we're chatting in. backend uses
+    // workspace from query string, which the api client already adds.
+    const wsId = (await import("../lib/workspace")).getActiveWorkspace();
+    setApplyingWf(true);
+    try {
+      await api.applyWorkflowDraft(sessionId, wsId, detectedWorkflow);
+      setAppliedWf(true);
+    } catch (e: any) {
+      alert("套用失敗:" + e.message);
+    } finally {
+      setApplyingWf(false);
+    }
+  };
 
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
@@ -519,6 +630,23 @@ export function ChatWindow({
           </button>
         </div>
       )}
+      {detectedWorkflow && (
+        <div className="px-4 py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-b border-amber-500/30 flex items-center justify-between gap-3">
+          <div className="text-xs">
+            <span className="text-zinc-200 font-medium">🔗 偵測到 Workflow 草稿</span>
+            <span className="ml-2 text-zinc-400">
+              「{detectedWorkflow.name}」· {detectedWorkflow.steps.length} 個步驟
+            </span>
+          </div>
+          <button
+            onClick={applyWorkflow}
+            disabled={applyingWf || appliedWf}
+            className="text-xs px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white whitespace-nowrap"
+          >
+            {appliedWf ? "✓ 已套用 — 去 🔗 自動接力 看" : applyingWf ? "套用中…" : "套用為 Workflow"}
+          </button>
+        </div>
+      )}
       {detectedMemo && (
         <div className="px-4 py-3 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-b border-emerald-500/30 flex items-center justify-between gap-3">
           <div className="text-xs">
@@ -553,7 +681,10 @@ export function ChatWindow({
             開始對話 — 第一句通常 5–10 秒會回應(載入 agent 角色)
           </div>
         )}
-        {messages.map((m, i) => (
+        {messages.map((m, i) => {
+          const fork = m.role === "assistant" && !m.partial ? parseFork(m.content) : null;
+          const cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;
+          return (
           <div
             key={i}
             className={`max-w-[85%] group ${
@@ -569,8 +700,18 @@ export function ChatWindow({
                   : "bg-zinc-900 text-zinc-500 text-xs italic whitespace-pre-wrap"
               }`}
             >
-              {m.role === "assistant" ? <MarkdownView>{m.content}</MarkdownView> : m.content}
+              {m.role === "assistant" ? <MarkdownView>{cleanContent || " "}</MarkdownView> : m.content}
             </div>
+            {fork && (
+              <ForkBanner
+                fork={fork}
+                agents={agents}
+                fromAgentName={agentName}
+                onAccept={onAcceptFork}
+                dismissed={dismissedForks.has(i)}
+                onDismiss={() => setDismissedForks((prev) => new Set([...prev, i]))}
+              />
+            )}
 
             {/* per-message actions */}
             {m.role !== "system" && !m.partial && (
@@ -607,7 +748,8 @@ export function ChatWindow({
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="p-3 border-t border-zinc-800 bg-panel relative">

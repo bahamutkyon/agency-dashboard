@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, type AgentMeta, type Workflow, type WorkflowRun, type WorkflowStep } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { WORKFLOW_TEMPLATES } from "../lib/workflowTemplates";
 
 interface Props {
   agents: AgentMeta[];
   onOpenSession?: (sessionId: string, agentId: string, title: string) => void;
+  onLaunchDraftAssistant?: (sessionId: string) => void;
 }
 
 function fmtTime(ts?: number) {
@@ -12,7 +14,7 @@ function fmtTime(ts?: number) {
   return new Date(ts).toLocaleString("zh-TW", { hour12: false });
 }
 
-export function WorkflowsPanel({ agents, onOpenSession }: Props) {
+export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }: Props) {
   const [list, setList] = useState<Workflow[]>([]);
   const [editing, setEditing] = useState<Workflow | "new" | null>(null);
   const [draft, setDraft] = useState<{ name: string; description: string; steps: WorkflowStep[] }>(
@@ -108,15 +110,51 @@ export function WorkflowsPanel({ agents, onOpenSession }: Props) {
             </p>
           </div>
           {!editing && (
-            <button onClick={startNew} className="px-3 py-2 rounded bg-accent hover:bg-violet-500 text-sm text-white">
-              + 新增 workflow
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const { id } = await api.startWorkflowDraft();
+                  onLaunchDraftAssistant?.(id);
+                }}
+                className="px-3 py-2 rounded bg-gradient-to-r from-accent to-violet-500 hover:from-violet-500 hover:to-fuchsia-500 text-sm text-white"
+                title="跟專案經理對話 5-10 分鐘,它幫你設計 workflow"
+              >
+                🤖 讓專案經理幫我設計
+              </button>
+              <button onClick={startNew} className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-sm">
+                + 新增
+              </button>
+            </div>
           )}
         </div>
 
         {editing && (
           <div className="bg-panel border border-zinc-800 rounded-lg p-4 mb-6 space-y-3">
             <div className="font-medium text-sm">{editing === "new" ? "新增 workflow" : `編輯「${editing.name}」`}</div>
+
+            {editing === "new" && (
+              <select
+                className="w-full bg-zinc-900 px-3 py-2 rounded text-sm"
+                onChange={(e) => {
+                  const t = WORKFLOW_TEMPLATES.find((x) => x.id === e.target.value);
+                  if (t) {
+                    setDraft({
+                      name: t.label,
+                      description: t.description,
+                      steps: t.steps.length ? t.steps : [{ agentId: "", prompt: "" }],
+                    });
+                  }
+                  e.target.value = "";
+                }}
+                defaultValue=""
+              >
+                <option value="">📋 從範本快速填入…</option>
+                {WORKFLOW_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.emoji} {t.label} — {t.description}</option>
+                ))}
+              </select>
+            )}
+
             <input
               className="w-full bg-zinc-900 px-3 py-2 rounded text-sm"
               placeholder="名稱(例如:每週選題到審稿)"

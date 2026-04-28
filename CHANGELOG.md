@@ -19,6 +19,18 @@
 
 ---
 
+## [0.5.0] — 2026-04-28
+
+智能化升級。
+
+### 新增
+- **🤖 Workflow 由專案經理草擬** — 在「自動接力」面板按紫色按鈕,跟 AI 對話,它輸出 ` ```workflow ` JSON,對話頂部「套用為 Workflow」一鍵建立
+- **📋 Workflow 範本庫** — 6 個預設(IP 週報生產線 / 新客戶提案 / 競品分析 / Code Review 雙保險 / 線上課程設計 / 空白)
+- **🔀 Agent 自主分支建議** — agent 在對話中若判斷子問題該由其他專家處理,會輸出 FORK 標記,前端顯示 banner「接受 / 忽略」(只在使用者主動開啟的對話中啟用,排程/workflow/orchestrator 都關閉)
+- **🎨 圖像 prompt 一鍵跳生圖網頁** — ` ```prompt ` 區塊旁新增「開啟 Gemini / ChatGPT / Midjourney」按鈕,自動複製到剪貼簿;`design-image-prompt-engineer` 開啟時自動指示其用 ` ```prompt ` 包輸出
+
+---
+
 ## [0.4.0] — 2026-04-28
 
 自動化接力。

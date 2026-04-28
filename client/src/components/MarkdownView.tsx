@@ -69,30 +69,68 @@ export function MarkdownView({ children, className = "" }: Props) {
 
 function CodeBlock({ children }: { children?: any }) {
   const [copied, setCopied] = useState(false);
-  // Extract raw code text from <pre><code>...</code></pre>
   const codeText = extractText(children);
   const lang = extractLang(children);
 
-  const copy = async () => {
+  const copy = async (text?: string) => {
     try {
-      await navigator.clipboard.writeText(codeText);
+      await navigator.clipboard.writeText(text ?? codeText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
   };
+
+  // Special-case image-generation prompts — show extra "open in Gemini/ChatGPT"
+  // buttons so the user can quickly take the prompt to a web image generator.
+  const isImagePrompt = lang === "prompt" || lang === "image-prompt" || lang === "midjourney";
 
   return (
     <div className="relative my-2 group">
       {lang && (
         <div className="absolute top-0 left-0 px-2 py-0.5 text-[10px] text-zinc-500 font-mono">{lang}</div>
       )}
-      <button onClick={copy}
-        className="absolute top-1 right-1 text-[11px] px-2 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 opacity-0 group-hover:opacity-100 transition">
-        {copied ? "✓ 已複製" : "複製"}
-      </button>
+      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+        {isImagePrompt && (
+          <>
+            <button
+              onClick={async () => {
+                await copy();
+                window.open("https://gemini.google.com/app", "_blank", "noopener");
+              }}
+              className="text-[11px] px-2 py-0.5 rounded bg-sky-700/80 hover:bg-sky-600 text-white"
+              title="複製 prompt 並開啟 Gemini(在 Gemini 貼上即可生圖)"
+            >🎨 Gemini</button>
+            <button
+              onClick={async () => {
+                await copy();
+                window.open("https://chatgpt.com/", "_blank", "noopener");
+              }}
+              className="text-[11px] px-2 py-0.5 rounded bg-emerald-700/80 hover:bg-emerald-600 text-white"
+              title="複製 prompt 並開啟 ChatGPT"
+            >🎨 ChatGPT</button>
+            <button
+              onClick={async () => {
+                await copy();
+                window.open(`https://www.midjourney.com/imagine?prompt=${encodeURIComponent(codeText)}`, "_blank", "noopener");
+              }}
+              className="text-[11px] px-2 py-0.5 rounded bg-violet-700/80 hover:bg-violet-600 text-white"
+              title="複製 prompt 並開啟 Midjourney"
+            >🎨 MJ</button>
+          </>
+        )}
+        <button onClick={() => copy()}
+          className="text-[11px] px-2 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300">
+          {copied ? "✓ 已複製" : "複製"}
+        </button>
+      </div>
       <pre className="bg-zinc-950 border border-zinc-800 rounded p-3 pt-5 overflow-x-auto text-xs font-mono text-zinc-200">
         {children}
       </pre>
+      {isImagePrompt && (
+        <div className="text-[10px] text-zinc-500 mt-1">
+          💡 拿到圖後可以拖回對話框,讓 agent 幫你評估是否符合本步驟需求
+        </div>
+      )}
     </div>
   );
 }

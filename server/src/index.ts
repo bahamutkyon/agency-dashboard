@@ -184,7 +184,28 @@ app.post("/api/sessions", (req, res) => {
   if (!agentId) return res.status(400).json({ error: "agentId required" });
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
-  const session = agentManager.start(agentId, title, standing || undefined, wsId);
+
+  // Per-agent extra hints. For prompt-engineer specifically, ask it to wrap
+  // final prompts in a ```prompt code block so the dashboard can show
+  // "open in Gemini / ChatGPT / Midjourney" buttons next to it.
+  let perAgent = "";
+  if (agentId === "design-image-prompt-engineer") {
+    perAgent = `
+
+# Dashboard 整合提示
+
+當你輸出最終的圖像生成 prompt 時,請**用 markdown code block 包起來,語言標籤用 \`prompt\`**,例如:
+
+\`\`\`prompt
+A cinematic portrait of...
+\`\`\`
+
+這樣 dashboard 會在這個區塊旁顯示「開啟 Gemini / ChatGPT / Midjourney」按鈕,使用者一鍵複製過去生圖。
+`;
+  }
+
+  const extra = (standing ? standing : "") + perAgent;
+  const session = agentManager.start(agentId, title, extra || undefined, wsId);
   res.json({ id: session.id });
 });
 
@@ -312,6 +333,103 @@ ${transcript.slice(0, 30000)}
   });
 });
 
+// Workflow drafting — orchestrator interviews the user about a recurring
+// task and outputs a workflow JSON that the UI auto-detects + lets user
+// apply with one click.
+app.post("/api/workflow/draft", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const allAgents = loadAgents();
+  const catalog = allAgents
+    .map((a) => `- \`${a.id}\` (${a.category}) — ${a.name}: ${a.description.slice(0, 80)}`)
+    .join("\n");
+
+  const extra = `
+
+# 你現在的特殊任務:Workflow 設計顧問
+
+使用者想自動化某個重複性流程,需要你幫他設計一個自動接力 workflow。
+
+## 你的訪問流程
+
+1. 第一句先問:「你想自動化什麼工作?例如『每週技術文生產』、『新客戶提案製作』、『競品分析報告』。」
+2. 釐清:
+   - 流程的開始與結束(輸入是什麼?最後產出什麼?)
+   - 中間需要哪些角色協作
+3. 確認後,從可用團隊中挑出最合適的 agent,**設計 3-6 個步驟**
+4. 輸出最終 workflow
+
+## 輸出格式(嚴格遵守)
+
+當你準備輸出最終 workflow,**用以下 markdown code block 包起來**(語言標籤是 \`workflow\`):
+
+\`\`\`workflow
+{
+  "name": "(workflow 名稱,簡潔)",
+  "description": "(一句話描述用途)",
+  "steps": [
+    {
+      "agentId": "marketing-trend-researcher",
+      "prompt": "找出本週 IG 上最熱門的 5 個 AI 工具相關話題。{{out}} 是上一步的輸出,第一步可省略。"
+    },
+    {
+      "agentId": "marketing-content-creator",
+      "prompt": "從以下選題挑 1 個寫成 IG 主貼文初稿(400 字內,口語親切):\\n\\n{{out}}"
+    }
+  ]
+}
+\`\`\`
+
+**規則**:
+- agent_id 必須來自下方清單,**完全一致**
+- prompt 簡潔具體,**第二步以後一定要用 \`{{out}}\` 把上一步輸出帶進來**
+- step 數量 3-6 步最佳,別太多
+- prompt 用繁體中文,風格直接告訴 agent「該做什麼」
+
+寫完後告訴使用者:「我已產出 workflow 草稿,點對話頂部的綠色按鈕一鍵套用到你的工作區。」
+
+## 可用團隊
+${catalog}
+`;
+  const session = agentManager.start(
+    "agents-orchestrator",
+    "🔗 Workflow 設計顧問",
+    extra,
+    wsId,
+    false,
+  );
+  res.json({ id: session.id });
+});
+
+// Apply workflow draft — extract the JSON block from a session's latest
+// assistant message and create the workflow in the target workspace.
+app.post("/api/workflow/draft/apply", (req, res) => {
+  const { sessionId, workspaceId, workflow } = req.body || {};
+  if (!sessionId || !workspaceId || !workflow?.name || !Array.isArray(workflow?.steps)) {
+    return res.status(400).json({ error: "sessionId, workspaceId, workflow{name, steps[]} required" });
+  }
+  // validate agentIds exist
+  const allAgents = loadAgents();
+  const validIds = new Set(allAgents.map((a) => a.id));
+  for (const s of workflow.steps) {
+    if (!s.agentId || !validIds.has(s.agentId)) {
+      return res.status(400).json({ error: `unknown agentId: ${s.agentId}` });
+    }
+    if (!s.prompt) return res.status(400).json({ error: "step missing prompt" });
+  }
+  const now = Date.now();
+  const wf = {
+    id: uuid(),
+    workspaceId,
+    name: workflow.name,
+    description: workflow.description || "",
+    steps: workflow.steps.map((s: any) => ({ agentId: s.agentId, prompt: s.prompt })),
+    createdAt: now,
+    updatedAt: now,
+  };
+  upsertWorkflow(wf);
+  res.json(wf);
+});
+
 // Onboarding — opens a special chat where the orchestrator interviews the
 // user about their project and outputs a structured "standing context" memo.
 // The frontend detects the marker block in the response and offers a one-click
@@ -377,6 +495,7 @@ app.post("/api/onboarding", (req, res) => {
     "🤖 工作區設定顧問",
     extra,
     wsId,
+    false,
   );
   res.json({ id: session.id });
 });
@@ -410,7 +529,7 @@ ${catalog}
 `;
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId);
+  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId, false);
   res.json({ id: session.id });
 });
 

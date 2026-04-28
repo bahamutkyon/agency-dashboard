@@ -281,7 +281,20 @@ ${message}
           {isView("settings") && <SettingsPanel />}
           {isView("batch") && <BatchPanel key={`b-${reloadKey}`} agents={agents} />}
           {isView("notes") && <NotesPanel key={`n-${reloadKey}`} />}
-          {isView("workflows") && <WorkflowsPanel key={`w-${reloadKey}`} agents={agents} onOpenSession={openHistorySession} />}
+          {isView("workflows") && (
+            <WorkflowsPanel
+              key={`w-${reloadKey}`}
+              agents={agents}
+              onOpenSession={openHistorySession}
+              onLaunchDraftAssistant={(sid) => {
+                setTabs((prev) => [...prev, {
+                  sessionId: sid, agentId: "agents-orchestrator",
+                  agentName: "🔗 Workflow 設計顧問", status: "idle",
+                }]);
+                setView({ kind: "chat", sessionId: sid });
+              }}
+            />
+          )}
           {isView("chat") && (() => {
             const tab = tabs.find((t) => view?.kind === "chat" && t.sessionId === view.sessionId);
             return tab ? (
@@ -297,6 +310,7 @@ ${message}
                 agents={agents}
                 onboardingTargetWorkspaceId={tab.onboardingTargetWorkspaceId}
                 onMemoApplied={() => setReloadKey((k) => k + 1)}
+                onAcceptFork={handoff}
               />
             ) : null;
           })()}

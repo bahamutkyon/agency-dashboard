@@ -118,6 +118,7 @@ class Scheduler {
       `[排程 ${new Date().toLocaleString("zh-TW", { hour12: false })}] ${s.name}`,
       standing || undefined,
       s.workspaceId,
+      false, // no auto-fork in unattended scheduled runs
     );
 
     // attach a one-shot completion listener so we know when this run finishes

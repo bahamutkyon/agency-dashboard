@@ -162,6 +162,13 @@ export const api = {
     }).then(j<WorkflowRun>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
   workflowRuns: (id: string) => fetch(`/api/workflows/${id}/runs`).then(j<WorkflowRun[]>),
+  startWorkflowDraft: () =>
+    fetch(withWorkspace("/api/workflow/draft"), { method: "POST" }).then(j<{ id: string }>),
+  applyWorkflowDraft: (sessionId: string, workspaceId: string, workflow: any) =>
+    fetch("/api/workflow/draft/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, workspaceId, workflow }),
+    }).then(j<Workflow>),
 };
 
 export interface Workspace {

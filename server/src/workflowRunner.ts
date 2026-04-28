@@ -58,12 +58,14 @@ class WorkflowRunner extends EventEmitter {
       const step = wf.steps[i];
       const promptText = step.prompt.replace(/\{\{out\}\}/g, prevOutput || "(無上一步輸出)");
 
-      // start session
+      // start session — disable auto-fork inside workflow runs to prevent
+      // runaway tab creation
       const session = agentManager.start(
         step.agentId,
         `[workflow ${wf.name}] step ${i + 1}/${wf.steps.length}`,
         standing || undefined,
         wf.workspaceId,
+        false,
       );
       sessionIds.push(session.id);
       updateRun(runId, { currentStep: i, sessionIds });
