@@ -6,6 +6,7 @@ import {
 import {
   notifSupported, notifPref, setNotifPref, ensureNotifPermission,
 } from "../lib/notifications";
+import { resetTour } from "../lib/tour";
 
 export function SettingsPanel() {
   const [theme, setTheme] = useState<Theme>(getTheme());
@@ -75,6 +76,18 @@ export function SettingsPanel() {
               瀏覽器已封鎖通知。需到網址列左邊的鎖頭圖示 → 通知 → 允許
             </div>
           )}
+        </Section>
+
+        <Section title="教學引導" subtitle="想重新看一次首次使用導覽?">
+          <button
+            onClick={() => {
+              resetTour();
+              window.dispatchEvent(new Event("agency:show-tour"));
+            }}
+            className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-sm"
+          >
+            🎓 重新看一次教學
+          </button>
         </Section>
 
         <Section title="關於">

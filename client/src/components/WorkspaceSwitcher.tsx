@@ -68,7 +68,7 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const activeW = list.find((w) => w.id === active);
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="workspace-switcher">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1 rounded text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-700"

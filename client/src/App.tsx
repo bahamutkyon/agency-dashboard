@@ -11,6 +11,8 @@ import { NotesPanel } from "./components/NotesPanel";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
+import { OnboardingTour } from "./components/OnboardingTour";
+import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
 import { api, type AgentMeta, type CategoryMeta } from "./lib/api";
@@ -50,6 +52,22 @@ export default function App() {
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+
+  // first-run: launch tour automatically once agents are loaded
+  useEffect(() => {
+    if (agents.length > 0 && !isTourDone()) {
+      const t = setTimeout(() => setTourOpen(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [agents.length]);
+
+  // listen for "show tour" signal from Settings panel
+  useEffect(() => {
+    const h = () => setTourOpen(true);
+    window.addEventListener("agency:show-tour", h);
+    return () => window.removeEventListener("agency:show-tour", h);
+  }, []);
 
   // global keyboard shortcuts
   useEffect(() => {
@@ -190,6 +208,7 @@ ${message}
 
   return (
     <div className="h-screen flex">
+      {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

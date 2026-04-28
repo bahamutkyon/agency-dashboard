@@ -42,6 +42,7 @@ export function AgentSidebar({
     <aside className="w-96 bg-panel border-r border-zinc-800 flex flex-col">
       <div className="m-3 space-y-2">
         <button
+          data-tour="orchestrator-btn"
           onClick={onAskOrchestrator}
           className="w-full px-3 py-2 rounded bg-gradient-to-r from-accent to-violet-500 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-lg shadow-accent/20"
           title="不知道要找誰?讓專案經理幫你規劃團隊"
@@ -50,6 +51,7 @@ export function AgentSidebar({
           <span>找專案經理討論</span>
         </button>
         <button
+          data-tour="batch-btn"
           onClick={onOpenBatch}
           className="w-full px-3 py-2 rounded bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-medium flex items-center justify-center gap-2"
           title="多位 agent 同時做同一題"
@@ -58,6 +60,7 @@ export function AgentSidebar({
           <span>批次同題</span>
         </button>
         <button
+          data-tour="workflow-btn"
           onClick={onOpenWorkflows}
           className="w-full px-3 py-2 rounded bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-sm font-medium flex items-center justify-center gap-2"
           title="多位 agent 順序接力跑完一個流程"
@@ -110,7 +113,7 @@ export function AgentSidebar({
         </div>
       </div>
 
-      <div className="px-3 pb-3 border-b border-zinc-800">
+      <div className="px-3 pb-3 border-b border-zinc-800" data-tour="agent-search">
         <input
           className="w-full bg-zinc-900 px-3 py-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="搜尋 agent…"

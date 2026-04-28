@@ -33,3 +33,19 @@ html.theme-light .hover\:bg-zinc-700:hover { background: #c8c8cd !important; }
 ::-webkit-scrollbar-thumb { background: #2a2f3a; border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 html.theme-light ::-webkit-scrollbar-thumb { background: #c7c7cc; }
+
+/* Onboarding tour highlight — bring target above the dark backdrop and add
+   a glowing border so it's obvious where to look. */
+.tour-highlight {
+  position: relative;
+  z-index: 105 !important;
+  box-shadow:
+    0 0 0 4px rgba(124, 92, 255, 0.85),
+    0 0 30px rgba(124, 92, 255, 0.55);
+  border-radius: 8px;
+  animation: tour-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.85), 0 0 30px rgba(124, 92, 255, 0.55); }
+  50%      { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0.6),  0 0 40px rgba(124, 92, 255, 0.8);  }
+}
