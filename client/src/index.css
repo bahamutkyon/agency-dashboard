@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Microsoft JhengHei", sans-serif; }
+
+/* Font size scaling — affects Tailwind's text-* via root font-size */
+html.font-scale-sm { font-size: 14px; }
+html.font-scale-md { font-size: 16px; }
+html.font-scale-lg { font-size: 18px; }
+
+/* Light theme overrides — Tailwind classes still work, we just remap the
+   custom palette via CSS variables that Tailwind compiled. Simpler approach:
+   override key panel/text colors when .theme-light is on <html>. */
+html.theme-light body { background: #f5f5f7; color: #1c1c1e; }
+html.theme-light .bg-ink { background: #f5f5f7 !important; }
+html.theme-light .bg-panel { background: #ffffff !important; }
+html.theme-light .bg-zinc-900 { background: #f0f0f3 !important; }
+html.theme-light .bg-zinc-800 { background: #e4e4e7 !important; }
+html.theme-light .text-zinc-100 { color: #1c1c1e !important; }
+html.theme-light .text-zinc-200 { color: #2c2c2e !important; }
+html.theme-light .text-zinc-300 { color: #3a3a3c !important; }
+html.theme-light .text-zinc-400 { color: #6c6c70 !important; }
+html.theme-light .text-zinc-500 { color: #8e8e93 !important; }
+html.theme-light .border-zinc-800 { border-color: #d1d1d6 !important; }
+html.theme-light .border-zinc-700 { border-color: #c7c7cc !important; }
+html.theme-light .hover\:bg-zinc-900:hover { background: #ebebef !important; }
+html.theme-light .hover\:bg-zinc-800:hover { background: #d8d8dd !important; }
+html.theme-light .hover\:bg-zinc-700:hover { background: #c8c8cd !important; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2a2f3a; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+html.theme-light ::-webkit-scrollbar-thumb { background: #c7c7cc; }
