@@ -161,6 +161,8 @@ export const api = {
       body: JSON.stringify({ initialInput }),
     }).then(j<WorkflowRun>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
+  approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j),
+  mcpServers: () => fetch("/api/mcp/servers").then(j<MCPServerInfo[]>),
   workflowRuns: (id: string) => fetch(`/api/workflows/${id}/runs`).then(j<WorkflowRun[]>),
   startWorkflowDraft: () =>
     fetch(withWorkspace("/api/workflow/draft"), { method: "POST" }).then(j<{ id: string }>),
@@ -176,7 +178,17 @@ export interface Workspace {
   name: string;
   description: string;
   standingContext: string;
+  memory: string;
+  enabledMcps: string[];
   createdAt: number;
+}
+
+export interface MCPServerInfo {
+  name: string;
+  type?: string;
+  command?: string;
+  url?: string;
+  hasAuth?: boolean;
 }
 
 export interface Note {
@@ -223,6 +235,8 @@ export interface PromptTemplate {
 export interface WorkflowStep {
   agentId: string;
   prompt: string;
+  pauseBefore?: boolean;
+  skipIfMatch?: string;
 }
 
 export interface Workflow {
@@ -239,7 +253,7 @@ export interface WorkflowRun {
   id: string;
   workflowId: string;
   workspaceId: string;
-  status: "running" | "done" | "error" | "cancelled";
+  status: "running" | "paused" | "done" | "error" | "cancelled";
   currentStep: number;
   sessionIds: string[];
   error?: string;

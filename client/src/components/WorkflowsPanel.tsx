@@ -197,6 +197,25 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                     value={s.prompt}
                     onChange={(e) => updateStep(i, { prompt: e.target.value })}
                   />
+                  <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                    {i > 0 && (
+                      <label className="flex items-center gap-1 cursor-pointer">
+                        <input type="checkbox"
+                          checked={!!s.pauseBefore}
+                          onChange={(e) => updateStep(i, { pauseBefore: e.target.checked })}
+                        />
+                        ⏸️ 此步前暫停等我批准
+                      </label>
+                    )}
+                    {i > 0 && (
+                      <input type="text"
+                        className="flex-1 bg-zinc-950 px-2 py-1 rounded text-[11px] font-mono"
+                        placeholder="若上一步輸出符合此 regex 則跳過此步(例:不需要|skip)"
+                        value={s.skipIfMatch || ""}
+                        onChange={(e) => updateStep(i, { skipIfMatch: e.target.value })}
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
               <button onClick={addStep}
@@ -219,11 +238,24 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
           <div className="bg-gradient-to-br from-emerald-950/40 to-teal-950/40 border border-emerald-500/40 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between">
               <div className="text-sm">
-                <span className="font-medium">{activeRun.status === "running" ? "🏃 執行中" : activeRun.status === "done" ? "✅ 完成" : activeRun.status === "error" ? "❌ 錯誤" : "🛑 取消"}</span>
+                <span className="font-medium">{
+                  activeRun.status === "running" ? "🏃 執行中" :
+                  activeRun.status === "paused" ? "⏸️ 暫停中,等待你的批准" :
+                  activeRun.status === "done" ? "✅ 完成" :
+                  activeRun.status === "error" ? "❌ 錯誤" : "🛑 取消"
+                }</span>
                 <span className="text-zinc-400 ml-2">Step {activeRun.currentStep + 1} / {activeRun.sessionIds.length || "?"}</span>
               </div>
               <div className="flex gap-2">
-                {activeRun.status === "running" && (
+                {activeRun.status === "paused" && (
+                  <button
+                    onClick={async () => { await api.approveRun(activeRun.id); }}
+                    className="text-xs px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-medium"
+                  >
+                    ✓ 批准繼續
+                  </button>
+                )}
+                {(activeRun.status === "running" || activeRun.status === "paused") && (
                   <button onClick={cancelRun} className="text-xs px-2 py-1 bg-zinc-800 hover:bg-rose-700 rounded">中止</button>
                 )}
                 <button onClick={() => setActiveRun(null)} className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded">關閉</button>

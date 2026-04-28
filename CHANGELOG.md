@@ -19,6 +19,26 @@
 
 ---
 
+## [0.8.0] — 2026-04-28
+
+讓 agent 真的變聰明。
+
+### 新增
+- **🧠 工作區永久記憶** — 每個工作區累積 agent 跨 session 學到的事實
+  - Agent 在對話中可輸出 `=== REMEMBER === ... === END REMEMBER ===` 標記,系統自動 append
+  - 開新對話時自動注入(全部記憶塞進 system prompt)
+  - 上限 10KB,舊內容自動壓縮
+  - 工作區編輯介面可瀏覽/手動編輯
+- **🏷️ 自動標題 + 自動標籤** — session 第一輪結束後背景產生精準 5-15 字標題 + 3 個 tags,免去手動命名
+- **📚 Notes 智能注入** — 送訊息時系統自動用 BM25-ish 計算工作區 notes 相關度,top 1-2 自動 wrap 為 context;UI 顯示「📚 已自動參考筆記:X」
+- **⏸️ Workflow 暫停 + 條件跳過**
+  - 步驟可設 `pauseBefore` → runner 在執行前暫停,等使用者按「✓ 批准繼續」
+  - 步驟可設 `skipIfMatch` regex → 上一步 `{{out}}` 符合時跳過此步
+  - 適合需要人工 checkpoint 的流程(法務、合約、發布前)
+- **🔌 MCP 整合(基礎)** — 偵測 ~/.claude.json 的 MCP servers,每個工作區可勾選啟用;啟動 session 時自動 `--mcp-config` 注入
+
+---
+
 ## [0.7.0] — 2026-04-28
 
 繁體化。

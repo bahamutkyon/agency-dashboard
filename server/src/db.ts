@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
   standing_context TEXT DEFAULT '',
+  memory TEXT DEFAULT '',  -- accumulated facts agent learned across sessions
   created_at INTEGER NOT NULL
 );
 
@@ -132,6 +133,23 @@ CREATE INDEX IF NOT EXISTS idx_runs_workflow ON workflow_runs(workflow_id, start
 `;
 
 db.exec(SCHEMA);
+
+// Add `memory` column to existing workspaces table for users upgrading from
+// older versions. SQLite ALTER TABLE ADD COLUMN is idempotent-friendly via
+// PRAGMA introspection.
+try {
+  const cols = db.prepare("PRAGMA table_info(workspaces)").all() as any[];
+  if (!cols.some((c) => c.name === "memory")) {
+    db.exec("ALTER TABLE workspaces ADD COLUMN memory TEXT DEFAULT ''");
+    console.log("[db] migration: added workspaces.memory column");
+  }
+  if (!cols.some((c) => c.name === "enabled_mcps")) {
+    db.exec("ALTER TABLE workspaces ADD COLUMN enabled_mcps TEXT DEFAULT '[]'");
+    console.log("[db] migration: added workspaces.enabled_mcps column");
+  }
+} catch (e) {
+  console.warn("[db] memory column migration failed:", e);
+}
 
 // Bootstrap default workspace if none exist
 function ensureDefaultWorkspace(): string {

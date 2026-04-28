@@ -31,17 +31,19 @@ export class AgentSession extends EventEmitter {
   readonly id: string;
   readonly agentId: string;
   readonly extraSystemPrompt?: string;
+  readonly mcpConfigJson?: string;
   status: SessionStatus = "idle";
   claudeSessionId?: string;
   private child?: ChildProcess;
   private buf = "";
   private currentAssistant = "";
 
-  constructor(agentId: string, sessionId?: string, extraSystemPrompt?: string) {
+  constructor(agentId: string, sessionId?: string, extraSystemPrompt?: string, mcpConfigJson?: string) {
     super();
     this.id = sessionId || uuid();
     this.agentId = agentId;
     this.extraSystemPrompt = extraSystemPrompt;
+    this.mcpConfigJson = mcpConfigJson;
   }
 
   send(text: string): void {
@@ -81,6 +83,9 @@ export class AgentSession extends EventEmitter {
     ];
     if (this.extraSystemPrompt) {
       args.push("--append-system-prompt", this.extraSystemPrompt);
+    }
+    if (this.mcpConfigJson) {
+      args.push("--mcp-config", this.mcpConfigJson);
     }
     if (this.claudeSessionId) {
       // resume an existing claude session

@@ -64,12 +64,16 @@ export interface Workspace {
   name: string;
   description: string;
   standingContext: string;
+  memory: string;
+  enabledMcps: string[];   // names of MCP servers enabled for this workspace
   createdAt: number;
 }
 
 export interface WorkflowStep {
   agentId: string;
-  prompt: string;     // can include {{out}} for previous step's output
+  prompt: string;            // can include {{out}} for previous step's output
+  pauseBefore?: boolean;     // pause + wait for user approval before this step
+  skipIfMatch?: string;      // regex on previous {{out}}; match → skip this step
 }
 
 export interface Workflow {
@@ -86,7 +90,7 @@ export interface WorkflowRun {
   id: string;
   workflowId: string;
   workspaceId: string;
-  status: "running" | "done" | "error" | "cancelled";
+  status: "running" | "paused" | "done" | "error" | "cancelled";
   currentStep: number;
   sessionIds: string[];
   error?: string;
@@ -160,6 +164,8 @@ function rowToWorkspace(r: any): Workspace {
     name: r.name,
     description: r.description || "",
     standingContext: r.standing_context || "",
+    memory: r.memory || "",
+    enabledMcps: parseTags(r.enabled_mcps),
     createdAt: r.created_at,
   };
 }
@@ -185,14 +191,30 @@ export function createWorkspace(input: { name: string; description?: string; sta
   return getWorkspace(id)!;
 }
 
-export function updateWorkspace(id: string, patch: Partial<Pick<Workspace, "name" | "description" | "standingContext">>): Workspace | undefined {
+export function updateWorkspace(id: string, patch: Partial<Pick<Workspace, "name" | "description" | "standingContext" | "memory" | "enabledMcps">>): Workspace | undefined {
   const cur = getWorkspace(id);
   if (!cur) return undefined;
   const next = { ...cur, ...patch };
   db.prepare(`
-    UPDATE workspaces SET name = ?, description = ?, standing_context = ? WHERE id = ?
-  `).run(next.name, next.description, next.standingContext, id);
+    UPDATE workspaces SET name = ?, description = ?, standing_context = ?, memory = ?, enabled_mcps = ?
+    WHERE id = ?
+  `).run(
+    next.name, next.description, next.standingContext, next.memory || "",
+    JSON.stringify(next.enabledMcps || []),
+    id,
+  );
   return getWorkspace(id);
+}
+
+export function appendWorkspaceMemory(id: string, entry: string): void {
+  const w = getWorkspace(id);
+  if (!w) return;
+  const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const next = (w.memory || "").trim();
+  const updated = next ? `${next}\n- [${ts}] ${entry.trim()}` : `- [${ts}] ${entry.trim()}`;
+  // Cap memory at ~10KB to prevent unbounded growth
+  const capped = updated.length > 10000 ? "(舊記憶已壓縮)\n" + updated.slice(-9000) : updated;
+  db.prepare("UPDATE workspaces SET memory = ? WHERE id = ?").run(capped, id);
 }
 
 export function deleteWorkspace(id: string): boolean {

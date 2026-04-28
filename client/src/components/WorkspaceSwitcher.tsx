@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type Workspace } from "../lib/api";
+import { api, type Workspace, type MCPServerInfo } from "../lib/api";
 import { getActiveWorkspace, setActiveWorkspace } from "../lib/workspace";
 import { MEMO_TEMPLATES } from "../lib/memoTemplates";
 
@@ -14,7 +14,12 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const [active, setActive] = useState<string>(getActiveWorkspace());
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "" });
+  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] as string[] });
+  const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
+
+  useEffect(() => {
+    api.mcpServers().then(setMcpServers).catch(() => {});
+  }, []);
 
   const reload = () => api.workspaces().then(setList).catch(() => {});
   useEffect(() => { reload(); }, []);
@@ -32,12 +37,16 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
 
   const startNew = () => {
     setEditingId("new");
-    setDraft({ name: "", description: "", standingContext: "" });
+    setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] });
   };
 
   const startEdit = (w: Workspace) => {
     setEditingId(w.id);
-    setDraft({ name: w.name, description: w.description, standingContext: w.standingContext });
+    setDraft({
+      name: w.name, description: w.description,
+      standingContext: w.standingContext, memory: w.memory || "",
+      enabledMcps: w.enabledMcps || [],
+    });
   };
 
   const save = async () => {
@@ -163,6 +172,49 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                   onChange={(e) => setDraft({ ...draft, standingContext: e.target.value })}
                 />
               </div>
+
+              {editingId !== "new" && (
+                <div>
+                  <label className="text-xs text-zinc-400 flex items-center justify-between">
+                    <span>🧠 累積記憶 — agent 自動寫入,你也可編輯/清空</span>
+                    <span className="text-[10px] text-zinc-600">{draft.memory.length} / 10000 字</span>
+                  </label>
+                  <textarea
+                    className="w-full mt-1 bg-zinc-900 px-3 py-2 rounded text-xs font-mono text-zinc-300"
+                    rows={6}
+                    placeholder="(目前無記憶 — 跟 agent 對話時,它會主動把重要事實寫進這裡,讓未來對話自動帶入)"
+                    value={draft.memory}
+                    onChange={(e) => setDraft({ ...draft, memory: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {mcpServers.length > 0 && (
+                <div>
+                  <label className="text-xs text-zinc-400">🔌 此工作區啟用的 MCP server</label>
+                  <div className="mt-1 space-y-1">
+                    {mcpServers.map((srv) => (
+                      <label key={srv.name} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-zinc-900 px-2 py-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={draft.enabledMcps.includes(srv.name)}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...draft.enabledMcps, srv.name]
+                              : draft.enabledMcps.filter((n) => n !== srv.name);
+                            setDraft({ ...draft, enabledMcps: next });
+                          }}
+                        />
+                        <span className="font-mono text-zinc-300">{srv.name}</span>
+                        <span className="text-[10px] text-zinc-600">
+                          {srv.type}{srv.hasAuth ? " · 需 auth" : ""}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button onClick={save}
                   className="flex-1 px-3 py-2 rounded bg-accent hover:bg-violet-500 text-white text-sm">

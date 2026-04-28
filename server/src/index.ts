@@ -7,6 +7,7 @@ import { agentManager } from "./agentManager.js";
 import { scheduler } from "./scheduler.js";
 import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
+import { listInstalledMCPServers, buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { v4 as uuid } from "uuid";
 import {
   getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
@@ -79,6 +80,11 @@ app.delete("/api/workspaces/:id", (req, res) => {
   }
   const ok = removeWorkspace(req.params.id);
   res.json({ ok });
+});
+
+// MCP — list available servers from user's ~/.claude.json
+app.get("/api/mcp/servers", (_req, res) => {
+  res.json(listInstalledMCPServers());
 });
 
 // Export — bundle a workspace's metadata + notes + templates + schedules
@@ -675,6 +681,11 @@ app.post("/api/runs/:id/cancel", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/runs/:id/approve", (req, res) => {
+  workflowRunner.approve(req.params.id);
+  res.json({ ok: true });
+});
+
 app.get("/api/workflows/:id/runs", (req, res) => {
   res.json(listRuns(req.params.id));
 });
@@ -749,10 +760,18 @@ io.on("connection", (socket) => {
   socket.on("session:send", ({ sessionId, text }: { sessionId: string; text: string }) => {
     console.log(`[ws] session:send ${sessionId} text=${text?.slice(0, 60)}`);
     if (!sessionId || !text) return;
-    const ok = agentManager.send(sessionId, text);
-    if (!ok) {
+    const result = agentManager.send(sessionId, text);
+    if (!result.ok) {
       console.warn(`[ws] send failed ${sessionId}`);
       socket.emit("session:error", { sessionId, error: "send failed" });
+      return;
+    }
+    if (result.injectedNotes && result.injectedNotes.length > 0) {
+      io.to(`session:${sessionId}`).emit("session:event", {
+        sessionId,
+        type: "notes-injected",
+        payload: result.injectedNotes,
+      });
     }
   });
 

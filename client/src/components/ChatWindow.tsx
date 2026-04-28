@@ -247,6 +247,7 @@ export function ChatWindow({
   const [summarizing, setSummarizing] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [showNotePicker, setShowNotePicker] = useState(false);
+  const [autoInjectedNotes, setAutoInjectedNotes] = useState<{ title: string }[]>([]);
 
   useEffect(() => {
     const fetch = () => api.notes().then(setNotes).catch(() => {});
@@ -344,6 +345,12 @@ export function ChatWindow({
         }
         case "error": {
           setMessages((prev) => [...prev, { role: "system", content: `[錯誤] ${evt.payload}`, ts: Date.now() }]);
+          break;
+        }
+        case "notes-injected": {
+          setAutoInjectedNotes(evt.payload || []);
+          // clear after 8s
+          setTimeout(() => setAutoInjectedNotes([]), 8000);
           break;
         }
       }
@@ -662,6 +669,11 @@ export function ChatWindow({
           >
             {applied ? "✓ 已套用" : applying ? "套用中…" : "套用到工作區"}
           </button>
+        </div>
+      )}
+      {autoInjectedNotes.length > 0 && (
+        <div className="px-4 py-2 bg-emerald-950/30 border-b border-emerald-700/30 text-xs text-emerald-300">
+          📚 已自動參考筆記:{autoInjectedNotes.map((n) => n.title).join(" · ")}
         </div>
       )}
       {summary && (

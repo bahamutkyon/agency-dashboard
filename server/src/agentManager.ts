@@ -1,6 +1,13 @@
 import { AgentSession } from "./agentSession.js";
-import { upsertSession, getSession, listSessions, deleteSession, appendMessage, setSessionClaudeId, DEFAULT_WORKSPACE_ID, type SessionRecord } from "./store.js";
+import {
+  upsertSession, getSession, listSessions, deleteSession, appendMessage, setSessionClaudeId,
+  appendWorkspaceMemory, getWorkspace,
+  DEFAULT_WORKSPACE_ID, type SessionRecord,
+} from "./store.js";
+import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
+import { maybeAutoTitle } from "./autoTitler.js";
+import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 
 // Capability injected into normal user-initiated chats. Lets the agent
 // signal "this part should be handled by someone else" via a structured
@@ -54,12 +61,28 @@ export class AgentManager {
     workspaceId?: string,
     enableAutoFork: boolean = true,
   ): AgentSession {
-    const combined = (extraSystemPrompt || "") + (enableAutoFork ? FORK_CAPABILITY : "");
-    const session = new AgentSession(agentId, undefined, combined || undefined);
+    const wsId = workspaceId || DEFAULT_WORKSPACE_ID;
+
+    // Inject workspace memory if any. This lets agents accumulate knowledge
+    // across sessions in the same workspace.
+    const memory = getWorkspace(wsId)?.memory || "";
+    let memoryBlock = "";
+    if (memory.trim()) {
+      memoryBlock = `\n\n# 你對這個工作區的累積記憶\n以下是過去對話中你已經學到、確認過的事實。請以此為前提繼續對話,不需要重新確認:\n\n${memory}\n`;
+    }
+
+    const memoryCapability = `\n\n# 累積記憶能力\n如果在對話中你發現使用者揭露了重要的、跨對話有價值的事實(偏好、決定、客戶背景、品牌規則等),你可以**在回答最末尾**輸出記憶標記讓系統累積:\n\n\`\`\`\n=== REMEMBER ===\n簡短描述(一行,< 80 字),例如:使用者偏好親切口語、不要長篇大論\n=== END REMEMBER ===\n\`\`\`\n\n規則:每次回答最多 1 條;只記跨對話有用的事實;不要記當下情境的瑣事。\n`;
+
+    const combined = (extraSystemPrompt || "") + memoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+    const ws = getWorkspace(wsId);
+    const mcpConfig = buildMCPConfigForWorkspace(ws?.enabledMcps || []);
+    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined);
+    // Stash workspace id on session so attachPersistence can append memory
+    (session as any).workspaceId = wsId;
     const now = Date.now();
     upsertSession({
       id: session.id,
-      workspaceId: workspaceId || DEFAULT_WORKSPACE_ID,
+      workspaceId: wsId,
       agentId,
       title: title || `${agentId} 對話`,
       createdAt: now,
@@ -87,12 +110,29 @@ export class AgentManager {
     return this.sessions.get(sessionId);
   }
 
-  send(sessionId: string, text: string): boolean {
+  send(sessionId: string, text: string): { ok: boolean; injectedNotes?: { title: string }[] } {
     const s = this.sessions.get(sessionId) || this.reattach(sessionId);
-    if (!s) return false;
+    if (!s) return { ok: false };
+
+    // Persist the original (clean) user message — don't bloat history with
+    // auto-injected note context.
     appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });
-    s.send(text);
-    return true;
+
+    // Auto-inject relevant workspace notes into what we actually send to claude.
+    const wsId = (s as any).workspaceId as string | undefined;
+    let augmented = text;
+    let injectedNotes: { title: string }[] = [];
+    if (wsId && !text.includes("<context source=")) {
+      // skip injection if user already attached notes manually
+      const relevant = findRelevantNotes(wsId, text, 2);
+      if (relevant.length > 0) {
+        const ctx = formatNotesAsContext(relevant);
+        augmented = `${ctx}\n\n${text}`;
+        injectedNotes = relevant.map((n) => ({ title: n.title }));
+      }
+    }
+    s.send(augmented);
+    return { ok: true, injectedNotes };
   }
 
   stop(sessionId: string) {
@@ -116,6 +156,15 @@ export class AgentManager {
         appendMessage(s.id, { role: "assistant", content: evt.payload.content, ts: Date.now() });
         if (s.claudeSessionId) setSessionClaudeId(s.id, s.claudeSessionId);
         assistantPersisted = true;
+        // Detect REMEMBER markers — append to workspace memory
+        const wsId = (s as any).workspaceId as string | undefined;
+        if (wsId) {
+          const matches = String(evt.payload.content).matchAll(/===\s*REMEMBER\s*===\s*\n([\s\S]*?)\n===\s*END\s*REMEMBER\s*===/gi);
+          for (const m of matches) {
+            const entry = m[1].trim();
+            if (entry && entry.length < 200) appendWorkspaceMemory(wsId, entry);
+          }
+        }
         buffer = "";
       } else if (evt.type === "result") {
         if (buffer && !assistantPersisted) {
@@ -125,6 +174,8 @@ export class AgentManager {
         buffer = "";
         assistantPersisted = false;
         usageTracker.recordTurn(evt.payload);
+        // background auto-titler: kicks in once after first turn
+        setTimeout(() => maybeAutoTitle(s.id), 500);
       } else if (evt.type === "rate_limit") {
         usageTracker.recordRateLimit(evt.payload);
       }
