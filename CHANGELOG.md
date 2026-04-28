@@ -19,6 +19,20 @@
 
 ---
 
+## [0.7.0] — 2026-04-28
+
+繁體化。
+
+### 新增
+- **🇹🇼 簡繁轉換腳本** `scripts/traditionalize-agents.mjs`
+  - 用 OpenCC(`cn` → `tw`)把 ~/.claude/agents/ 全部 .md 轉為繁體中文
+  - **自動跳過 18 個 CN 平台特定 agent**(微信/小紅書/微博/抖音/快手/百度/知乎/B站/釘釘/飛書/高考/政務/中國電商等),保留原意
+  - 原檔備份為 `.simplified.bak`,可一鍵還原
+  - npm scripts: `traditionalize` / `traditionalize:dry` / `traditionalize:revert`
+- **193 個 agent** 名稱、描述、系統提示全部轉為繁體(台灣用語)
+
+---
+
 ## [0.6.0] — 2026-04-28
 
 新手友善。

@@ -14,9 +14,15 @@
     "setup": "npm run install:all && npm run check",
     "release:patch": "npm version patch -m \"chore: release v%s\" && git push --follow-tags",
     "release:minor": "npm version minor -m \"chore: release v%s\" && git push --follow-tags",
-    "release:major": "npm version major -m \"chore: release v%s\" && git push --follow-tags"
+    "release:major": "npm version major -m \"chore: release v%s\" && git push --follow-tags",
+    "traditionalize": "node scripts/traditionalize-agents.mjs",
+    "traditionalize:dry": "node scripts/traditionalize-agents.mjs --dry",
+    "traditionalize:revert": "node scripts/traditionalize-agents.mjs --revert"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "opencc-js": "^1.0.5"
   }
 }

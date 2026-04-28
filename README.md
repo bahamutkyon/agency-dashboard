@@ -154,6 +154,20 @@ npm run dev          # 啟動前後端
 npm run build        # 建構前端 production bundle
 ```
 
+## 🇹🇼 簡轉繁(可選)
+
+agency-agents-zh 上游是簡體中文。我提供一個一鍵轉繁體腳本(用 OpenCC,業界標準):
+
+```bash
+npm run traditionalize:dry      # 試跑(只看會改哪些,不寫檔)
+npm run traditionalize          # 實際轉換,原檔備份成 .simplified.bak
+npm run traditionalize:revert   # 還原為原始簡體
+```
+
+**會自動跳過大陸特定平台**(微信、小紅書、微博、抖音、快手、百度、知乎、B站、釘釘、飛書、高考、政務、中國電商等),這些 agent 針對 CN 平台,保留簡體更貼近原意。
+
+193 / 211 個 agent 會被轉換,18 個 CN 平台 agent 保持原樣。
+
 埠口:
 - 前端 Vite dev server: `5190`
 - 後端 Express + WebSocket: `5191`
