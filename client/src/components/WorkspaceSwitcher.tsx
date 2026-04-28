@@ -178,10 +178,39 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
             <>
               <div className="border-b border-zinc-800 px-3 py-2 flex items-center justify-between">
                 <span className="text-xs text-zinc-500">{list.length} 個工作區</span>
-                <button onClick={startNew}
-                  className="text-xs px-2 py-1 bg-accent hover:bg-violet-500 rounded text-white">
-                  + 新增
-                </button>
+                <div className="flex gap-1">
+                  <label
+                    className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 cursor-pointer"
+                    title="從 JSON 檔匯入工作區"
+                  >
+                    匯入
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          const text = await f.text();
+                          const bundle = JSON.parse(text);
+                          const r = await api.importWorkspace(bundle);
+                          alert(`匯入成功:${r.imported.notes} 筆筆記 / ${r.imported.templates} 個模板 / ${r.imported.schedules} 個排程(已暫停,需手動啟用)`);
+                          reload();
+                          switchTo(r.workspaceId);
+                        } catch (err: any) {
+                          alert("匯入失敗:" + err.message);
+                        } finally {
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  <button onClick={startNew}
+                    className="text-xs px-2 py-1 bg-accent hover:bg-violet-500 rounded text-white">
+                    + 新增
+                  </button>
+                </div>
               </div>
               {list.map((w) => (
                 <div
@@ -208,6 +237,9 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                     <div className="flex flex-col gap-1 opacity-50 group-hover:opacity-100 transition">
                       <button onClick={() => startEdit(w)}
                         className="text-[10px] px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded">編輯</button>
+                      <a href={api.exportWorkspaceUrl(w.id)} download
+                        className="text-[10px] px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded text-center"
+                        title="匯出設定為 JSON(可分享或備份)">匯出</a>
                       {w.id !== "default" && (
                         <button onClick={() => remove(w)}
                           className="text-[10px] px-1.5 py-0.5 bg-zinc-800 hover:bg-rose-700 rounded">刪除</button>

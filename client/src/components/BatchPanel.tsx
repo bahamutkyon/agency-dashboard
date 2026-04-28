@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type AgentMeta } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { MarkdownView } from "./MarkdownView";
 
 interface Props {
   agents: AgentMeta[];
@@ -108,6 +109,32 @@ export function BatchPanel({ agents }: Props) {
     setStep("setup");
     setPanes([]);
     buffersRef.current = {};
+    setMerged(null);
+  };
+
+  const [merging, setMerging] = useState(false);
+  const [merged, setMerged] = useState<string | null>(null);
+
+  const mergeAll = async () => {
+    if (merging) return;
+    const answers = panes.filter((p) => p.text.trim()).map((p) => ({
+      agentId: p.agentId,
+      agentName: agents.find((a) => a.id === p.agentId)?.name || p.agentId,
+      text: p.text,
+    }));
+    if (answers.length < 2) {
+      alert("至少需要 2 個 agent 完成回答才能合併");
+      return;
+    }
+    setMerging(true);
+    try {
+      const r = await api.mergeBatch(prompt, answers);
+      setMerged(r.merged);
+    } catch (e: any) {
+      alert("合併失敗:" + e.message);
+    } finally {
+      setMerging(false);
+    }
   };
 
   const exportAll = () => {
@@ -225,6 +252,15 @@ export function BatchPanel({ agents }: Props) {
           <span className="text-zinc-500 ml-2">{prompt.slice(0, 80)}{prompt.length > 80 ? "…" : ""}</span>
         </div>
         <div className="flex gap-2">
+          {allDone && panes.length >= 2 && (
+            <button
+              onClick={mergeAll}
+              disabled={merging}
+              className="text-xs px-3 py-1 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-50 rounded text-white"
+            >
+              {merging ? "合併中…" : "✨ 合併最佳版本"}
+            </button>
+          )}
           <button onClick={exportAll} className="text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded">
             匯出全部 .md
           </button>
@@ -234,6 +270,24 @@ export function BatchPanel({ agents }: Props) {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-3">
+        {merged && (
+          <div className="mb-3 bg-gradient-to-br from-amber-950/30 to-rose-950/30 border border-amber-500/40 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium text-amber-300">✨ 整合最佳版本</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigator.clipboard.writeText(merged)}
+                  className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded"
+                >複製</button>
+                <button
+                  onClick={() => setMerged(null)}
+                  className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded"
+                >關閉</button>
+              </div>
+            </div>
+            <MarkdownView className="text-zinc-100">{merged}</MarkdownView>
+          </div>
+        )}
         <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(320px, 1fr))` }}>
           {panes.map((p) => {
             const a = agents.find((x) => x.id === p.agentId);

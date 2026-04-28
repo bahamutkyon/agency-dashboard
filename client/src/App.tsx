@@ -9,6 +9,7 @@ import { UsageBar } from "./components/UsageBar";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
+import { CommandPalette } from "./components/CommandPalette";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
 import { api, type AgentMeta, type CategoryMeta } from "./lib/api";
@@ -46,12 +47,21 @@ export default function App() {
     localStorage.setItem("agency:sidebar", next ? "open" : "closed");
   };
 
-  // Ctrl/Cmd+B = toggle sidebar
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      const meta = e.ctrlKey || e.metaKey;
+      if (meta && e.key.toLowerCase() === "b") {
         e.preventDefault();
         toggleSidebar();
+      } else if (meta && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(true);
+      } else if (meta && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setPaletteOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
@@ -158,10 +168,34 @@ ${message}
     setTabs((prev) => prev.map((t) => (t.sessionId === sessionId ? { ...t, status } : t)));
   };
 
+  // tab drag-to-reorder
+  const [draggingTab, setDraggingTab] = useState<string | null>(null);
+  const reorderTabs = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    setTabs((prev) => {
+      const fromIdx = prev.findIndex((t) => t.sessionId === fromId);
+      const toIdx = prev.findIndex((t) => t.sessionId === toId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  };
+
   const isView = (k: View["kind"]) => view?.kind === k;
 
   return (
     <div className="h-screen flex">
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        agents={agents}
+        onPickAgent={openAgent}
+        onPickSession={openHistorySession}
+        onOpenView={(v) => setView({ kind: v })}
+        onAskOrchestrator={askOrchestrator}
+      />
       {sidebarOpen && (
         <AgentSidebar
           agents={agents}
@@ -194,10 +228,22 @@ ${message}
           {tabs.map((t) => (
             <div
               key={t.sessionId}
+              draggable
+              onDragStart={(e) => {
+                setDraggingTab(t.sessionId);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggingTab) reorderTabs(draggingTab, t.sessionId);
+                setDraggingTab(null);
+              }}
+              onDragEnd={() => setDraggingTab(null)}
               onClick={() => setView({ kind: "chat", sessionId: t.sessionId })}
               className={`flex items-center gap-2 pl-3 pr-1 py-1 rounded text-xs cursor-pointer ${
                 view?.kind === "chat" && view.sessionId === t.sessionId ? "bg-zinc-800" : "hover:bg-zinc-900"
-              }`}
+              } ${draggingTab === t.sessionId ? "opacity-40" : ""}`}
             >
               <span
                 className={`inline-block w-1.5 h-1.5 rounded-full ${

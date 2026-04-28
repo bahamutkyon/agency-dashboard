@@ -56,6 +56,12 @@ export const api = {
       body: JSON.stringify(patch),
     }).then(j<Workspace>),
   deleteWorkspace: (id: string) => fetch(`/api/workspaces/${id}`, { method: "DELETE" }).then(j),
+  exportWorkspaceUrl: (id: string) => `/api/workspaces/${id}/export`,
+  importWorkspace: (bundle: any) =>
+    fetch("/api/workspaces/import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bundle),
+    }).then(j<{ workspaceId: string; imported: { notes: number; templates: number; schedules: number } }>),
 
   // workspace-scoped
   sessions: () => fetch(withWorkspace("/api/sessions")).then(j<SessionRecord[]>),
@@ -84,6 +90,11 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentIds, label }),
     }).then(j<{ sessions: { sessionId: string; agentId: string }[] }>),
+  mergeBatch: (prompt: string, answers: { agentId: string; agentName: string; text: string }[]) =>
+    fetch("/api/batch/merge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, answers }),
+    }).then(j<{ merged: string }>),
   summarize: (sessionId: string) =>
     fetch(`/api/sessions/${sessionId}/summarize`, { method: "POST" }).then(j<{ summary: string }>),
   deleteSession: (id: string) => fetch(`/api/sessions/${id}`, { method: "DELETE" }).then(j),

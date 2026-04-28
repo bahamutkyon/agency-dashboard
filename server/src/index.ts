@@ -11,7 +11,7 @@ import {
   getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
   upsertSession, listNotes, upsertNote, deleteNote as removeNote,
   listWorkspaces, getWorkspace, createWorkspace, updateWorkspace, deleteWorkspace as removeWorkspace,
-  searchSessions, aggregateTags, DEFAULT_WORKSPACE_ID,
+  searchSessions, aggregateTags, listSchedules, DEFAULT_WORKSPACE_ID,
 } from "./store.js";
 
 const PORT = Number(process.env.PORT || 5191);
@@ -78,6 +78,68 @@ app.delete("/api/workspaces/:id", (req, res) => {
   res.json({ ok });
 });
 
+// Export — bundle a workspace's metadata + notes + templates + schedules
+// (NOT sessions, those are conversation history specific to user) into a
+// single JSON file for sharing or backup.
+app.get("/api/workspaces/:id/export", (req, res) => {
+  const w = getWorkspace(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  const bundle = {
+    schemaVersion: 1,
+    exportedAt: Date.now(),
+    workspace: { name: w.name, description: w.description, standingContext: w.standingContext },
+    notes: listNotes(w.id).map(({ id: _i, workspaceId: _w, ...rest }) => rest),
+    templates: listTemplates(w.id).map(({ id: _i, workspaceId: _w, ...rest }) => rest),
+    schedules: listSchedules(w.id).map(({ id: _i, workspaceId: _w, lastRunAt: _l, nextRunAt: _n, ...rest }) => rest),
+  };
+  res.setHeader("Content-Disposition", `attachment; filename="workspace-${w.name}-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(bundle);
+});
+
+// Import — create a new workspace from a JSON bundle. Generates fresh ids
+// for everything (so re-importing gives you a separate copy).
+app.post("/api/workspaces/import", (req, res) => {
+  const bundle = req.body;
+  if (!bundle?.workspace?.name) return res.status(400).json({ error: "invalid bundle: missing workspace.name" });
+  const ws = createWorkspace({
+    name: bundle.workspace.name,
+    description: bundle.workspace.description || "",
+    standingContext: bundle.workspace.standingContext || "",
+  });
+  const now = Date.now();
+  let n = 0, t = 0, s = 0;
+  for (const note of bundle.notes || []) {
+    upsertNote({
+      id: uuid(), workspaceId: ws.id,
+      title: note.title, body: note.body, pinned: !!note.pinned,
+      createdAt: now, updatedAt: now,
+    });
+    n++;
+  }
+  for (const tpl of bundle.templates || []) {
+    upsertTemplate({
+      id: uuid(), workspaceId: ws.id,
+      name: tpl.name, body: tpl.body, agentId: tpl.agentId,
+      tags: tpl.tags || [], createdAt: now, updatedAt: now,
+    });
+    t++;
+  }
+  for (const sc of bundle.schedules || []) {
+    try {
+      scheduler.create({
+        workspaceId: ws.id,
+        name: sc.name, agentId: sc.agentId, prompt: sc.prompt, cron: sc.cron,
+        enabled: false, // import as paused — user opts in to re-enable
+      });
+      s++;
+    } catch (e) {
+      console.warn("[import] schedule skipped:", (e as any).message);
+    }
+  }
+  res.json({ workspaceId: ws.id, imported: { notes: n, templates: t, schedules: s } });
+});
+
+
 app.get("/api/agents", (_req, res) => {
   const agents = loadAgents();
   const categories = Array.from(new Set(agents.map((a) => a.category))).map((c) => ({
@@ -143,6 +205,57 @@ app.post("/api/batch", (req, res) => {
   res.json({ sessions });
 });
 
+// Merge best — takes N agent answers (from a batch run) and asks claude to
+// synthesize the strongest combined version, citing which parts came from
+// which agent.
+app.post("/api/batch/merge", async (req, res) => {
+  const { prompt, answers } = req.body || {};
+  if (!prompt || !Array.isArray(answers) || answers.length === 0) {
+    return res.status(400).json({ error: "prompt and answers[] required" });
+  }
+  const labelled = answers.map((a: any, i: number) =>
+    `### 版本 ${i + 1} — ${a.agentName || a.agentId}\n${a.text}`
+  ).join("\n\n");
+  const mergePrompt = `以下是 ${answers.length} 位不同 agent 對同一個指令的回答。請整合出一個「**集眾家所長**」的最佳版本。
+
+## 原始指令
+${prompt}
+
+## 各 agent 的回答
+${labelled.slice(0, 25000)}
+
+## 請輸出
+
+1. **🏆 最佳整合版**(直接可用,不要再說「綜合各家觀點」這種廢話,直接給內容)
+2. **🧩 各版本的亮點摘要**(每個 agent 一行,點出它最有價值的貢獻)
+3. **⚠️ 互相衝突的地方**(若有,標出哪幾位意見不同,你採用了誰的、為什麼)
+
+用繁體中文,Markdown 結構化。`;
+
+  const { spawn } = await import("node:child_process");
+  const child = spawn("claude", [
+    "-p", "--output-format", "json",
+    "--no-session-persistence",
+    "--disable-slash-commands",
+  ], { shell: process.platform === "win32", windowsHide: true });
+
+  let out = ""; let err = "";
+  child.stdout.on("data", (d) => { out += String(d); });
+  child.stderr.on("data", (d) => { err += String(d); });
+  child.stdin.write(mergePrompt);
+  child.stdin.end();
+
+  child.on("close", (code) => {
+    if (code !== 0) return res.status(500).json({ error: err || `exit ${code}` });
+    try {
+      const j = JSON.parse(out);
+      res.json({ merged: j.result || "(空)" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
 // Summarize — spawns a fresh claude turn (general-purpose) that reads the
 // transcript and produces a structured summary. Doesn't touch the original
 // session.
@@ -174,7 +287,6 @@ ${transcript.slice(0, 30000)}
     "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-    "--tools", "",
   ], { shell: process.platform === "win32", windowsHide: true });
 
   let out = "";
