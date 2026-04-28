@@ -178,6 +178,47 @@ A: 任何對話 → 右上「匯出 .md」,把產生的 Markdown 檔給他即可
 
 ---
 
+## 🔖 版本管理(給維護者)
+
+版號遵循 [SemVer](https://semver.org/lang/zh-TW/):**主.次.修**(例 `0.1.0`)。
+
+### 日常修改
+
+```bash
+# 改完任何東西
+git add .
+git commit -m "敘述你做了什麼"
+git push
+```
+
+對應的修改也順手寫到 [`CHANGELOG.md`](./CHANGELOG.md) 的 `[Unreleased]` 區塊。
+
+### 想發新版
+
+當累積夠多修改、或想標記一個里程碑時:
+
+```bash
+npm run release:patch    # 修 bug:0.1.0 → 0.1.1
+npm run release:minor    # 加新功能:0.1.0 → 0.2.0
+npm run release:major    # 破壞性改動:0.1.0 → 1.0.0
+```
+
+這會自動:
+1. 把 `package.json` 的版號 bump 一級
+2. 建一個 commit `chore: release vX.Y.Z`
+3. 打 git tag `vX.Y.Z`
+4. push commit + tag 到 GitHub
+
+GitHub repo 的 [Releases](https://github.com/bahamutkyon/agency-dashboard/releases) 頁面會看到所有版本,朋友想下載特定版可以直接抓 tag。
+
+### 改完版號後
+
+把 `CHANGELOG.md` 的 `[Unreleased]` 區塊內容**剪下**,在上面新增 `## [X.Y.Z] — YYYY-MM-DD` 區塊,把內容貼進去。下次 commit 一起推上去。
+
+(之後可以再寫腳本自動化這步,目前手動最簡單。)
+
+---
+
 ## 授權
 
 本儀表板程式碼:MIT

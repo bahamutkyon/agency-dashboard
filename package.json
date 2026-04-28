@@ -11,7 +11,10 @@
     "check": "node scripts/check-env.mjs",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
-    "setup": "npm run install:all && npm run check"
+    "setup": "npm run install:all && npm run check",
+    "release:patch": "npm version patch -m \"chore: release v%s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"chore: release v%s\" && git push --follow-tags",
+    "release:major": "npm version major -m \"chore: release v%s\" && git push --follow-tags"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
