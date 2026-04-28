@@ -8,6 +8,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageBar } from "./components/UsageBar";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
+import { WorkflowsPanel } from "./components/WorkflowsPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
 import { getSocket } from "./lib/socket";
@@ -21,7 +22,8 @@ type View =
   | { kind: "templates" }
   | { kind: "settings" }
   | { kind: "batch" }
-  | { kind: "notes" };
+  | { kind: "notes" }
+  | { kind: "workflows" };
 
 interface Tab {
   sessionId: string;
@@ -115,6 +117,7 @@ export default function App() {
   const openSettings = () => setView({ kind: "settings" });
   const openBatch = () => setView({ kind: "batch" });
   const openNotes = () => setView({ kind: "notes" });
+  const openWorkflows = () => setView({ kind: "workflows" });
 
   const openOnboarding = (sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -209,6 +212,7 @@ ${message}
           onOpenSettings={openSettings}
           onOpenBatch={openBatch}
           onOpenNotes={openNotes}
+          onOpenWorkflows={openWorkflows}
         />
       )}
 
@@ -277,6 +281,7 @@ ${message}
           {isView("settings") && <SettingsPanel />}
           {isView("batch") && <BatchPanel key={`b-${reloadKey}`} agents={agents} />}
           {isView("notes") && <NotesPanel key={`n-${reloadKey}`} />}
+          {isView("workflows") && <WorkflowsPanel key={`w-${reloadKey}`} agents={agents} onOpenSession={openHistorySession} />}
           {isView("chat") && (() => {
             const tab = tabs.find((t) => view?.kind === "chat" && t.sessionId === view.sessionId);
             return tab ? (

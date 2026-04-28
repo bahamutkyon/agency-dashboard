@@ -6,12 +6,15 @@ import { loadAgents, categoryLabel } from "./agentLoader.js";
 import { agentManager } from "./agentManager.js";
 import { scheduler } from "./scheduler.js";
 import { usageTracker } from "./usageTracker.js";
+import { workflowRunner } from "./workflowRunner.js";
 import { v4 as uuid } from "uuid";
 import {
   getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
   upsertSession, listNotes, upsertNote, deleteNote as removeNote,
   listWorkspaces, getWorkspace, createWorkspace, updateWorkspace, deleteWorkspace as removeWorkspace,
   searchSessions, aggregateTags, listSchedules, DEFAULT_WORKSPACE_ID,
+  listWorkflows, getWorkflow, upsertWorkflow, deleteWorkflow as removeWorkflow,
+  listRuns, getRun,
 } from "./store.js";
 
 const PORT = Number(process.env.PORT || 5191);
@@ -496,6 +499,73 @@ app.delete("/api/templates/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Workflows ---
+
+app.get("/api/workflows", (req, res) => {
+  res.json(listWorkflows(ws(req)));
+});
+
+app.get("/api/workflows/:id", (req, res) => {
+  const w = getWorkflow(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  res.json(w);
+});
+
+app.post("/api/workflows", (req, res) => {
+  const { name, description, steps } = req.body || {};
+  if (!name || !Array.isArray(steps)) {
+    return res.status(400).json({ error: "name and steps[] required" });
+  }
+  const now = Date.now();
+  const w = {
+    id: uuid(),
+    workspaceId: ws(req) || DEFAULT_WORKSPACE_ID,
+    name, description: description || "",
+    steps,
+    createdAt: now, updatedAt: now,
+  };
+  upsertWorkflow(w);
+  res.json(w);
+});
+
+app.patch("/api/workflows/:id", (req, res) => {
+  const cur = getWorkflow(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  const next = { ...cur, ...req.body, id: cur.id, createdAt: cur.createdAt, updatedAt: Date.now() };
+  upsertWorkflow(next);
+  res.json(next);
+});
+
+app.delete("/api/workflows/:id", (req, res) => {
+  removeWorkflow(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post("/api/workflows/:id/run", async (req, res) => {
+  try {
+    const { initialInput } = req.body || {};
+    const run = await workflowRunner.run({ workflowId: req.params.id, initialInput });
+    res.json(run);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/runs/:id/cancel", (req, res) => {
+  workflowRunner.cancel(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get("/api/workflows/:id/runs", (req, res) => {
+  res.json(listRuns(req.params.id));
+});
+
+app.get("/api/runs/:id", (req, res) => {
+  const r = getRun(req.params.id);
+  if (!r) return res.status(404).json({ error: "not found" });
+  res.json(r);
+});
+
 // --- Notes ---
 
 app.get("/api/notes", (req, res) => {
@@ -577,6 +647,9 @@ server.listen(PORT, () => {
   console.log(`[agency-dashboard] listening on http://localhost:${PORT}`);
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
   scheduler.init();
-  // forward schedule fires to all connected clients so the UI can refresh
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
+  workflowRunner.on("update", (runId: string) => {
+    const r = getRun(runId);
+    if (r) io.emit("workflow:update", r);
+  });
 });

@@ -142,6 +142,26 @@ export const api = {
       body: JSON.stringify(patch),
     }).then(j<Note>),
   deleteNote: (id: string) => fetch(`/api/notes/${id}`, { method: "DELETE" }).then(j),
+  workflows: () => fetch(withWorkspace("/api/workflows")).then(j<Workflow[]>),
+  getWorkflow: (id: string) => fetch(`/api/workflows/${id}`).then(j<Workflow>),
+  createWorkflow: (w: { name: string; description?: string; steps: WorkflowStep[] }) =>
+    fetch(withWorkspace("/api/workflows"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(w),
+    }).then(j<Workflow>),
+  updateWorkflow: (id: string, patch: Partial<Workflow>) =>
+    fetch(`/api/workflows/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j<Workflow>),
+  deleteWorkflowApi: (id: string) => fetch(`/api/workflows/${id}`, { method: "DELETE" }).then(j),
+  runWorkflow: (id: string, initialInput?: string) =>
+    fetch(`/api/workflows/${id}/run`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initialInput }),
+    }).then(j<WorkflowRun>),
+  cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
+  workflowRuns: (id: string) => fetch(`/api/workflows/${id}/runs`).then(j<WorkflowRun[]>),
 };
 
 export interface Workspace {
@@ -191,4 +211,31 @@ export interface PromptTemplate {
   tags?: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface WorkflowStep {
+  agentId: string;
+  prompt: string;
+}
+
+export interface Workflow {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  steps: WorkflowStep[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  workspaceId: string;
+  status: "running" | "done" | "error" | "cancelled";
+  currentStep: number;
+  sessionIds: string[];
+  error?: string;
+  startedAt: number;
+  endedAt?: number;
 }

@@ -13,13 +13,14 @@ interface Props {
   onOpenSettings: () => void;
   onOpenBatch: () => void;
   onOpenNotes: () => void;
+  onOpenWorkflows: () => void;
 }
 
 export function AgentSidebar({
   agents, categories, liveAgentIds,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes,
+  onOpenBatch, onOpenNotes, onOpenWorkflows,
 }: Props) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -55,6 +56,14 @@ export function AgentSidebar({
         >
           <span>🎯</span>
           <span>批次同題</span>
+        </button>
+        <button
+          onClick={onOpenWorkflows}
+          className="w-full px-3 py-2 rounded bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-sm font-medium flex items-center justify-center gap-2"
+          title="多位 agent 順序接力跑完一個流程"
+        >
+          <span>🔗</span>
+          <span>自動接力</span>
         </button>
         <div className="grid grid-cols-3 gap-2">
           <button

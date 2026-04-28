@@ -105,6 +105,30 @@ CREATE TABLE IF NOT EXISTS rate_limit_state (
   resets_at INTEGER,
   captured_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS workflows (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  steps TEXT NOT NULL DEFAULT '[]',  -- JSON array of {agentId, prompt}
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_workflows_ws ON workflows(workspace_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS workflow_runs (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  status TEXT NOT NULL,        -- running / done / error / cancelled
+  current_step INTEGER NOT NULL DEFAULT 0,
+  session_ids TEXT NOT NULL DEFAULT '[]',  -- JSON array, one per step
+  error TEXT,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_runs_workflow ON workflow_runs(workflow_id, started_at DESC);
 `;
 
 db.exec(SCHEMA);
