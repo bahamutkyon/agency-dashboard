@@ -6,9 +6,10 @@ import { MEMO_TEMPLATES } from "../lib/memoTemplates";
 interface Props {
   onSwitched: () => void;
   onOpenOnboarding?: (sessionId: string, draftWorkspaceId?: string) => void;
+  hasActiveTabs?: boolean; // if true, switching workspace will close them
 }
 
-export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding }: Props) {
+export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs }: Props) {
   const [list, setList] = useState<Workspace[]>([]);
   const [active, setActive] = useState<string>(getActiveWorkspace());
   const [open, setOpen] = useState(false);
@@ -19,6 +20,10 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding }: Props) {
   useEffect(() => { reload(); }, []);
 
   const switchTo = (id: string) => {
+    if (id === active) { setOpen(false); return; }
+    if (hasActiveTabs && !confirm("切換工作區會關掉目前所有對話 tab(對話內容仍保留在歷史紀錄)。要切換嗎?")) {
+      return;
+    }
     setActive(id);
     setActiveWorkspace(id);
     setOpen(false);

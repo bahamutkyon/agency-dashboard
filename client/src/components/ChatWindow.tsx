@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "../lib/socket";
 import { api, type Note, type PromptTemplate, type SessionRecord } from "../lib/api";
 import { notify } from "../lib/notifications";
+import { MarkdownView } from "./MarkdownView";
 
 interface Props {
   sessionId: string;
@@ -45,12 +46,12 @@ function HandoffButton({
   }, [filter, agents]);
 
   return (
-    <div className="relative mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="text-[11px] text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
       >
-        → 轉交給其他 agent
+        → 轉交給
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 w-72 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-10">
@@ -339,8 +340,113 @@ export function ChatWindow({
     setInput("");
   };
 
+  // Edit & resend: trim everything from the chosen user message onwards,
+  // load it back into the input, ready to edit + send.
+  const editAndResend = (idx: number) => {
+    const m = messages[idx];
+    if (m.role !== "user") return;
+    setMessages((prev) => prev.slice(0, idx));
+    setInput(m.content);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  // Regenerate: drop the assistant message at idx, find the preceding user
+  // message, and resend it.
+  const regenerate = (idx: number) => {
+    const m = messages[idx];
+    if (m.role !== "assistant" || m.partial) return;
+    // find previous user message
+    let userIdx = idx - 1;
+    while (userIdx >= 0 && messages[userIdx].role !== "user") userIdx--;
+    if (userIdx < 0) return;
+    const userText = messages[userIdx].content;
+    setMessages((prev) => prev.slice(0, idx));
+    getSocket().emit("session:send", { sessionId, text: userText });
+  };
+
+  const copy = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+  };
+
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const TEXT_EXT = /\.(md|txt|json|csv|tsv|log|ya?ml|html?|xml|tsx?|jsx?|py|rb|go|rs|sh|bat|sql|css|scss|toml|ini|env)$/i;
+
+  const handleFiles = async (files: FileList | File[]) => {
+    setUploading(true);
+    const additions: string[] = [];
+    try {
+      for (const file of Array.from(files)) {
+        const isImage = file.type.startsWith("image/");
+        const isText = file.type.startsWith("text/") || TEXT_EXT.test(file.name);
+        const tooBig = file.size > 10 * 1024 * 1024; // 10MB cap
+
+        if (tooBig) {
+          additions.push(`[檔案太大,跳過:${file.name} (${Math.round(file.size / 1024)} KB)]`);
+          continue;
+        }
+
+        if (isText && file.size < 200_000) {
+          // small text: inline directly
+          const text = await file.text();
+          additions.push(`<file name="${file.name}">\n${text}\n</file>`);
+        } else {
+          // upload binary / large file
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.onerror = () => reject(r.error);
+            r.readAsDataURL(file);
+          });
+          const base64 = dataUrl.split(",")[1];
+          const { path } = await api.uploadFile(file.name, base64, "base64");
+          if (isImage) {
+            additions.push(`請看這張圖片:${path}`);
+          } else {
+            additions.push(`請用 Read 工具讀取這個檔案:${path}`);
+          }
+        }
+      }
+      if (additions.length > 0) {
+        setInput((cur) => (cur ? cur + "\n\n" : "") + additions.join("\n\n") + "\n\n");
+        setTimeout(() => inputRef.current?.focus(), 0);
+      }
+    } catch (e: any) {
+      alert("上傳失敗:" + (e.message || e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full relative"
+      onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+      onDragLeave={(e) => {
+        // only reset when leaving the container, not bubbling from children
+        if (e.currentTarget === e.target) setDragActive(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragActive(false);
+        if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+      }}
+    >
+      {dragActive && (
+        <div className="absolute inset-0 z-40 bg-accent/20 border-4 border-dashed border-accent flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <div className="text-5xl mb-2">📎</div>
+            <div className="text-lg font-medium text-white">放開上傳檔案</div>
+            <div className="text-xs text-zinc-300 mt-1">圖片 / 文件 / 程式碼 都可以(上限 10MB)</div>
+          </div>
+        </div>
+      )}
+      {uploading && (
+        <div className="absolute top-2 right-2 z-30 bg-zinc-900 border border-zinc-700 rounded px-3 py-1 text-xs text-zinc-300">
+          上傳中…
+        </div>
+      )}
       <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between bg-panel">
         <div>
           <div className="text-sm font-medium">{agentName}</div>
@@ -438,7 +544,7 @@ export function ChatWindow({
             title="關閉"
           >×</button>
           <div className="text-xs text-amber-300 mb-1">✨ 對話摘要</div>
-          <div className="text-sm text-zinc-200 whitespace-pre-wrap">{summary}</div>
+          <MarkdownView className="text-zinc-200">{summary}</MarkdownView>
         </div>
       )}
       <div ref={scrollerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -455,23 +561,50 @@ export function ChatWindow({
             }`}
           >
             <div
-              className={`rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+              className={`rounded-lg px-3 py-2 text-sm ${
                 m.role === "user"
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-white whitespace-pre-wrap"
                   : m.role === "assistant"
                   ? "bg-zinc-800 text-zinc-100"
-                  : "bg-zinc-900 text-zinc-500 text-xs italic"
+                  : "bg-zinc-900 text-zinc-500 text-xs italic whitespace-pre-wrap"
               }`}
             >
-              {m.content}
+              {m.role === "assistant" ? <MarkdownView>{m.content}</MarkdownView> : m.content}
             </div>
-            {m.role === "assistant" && !m.partial && onHandoff && agents && (
-              <HandoffButton
-                content={m.content}
-                fromAgentName={agentName}
-                agents={agents}
-                onHandoff={onHandoff}
-              />
+
+            {/* per-message actions */}
+            {m.role !== "system" && !m.partial && (
+              <div className={`flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition ${
+                m.role === "user" ? "justify-end" : ""
+              }`}>
+                <button
+                  onClick={() => copy(m.content)}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
+                  title="複製"
+                >📋 複製</button>
+                {m.role === "user" && status !== "busy" && status !== "starting" && (
+                  <button
+                    onClick={() => editAndResend(i)}
+                    className="text-[11px] text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
+                    title="把這條 prompt 載回輸入框,可編輯後再送(會清掉後面所有訊息)"
+                  >✏️ 編輯重送</button>
+                )}
+                {m.role === "assistant" && status !== "busy" && status !== "starting" && (
+                  <button
+                    onClick={() => regenerate(i)}
+                    className="text-[11px] text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
+                    title="重新跑一次同樣的 prompt"
+                  >🔄 再試一次</button>
+                )}
+                {m.role === "assistant" && onHandoff && agents && (
+                  <HandoffButton
+                    content={m.content}
+                    fromAgentName={agentName}
+                    agents={agents}
+                    onHandoff={onHandoff}
+                  />
+                )}
+              </div>
             )}
           </div>
         ))}

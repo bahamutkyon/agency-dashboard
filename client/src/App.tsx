@@ -36,6 +36,27 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [view, setView] = useState<View | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
+    localStorage.getItem("agency:sidebar") !== "closed"
+  );
+
+  const toggleSidebar = () => {
+    const next = !sidebarOpen;
+    setSidebarOpen(next);
+    localStorage.setItem("agency:sidebar", next ? "open" : "closed");
+  };
+
+  // Ctrl/Cmd+B = toggle sidebar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     applyAll();
@@ -141,22 +162,31 @@ ${message}
 
   return (
     <div className="h-screen flex">
-      <AgentSidebar
-        agents={agents}
-        categories={categories}
-        liveAgentIds={liveAgentIds}
-        onPick={openAgent}
-        onAskOrchestrator={askOrchestrator}
-        onOpenSchedules={openSchedules}
-        onOpenHistory={openHistory}
-        onOpenTemplates={openTemplates}
-        onOpenSettings={openSettings}
-        onOpenBatch={openBatch}
-        onOpenNotes={openNotes}
-      />
+      {sidebarOpen && (
+        <AgentSidebar
+          agents={agents}
+          categories={categories}
+          liveAgentIds={liveAgentIds}
+          onPick={openAgent}
+          onAskOrchestrator={askOrchestrator}
+          onOpenSchedules={openSchedules}
+          onOpenHistory={openHistory}
+          onOpenTemplates={openTemplates}
+          onOpenSettings={openSettings}
+          onOpenBatch={openBatch}
+          onOpenNotes={openNotes}
+        />
+      )}
 
       <main className="flex-1 flex flex-col">
         <div className="h-10 bg-panel border-b border-zinc-800 flex items-center pr-2 gap-1">
+          <button
+            onClick={toggleSidebar}
+            className="px-2 h-full hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+            title={sidebarOpen ? "收合側欄 (Ctrl+B)" : "展開側欄 (Ctrl+B)"}
+          >
+            {sidebarOpen ? "◀" : "▶"}
+          </button>
           <div className="flex-1 flex items-center px-2 gap-1 overflow-x-auto h-full">
           {tabs.length === 0 && !view && (
             <div className="text-xs text-zinc-500 px-2">點左邊任一 agent 開始對話</div>
@@ -185,7 +215,11 @@ ${message}
           ))}
           </div>
           <div className="flex items-center gap-2 pl-2 border-l border-zinc-800 flex-shrink-0">
-            <WorkspaceSwitcher onSwitched={onWorkspaceSwitched} onOpenOnboarding={openOnboarding} />
+            <WorkspaceSwitcher
+              onSwitched={onWorkspaceSwitched}
+              onOpenOnboarding={openOnboarding}
+              hasActiveTabs={tabs.length > 0}
+            />
             <UsageBar />
           </div>
         </div>

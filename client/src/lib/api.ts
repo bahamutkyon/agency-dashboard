@@ -74,6 +74,11 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, workspaceId, memo }),
     }).then(j<Workspace>),
+  uploadFile: (name: string, content: string, encoding: "base64" | "utf8") =>
+    fetch("/api/upload", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, content, encoding }),
+    }).then(j<{ path: string; name: string; size: number }>),
   startBatch: (agentIds: string[], label?: string) =>
     fetch(withWorkspace("/api/batch"), {
       method: "POST", headers: { "Content-Type": "application/json" },

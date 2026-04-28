@@ -16,15 +16,43 @@ import {
 
 const PORT = Number(process.env.PORT || 5191);
 
+import fs from "node:fs";
+import path from "node:path";
+
+const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "20mb" })); // bumped for base64 file uploads
 
 // --- REST ---
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.get("/api/usage", (_req, res) => res.json(usageTracker.summary()));
+
+// File upload — drag-and-drop from chat. Saves to server/data/uploads/ and
+// returns the absolute path so the client can mention it in the next prompt
+// (claude CLI can read paths via its Read tool / image support).
+app.post("/api/upload", (req, res) => {
+  const { name, content, encoding } = req.body || {};
+  if (!name || !content) return res.status(400).json({ error: "name and content required" });
+  const safe = String(name).replace(/[^\w.一-鿿-]/g, "_").slice(0, 100);
+  const filename = `${Date.now().toString(36)}_${safe}`;
+  const filepath = path.join(UPLOAD_DIR, filename);
+  try {
+    if (encoding === "base64") {
+      fs.writeFileSync(filepath, Buffer.from(String(content), "base64"));
+    } else {
+      fs.writeFileSync(filepath, String(content), "utf8");
+    }
+    const stats = fs.statSync(filepath);
+    res.json({ path: filepath, name, size: stats.size });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // --- Workspaces ---
 
