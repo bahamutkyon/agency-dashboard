@@ -154,6 +154,16 @@ try {
     db.exec("ALTER TABLE workflow_runs ADD COLUMN step_outputs TEXT NOT NULL DEFAULT '{}'");
     console.log("[db] migration: added workflow_runs.step_outputs column");
   }
+  // sessions.provider — for multi-provider (claude / codex) support
+  const sessCols = db.prepare("PRAGMA table_info(sessions)").all() as any[];
+  if (sessCols.length > 0 && !sessCols.some((c) => c.name === "provider")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude'");
+    console.log("[db] migration: added sessions.provider column");
+  }
+  if (sessCols.length > 0 && !sessCols.some((c) => c.name === "codex_thread_id")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN codex_thread_id TEXT");
+    console.log("[db] migration: added sessions.codex_thread_id column");
+  }
 } catch (e) {
   console.warn("[db] migration failed:", e);
 }

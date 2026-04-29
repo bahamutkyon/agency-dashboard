@@ -8,17 +8,14 @@ interface Props {
   sessionId: string;
   agentId: string;
   agentName: string;
+  provider?: "claude" | "codex";
   onStatusChange?: (status: string) => void;
   onOpenAgentById?: (agentId: string) => void;
   onHandoff?: (toAgentId: string, message: string, fromAgentName: string) => void;
   knownAgentIds?: Set<string>;
   agents?: { id: string; name: string; category: string }[];
-  // When provided, this chat is in onboarding mode — the window watches for
-  // MEMO blocks and shows an "apply to workspace" CTA targeting this id.
   onboardingTargetWorkspaceId?: string;
   onMemoApplied?: () => void;
-  // Auto-fork: when agent suggests a fork via marker, this callback opens
-  // the target agent in a new tab with the suggested message as first input.
   onAcceptFork?: (toAgentId: string, message: string, fromAgentName: string) => void;
 }
 
@@ -197,7 +194,7 @@ function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
 }
 
 export function ChatWindow({
-  sessionId, agentId, agentName, onStatusChange, onOpenAgentById, onHandoff,
+  sessionId, agentId, agentName, provider, onStatusChange, onOpenAgentById, onHandoff,
   knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork,
 }: Props) {
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -574,7 +571,16 @@ export function ChatWindow({
       )}
       <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between bg-panel">
         <div>
-          <div className="text-sm font-medium">{agentName}</div>
+          <div className="text-sm font-medium flex items-center gap-2">
+            {agentName}
+            {provider && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                provider === "codex" ? "bg-emerald-900/60 text-emerald-300" : "bg-violet-900/60 text-violet-300"
+              }`}>
+                {provider === "codex" ? "🤖 Codex" : "🧠 Claude"}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-zinc-500">session: {sessionId.slice(0, 8)}</div>
         </div>
         <div className="flex items-center gap-3">

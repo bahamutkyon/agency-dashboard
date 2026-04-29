@@ -12,15 +12,29 @@ export interface CategoryMeta {
   count: number;
 }
 
+export type Provider = "claude" | "codex";
+
 export interface SessionRecord {
   id: string;
   agentId: string;
   title: string;
   status?: string;
+  provider?: Provider;
   createdAt: number;
   updatedAt: number;
   messages: { role: "user" | "assistant" | "system"; content: string; ts: number }[];
   tags?: string[];
+}
+
+export interface RoutingDecision {
+  provider: Provider;
+  reason: string;
+  source: "rule" | "llm" | "default" | "fallback";
+  confidence?: number;
+}
+
+export interface ProviderAvailability {
+  available: { claude: boolean; codex: boolean };
 }
 
 export interface TagInfo {
@@ -66,11 +80,17 @@ export const api = {
   // workspace-scoped
   sessions: () => fetch(withWorkspace("/api/sessions")).then(j<SessionRecord[]>),
   session: (id: string) => fetch(`/api/sessions/${id}`).then(j<SessionRecord>),
-  startSession: (agentId: string, title?: string) =>
+  startSession: (agentId: string, title?: string, provider?: Provider) =>
     fetch(withWorkspace("/api/sessions"), {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId, title }),
-    }).then(j<{ id: string }>),
+      body: JSON.stringify({ agentId, title, provider }),
+    }).then(j<{ id: string; provider: Provider }>),
+  routePrompt: (prompt: string, defaultProvider?: Provider) =>
+    fetch("/api/route", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, defaultProvider }),
+    }).then(j<RoutingDecision>),
+  providers: () => fetch("/api/providers").then(j<ProviderAvailability>),
   startOrchestrator: () =>
     fetch(withWorkspace("/api/orchestrator"), { method: "POST" }).then(j<{ id: string }>),
   startOnboarding: () =>
@@ -247,6 +267,7 @@ export interface WorkflowStep {
   pauseBefore?: boolean;
   skipIfMatch?: string;
   retries?: number;
+  provider?: Provider | "auto";
 }
 
 export interface Workflow {

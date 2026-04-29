@@ -5,7 +5,7 @@ interface Props {
   agents: AgentMeta[];
   categories: CategoryMeta[];
   liveAgentIds: Set<string>;
-  onPick: (agent: AgentMeta) => void;
+  onPick: (agent: AgentMeta, provider?: "claude" | "codex") => void;
   onAskOrchestrator: () => void;
   onOpenSchedules: () => void;
   onOpenHistory: () => void;
@@ -14,6 +14,7 @@ interface Props {
   onOpenBatch: () => void;
   onOpenNotes: () => void;
   onOpenWorkflows: () => void;
+  providersAvail?: { claude: boolean; codex: boolean };
 }
 
 export function AgentSidebar({
@@ -21,6 +22,7 @@ export function AgentSidebar({
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
   onOpenBatch, onOpenNotes, onOpenWorkflows,
+  providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -148,23 +150,42 @@ export function AgentSidebar({
         {filtered.map((a) => {
           const live = liveAgentIds.has(a.id);
           return (
-            <button
+            <div
               key={a.id}
-              onClick={() => onPick(a)}
-              className="w-full text-left px-3 py-2 border-b border-zinc-900 hover:bg-zinc-900 group"
+              className="border-b border-zinc-900 hover:bg-zinc-900 group relative"
             >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                    live ? "bg-emerald-400" : "bg-zinc-700"
-                  }`}
-                />
-                <span className="text-sm font-medium">{a.name}</span>
-              </div>
-              <div className="text-xs text-zinc-400 mt-1 leading-relaxed break-words whitespace-pre-wrap">
-                {a.description}
-              </div>
-            </button>
+              <button
+                onClick={() => onPick(a)}
+                className="w-full text-left px-3 py-2 pr-12"
+                title="點擊用智慧路由(預設 Claude,自動判斷時切 Codex)"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                      live ? "bg-emerald-400" : "bg-zinc-700"
+                    }`}
+                  />
+                  <span className="text-sm font-medium">{a.name}</span>
+                </div>
+                <div className="text-xs text-zinc-400 mt-1 leading-relaxed break-words whitespace-pre-wrap">
+                  {a.description}
+                </div>
+              </button>
+              {providersAvail?.codex && (
+                <div className="absolute top-2 right-2 hidden group-hover:flex flex-col gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onPick(a, "claude"); }}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-violet-900/80 hover:bg-violet-800 text-violet-100 font-mono"
+                    title="強制用 Claude"
+                  >🧠</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onPick(a, "codex"); }}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 font-mono"
+                    title="強制用 Codex"
+                  >🤖</button>
+                </div>
+              )}
+            </div>
           );
         })}
         {filtered.length === 0 && (

@@ -19,6 +19,35 @@
 
 ---
 
+## [0.11.0] — 2026-04-29
+
+多模型協作 — 整合 Codex (OpenAI) 並加入 Smart Router。
+
+### 新增
+- **🤖 Codex CLI 整合**(A) — 第二個 AI provider 接到 dashboard
+  - `codexProcess.ts` 偵測 `codex.cmd`(npm 安裝)/ `codex` 解析全路徑
+  - JSONL 輸出解析(thread.started / item.completed / turn.completed)
+  - 每 turn 一個 process,用 thread_id resume 多輪對話
+  - prompt 透過 stdin 傳入避開 cmd.exe shell 截斷
+  - Auth 走你的 ChatGPT Plus OAuth(`codex login`),不需 API key
+- **🔀 Workflow Step Provider**(B) — 每步可指定 `claude` / `codex` / `auto`
+  - `auto` 觸發 Smart Router 即時判斷
+  - 編輯器 UI 加 provider 選擇器
+- **🧠 Smart Router 混合判斷**(C)
+  - 規則優先(中英文關鍵字 ASCII / CJK 兩套 patterns)
+  - LLM fallback(Haiku 分類,~$0.001/次)
+  - 24h 結果快取,同類問題不重判
+  - UI 顯示判斷依據(規則命中 / LLM 判 / 預設)+ 信心度
+- **每個對話卡** — 可手動覆蓋路由(hover 卡片右上小按鈕,選 🧠 Claude 或 🤖 Codex)
+- ChatWindow header 顯示當前 provider 標籤(紫色 Claude / 綠色 Codex)
+- DB schema:`sessions.provider` + `sessions.codex_thread_id`(自動 ALTER TABLE 遷移)
+
+### 修復
+- Windows codepage(zh-TW Big5/CP950)讓 stdin 中文變亂碼 — 改用 ASCII-only escape 過的 stream-json input
+- LLM router prompt 改用英文模板,避免 Windows 中文路徑/codepage 干擾
+
+---
+
 ## [0.10.1] — 2026-04-29
 
 修工作區設定顧問會「直接答問題、不執行訪問流程」的 bug。

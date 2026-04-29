@@ -1,9 +1,11 @@
-import { AgentSession } from "./agentSession.js";
+import { AgentSession, type Provider } from "./agentSession.js";
 import {
   upsertSession, getSession, listSessions, deleteSession, appendMessage, setSessionClaudeId,
+  setSessionCodexThread,
   appendWorkspaceMemory, getWorkspace,
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
+import { readAgentDefinition } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
@@ -60,6 +62,7 @@ export class AgentManager {
     extraSystemPrompt?: string,
     workspaceId?: string,
     enableAutoFork: boolean = true,
+    provider: Provider = "claude",
   ): AgentSession {
     const wsId = workspaceId || DEFAULT_WORKSPACE_ID;
 
@@ -73,10 +76,20 @@ export class AgentManager {
 
     const memoryCapability = `\n\n# 累積記憶能力\n如果在對話中你發現使用者揭露了重要的、跨對話有價值的事實(偏好、決定、客戶背景、品牌規則等),你可以**在回答最末尾**輸出記憶標記讓系統累積:\n\n\`\`\`\n=== REMEMBER ===\n簡短描述(一行,< 80 字),例如:使用者偏好親切口語、不要長篇大論\n=== END REMEMBER ===\n\`\`\`\n\n規則:每次回答最多 1 條;只記跨對話有用的事實;不要記當下情境的瑣事。\n`;
 
-    const combined = (extraSystemPrompt || "") + memoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+    let combined = (extraSystemPrompt || "") + memoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+
+    // Codex doesn't have native --agent loading like Claude does. Inject
+    // the agent's persona definition into the system prompt manually.
+    if (provider === "codex") {
+      const def = readAgentDefinition(agentId);
+      if (def) {
+        combined = `# 你的角色:${def.name}\n\n${def.body}\n\n${combined}`;
+      }
+    }
+
     const ws = getWorkspace(wsId);
-    const mcpConfig = buildMCPConfigForWorkspace(ws?.enabledMcps || []);
-    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined);
+    const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || []) : null;
+    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider);
     // Stash workspace id on session so attachPersistence can append memory
     (session as any).workspaceId = wsId;
     const now = Date.now();
@@ -85,6 +98,7 @@ export class AgentManager {
       workspaceId: wsId,
       agentId,
       title: title || `${agentId} 對話`,
+      provider,
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -99,10 +113,9 @@ export class AgentManager {
     if (existing) return existing;
     const rec = getSession(sessionId);
     if (!rec) return;
-    const session = new AgentSession(rec.agentId, rec.id);
+    const session = new AgentSession(rec.agentId, rec.id, undefined, undefined, rec.provider);
     if (rec.claudeSessionId) (session as any).claudeSessionId = rec.claudeSessionId;
-    // Restore workspaceId so REMEMBER detection + notes RAG keep working
-    // after server restart / tab close-reopen.
+    if (rec.codexThreadId) (session as any).codexThreadId = rec.codexThreadId;
     (session as any).workspaceId = rec.workspaceId;
     this.sessions.set(session.id, session);
     this.attachPersistence(session);
@@ -158,6 +171,7 @@ export class AgentManager {
       } else if (evt.type === "message") {
         appendMessage(s.id, { role: "assistant", content: evt.payload.content, ts: Date.now() });
         if (s.claudeSessionId) setSessionClaudeId(s.id, s.claudeSessionId);
+        if (s.codexThreadId) setSessionCodexThread(s.id, s.codexThreadId);
         assistantPersisted = true;
         // Detect REMEMBER markers — append to workspace memory
         const wsId = (s as any).workspaceId as string | undefined;

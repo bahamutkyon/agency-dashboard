@@ -32,6 +32,7 @@ interface Tab {
   agentId: string;
   agentName: string;
   status: string;
+  provider?: "claude" | "codex";
   onboardingTargetWorkspaceId?: string;
 }
 
@@ -112,15 +113,23 @@ export default function App() {
     if (agent) await openAgent(agent);
   };
 
-  const openAgent = async (agent: AgentMeta) => {
+  const [providersAvail, setProvidersAvail] = useState({ claude: true, codex: false });
+  useEffect(() => {
+    api.providers().then((p) => setProvidersAvail(p.available)).catch(() => {});
+  }, []);
+
+  const openAgent = async (agent: AgentMeta, provider?: "claude" | "codex") => {
     const existing = tabs.find((t) => t.agentId === agent.id);
     if (existing) {
       setView({ kind: "chat", sessionId: existing.sessionId });
       return;
     }
-    const { id } = await api.startSession(agent.id, agent.name);
-    setTabs((prev) => [...prev, { sessionId: id, agentId: agent.id, agentName: agent.name, status: "idle" }]);
-    setView({ kind: "chat", sessionId: id });
+    const r = await api.startSession(agent.id, agent.name, provider);
+    setTabs((prev) => [...prev, {
+      sessionId: r.id, agentId: agent.id, agentName: agent.name,
+      status: "idle", provider: r.provider,
+    }]);
+    setView({ kind: "chat", sessionId: r.id });
   };
 
   const askOrchestrator = async () => {
@@ -232,6 +241,7 @@ ${message}
           onOpenBatch={openBatch}
           onOpenNotes={openNotes}
           onOpenWorkflows={openWorkflows}
+          providersAvail={providersAvail}
         />
       )}
 
@@ -322,6 +332,7 @@ ${message}
                 sessionId={tab.sessionId}
                 agentId={tab.agentId}
                 agentName={tab.agentName}
+                provider={tab.provider}
                 onStatusChange={(s) => updateStatus(tab.sessionId, s)}
                 onOpenAgentById={openAgentById}
                 knownAgentIds={knownAgentIds}

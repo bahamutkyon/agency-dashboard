@@ -21,8 +21,9 @@ import { agentManager } from "./agentManager.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
   MAX_LOOP_ITERATIONS,
-  type Workflow, type WorkflowRun, type WorkflowStep,
+  type Workflow, type WorkflowRun, type WorkflowStep, type Provider,
 } from "./store.js";
+import { routePrompt } from "./smartRouter.js";
 
 interface RunOptions {
   workflowId: string;
@@ -262,6 +263,17 @@ class WorkflowRunner extends EventEmitter {
         }
       }
 
+      // resolve provider for this step
+      let stepProvider: Provider = "claude";
+      if (step.provider === "codex") stepProvider = "codex";
+      else if (step.provider === "auto") {
+        try {
+          const decision = await routePrompt(promptText, "claude");
+          stepProvider = decision.provider;
+          console.log(`[workflow] step ${step.id} auto-routed → ${stepProvider} (${decision.reason})`);
+        } catch { stepProvider = "claude"; }
+      }
+
       // execute with retries
       const maxRetries = step.retries !== undefined ? step.retries : DEFAULT_RETRIES;
       let lastErr: Error | null = null;
@@ -276,6 +288,7 @@ class WorkflowRunner extends EventEmitter {
           standing || undefined,
           wf.workspaceId,
           false,
+          stepProvider,
         );
         sessionIds[idx] = session.id;
         updateRun(runId, { currentStep: idx, sessionIds, stepOutputs: outputs });

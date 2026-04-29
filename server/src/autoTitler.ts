@@ -52,7 +52,8 @@ TAGS: tag1 / tag2 / tag3
   let out = "";
   child.stdout.on("data", (d) => { out += String(d); });
   child.stderr.on("data", () => {});
-  child.stdin.write(prompt);
+  child.stdout.setEncoding("utf8");
+  child.stdin.write(Buffer.from(prompt, "utf8"));
   child.stdin.end();
 
   child.on("close", (code) => {

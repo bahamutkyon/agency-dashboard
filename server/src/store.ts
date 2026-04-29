@@ -13,12 +13,16 @@ export interface Message {
   ts: number;
 }
 
+export type Provider = "claude" | "codex";
+
 export interface SessionRecord {
   id: string;
   workspaceId: string;
   agentId: string;
   title: string;
+  provider: Provider;
   claudeSessionId?: string;
+  codexThreadId?: string;
   createdAt: number;
   updatedAt: number;
   messages: Message[];
@@ -77,6 +81,7 @@ export interface WorkflowStep {
   pauseBefore?: boolean;     // pause + wait for user approval before this step
   skipIfMatch?: string;      // regex on previous {{out}}; match → skip this step
   retries?: number;          // override default retry count (default 2 attempts after first try)
+  provider?: Provider | "auto"; // which AI provider to use; "auto" = smart router decides; default claude
 }
 
 export interface Workflow {
@@ -121,7 +126,9 @@ function rowToSession(r: any, messages: Message[]): SessionRecord {
     workspaceId: r.workspace_id,
     agentId: r.agent_id,
     title: r.title,
+    provider: (r.provider as Provider) || "claude",
     claudeSessionId: r.claude_session_id || undefined,
+    codexThreadId: r.codex_thread_id || undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     tags: parseTags(r.tags),
@@ -272,23 +279,27 @@ export function listSessions(workspaceId?: string): SessionRecord[] {
  */
 export function upsertSession(s: SessionRecord): void {
   const existing = db.prepare("SELECT id FROM sessions WHERE id = ?").get(s.id);
+  const provider = s.provider || "claude";
   if (existing) {
     db.prepare(`
       UPDATE sessions SET workspace_id = ?, agent_id = ?, title = ?,
-        claude_session_id = ?, tags = ?, updated_at = ?
+        provider = ?, claude_session_id = ?, codex_thread_id = ?,
+        tags = ?, updated_at = ?
       WHERE id = ?
     `).run(
       s.workspaceId || DEFAULT_WORKSPACE_ID, s.agentId, s.title,
-      s.claudeSessionId || null, JSON.stringify(s.tags || []), s.updatedAt,
+      provider, s.claudeSessionId || null, s.codexThreadId || null,
+      JSON.stringify(s.tags || []), s.updatedAt,
       s.id,
     );
   } else {
     db.prepare(`
-      INSERT INTO sessions (id, workspace_id, agent_id, title, claude_session_id, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions (id, workspace_id, agent_id, title, provider, claude_session_id, codex_thread_id, tags, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       s.id, s.workspaceId || DEFAULT_WORKSPACE_ID, s.agentId, s.title,
-      s.claudeSessionId || null, JSON.stringify(s.tags || []),
+      provider, s.claudeSessionId || null, s.codexThreadId || null,
+      JSON.stringify(s.tags || []),
       s.createdAt, s.updatedAt,
     );
   }
@@ -311,6 +322,10 @@ export function appendMessage(sessionId: string, m: Message): void {
 
 export function setSessionClaudeId(sessionId: string, claudeSessionId: string): void {
   db.prepare("UPDATE sessions SET claude_session_id = ? WHERE id = ?").run(claudeSessionId, sessionId);
+}
+
+export function setSessionCodexThread(sessionId: string, codexThreadId: string): void {
+  db.prepare("UPDATE sessions SET codex_thread_id = ? WHERE id = ?").run(codexThreadId, sessionId);
 }
 
 export function deleteSession(id: string): void {

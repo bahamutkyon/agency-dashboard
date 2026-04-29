@@ -2,7 +2,9 @@ import { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { v4 as uuid } from "uuid";
 import { spawnClaude } from "./claudeProcess.js";
+import { spawnCodexTurn, parseCodexLine } from "./codexProcess.js";
 
+export type Provider = "claude" | "codex";
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
 
 export interface SessionEvent {
@@ -11,51 +13,67 @@ export interface SessionEvent {
 }
 
 interface SpawnOpts {
-  agentId: string;
-  initialPrompt?: string;
-  resumeClaudeSessionId?: string;
   cwd?: string;
-  effort?: "low" | "medium" | "high";
 }
 
 /**
- * One AgentSession = one persistent `claude` child process running with
- * --input-format stream-json --output-format stream-json, so we can write
- * messages and stream the assistant's output back in real time without
- * starting a new process per turn (preserves prompt cache).
+ * AgentSession abstracts over multiple AI provider CLIs.
  *
- * We start the child only when the user sends the first message — otherwise
- * we are paying the system-prompt cache creation cost up front for every
- * agent the user clicks on.
+ * Two backends with very different process models:
+ *  - Claude: a single persistent child process per session, talks via
+ *    stream-json on stdin/stdout. Streams deltas in real time.
+ *  - Codex: a fresh `codex exec` process per turn, JSONL output. No
+ *    streaming deltas, but full message arrives as `item.completed`.
+ *
+ * The class exposes a uniform event stream (delta / message / status /
+ * result / error) so the rest of the system doesn't need to care.
  */
 export class AgentSession extends EventEmitter {
   readonly id: string;
   readonly agentId: string;
+  readonly provider: Provider;
   readonly extraSystemPrompt?: string;
   readonly mcpConfigJson?: string;
   status: SessionStatus = "idle";
+
+  // Claude-specific state
   claudeSessionId?: string;
   private child?: ChildProcess;
   private buf = "";
-  private currentAssistant = "";
 
-  constructor(agentId: string, sessionId?: string, extraSystemPrompt?: string, mcpConfigJson?: string) {
+  // Codex-specific state
+  codexThreadId?: string;
+  private codexBuf = "";
+  private codexCurrent = "";
+
+  constructor(
+    agentId: string,
+    sessionId?: string,
+    extraSystemPrompt?: string,
+    mcpConfigJson?: string,
+    provider: Provider = "claude",
+  ) {
     super();
     this.id = sessionId || uuid();
     this.agentId = agentId;
     this.extraSystemPrompt = extraSystemPrompt;
     this.mcpConfigJson = mcpConfigJson;
+    this.provider = provider;
   }
 
   send(text: string): void {
-    console.log(`[AgentSession ${this.id.slice(0,8)}] send (status=${this.status})`);
+    console.log(`[AgentSession ${this.id.slice(0,8)}] send (${this.provider}, status=${this.status})`);
     if (this.status === "busy") {
       this.emit("event", { type: "error", payload: "Session is busy" });
       return;
     }
-    if (!this.child) this.spawnChild();
-    this.writeUserMessage(text);
-    this.setStatus("busy");
+    if (this.provider === "claude") {
+      if (!this.child) this.spawnClaudeChild();
+      this.writeClaudeMessage(text);
+      this.setStatus("busy");
+    } else {
+      this.spawnCodexTurnNow(text);
+    }
   }
 
   stop(): void {
@@ -71,7 +89,9 @@ export class AgentSession extends EventEmitter {
     this.emit("event", { type: "status", payload: s });
   }
 
-  private spawnChild(opts?: Partial<SpawnOpts>) {
+  // ============== Claude backend ==============
+
+  private spawnClaudeChild(opts?: SpawnOpts) {
     const args = [
       "-p",
       "--agent", this.agentId,
@@ -89,62 +109,41 @@ export class AgentSession extends EventEmitter {
       args.push("--mcp-config", this.mcpConfigJson);
     }
     if (this.claudeSessionId) {
-      // resume an existing claude session
       args.push("--resume", this.claudeSessionId);
     }
 
     this.setStatus("starting");
-
-    console.log(`[AgentSession ${this.id.slice(0,8)}] spawn claude ${args.join(" ")}`);
-
-    // Use spawnClaude helper — resolves claude.exe full path and spawns with
-    // shell: false so multi-line --append-system-prompt args don't get
-    // mangled by cmd.exe.
     const child = spawnClaude(args, {
       cwd: opts?.cwd || process.cwd(),
       env: process.env,
     });
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-
-    child.stdout.on("data", (chunk: string) => {
-      console.log(`[AgentSession ${this.id.slice(0,8)}] stdout: ${String(chunk).slice(0,120).replace(/\n/g," ")}`);
-      this.handleStdout(chunk);
-    });
-    child.stderr.on("data", (chunk: string) => {
-      console.warn(`[AgentSession ${this.id.slice(0,8)}] stderr: ${String(chunk).trim()}`);
+    child.stdout!.setEncoding("utf8");
+    child.stderr!.setEncoding("utf8");
+    child.stdout!.on("data", (chunk: string) => this.handleClaudeStdout(chunk));
+    child.stderr!.on("data", (chunk: string) => {
       this.emit("event", { type: "error", payload: String(chunk).trim() });
     });
     child.on("error", (err) => {
-      console.error(`[AgentSession ${this.id.slice(0,8)}] spawn error:`, err);
       this.emit("event", { type: "error", payload: `spawn error: ${err.message}` });
     });
     child.on("close", (code) => {
-      console.log(`[AgentSession ${this.id.slice(0,8)}] close code=${code}`);
       this.emit("event", { type: "status", payload: code === 0 ? "closed" : "error" });
       this.status = code === 0 ? "closed" : "error";
       this.child = undefined;
     });
-
     this.child = child;
   }
 
-  private writeUserMessage(text: string) {
+  private writeClaudeMessage(text: string) {
     if (!this.child || !this.child.stdin) return;
-    // stream-json input format: each line is a JSON object representing
-    // one user message. Shape mirrors the SDK contract.
     const obj = {
       type: "user",
-      message: {
-        role: "user",
-        content: [{ type: "text", text }],
-      },
+      message: { role: "user", content: [{ type: "text", text }] },
     };
     this.child.stdin.write(JSON.stringify(obj) + "\n");
   }
 
-  private handleStdout(chunk: string) {
+  private handleClaudeStdout(chunk: string) {
     this.buf += chunk;
     const lines = this.buf.split("\n");
     this.buf = lines.pop() || "";
@@ -153,36 +152,26 @@ export class AgentSession extends EventEmitter {
       if (!trimmed) continue;
       try {
         const evt = JSON.parse(trimmed);
-        this.routeEvent(evt);
-      } catch (e) {
-        // not JSON — skip
-      }
+        this.routeClaudeEvent(evt);
+      } catch { /* skip */ }
     }
   }
 
-  private routeEvent(evt: any) {
-    // capture session_id from any event that carries it
+  private routeClaudeEvent(evt: any) {
     if (evt.session_id && !this.claudeSessionId) {
       this.claudeSessionId = evt.session_id;
     }
-
-    // forward rate-limit info to anyone interested (usage tracker)
     if (evt.type === "rate_limit_event") {
       this.emit("event", { type: "rate_limit", payload: evt });
       return;
     }
-
-    // partial assistant text
     if (evt.type === "stream_event" && evt.event?.type === "content_block_delta") {
       const d = evt.event.delta;
       if (d?.type === "text_delta" && d.text) {
-        this.currentAssistant += d.text;
         this.emit("event", { type: "delta", payload: d.text });
       }
       return;
     }
-
-    // a complete assistant message
     if (evt.type === "assistant" && evt.message?.content) {
       const text = evt.message.content
         .filter((c: any) => c.type === "text")
@@ -191,20 +180,103 @@ export class AgentSession extends EventEmitter {
       if (text) {
         this.emit("event", { type: "message", payload: { role: "assistant", content: text } });
       }
-      this.currentAssistant = "";
       return;
     }
-
-    // user echo (re-emitted) — ignore
     if (evt.type === "user") return;
-
-    // final result for this turn
     if (evt.type === "result") {
       this.emit("event", { type: "result", payload: evt });
       this.setStatus("idle");
       return;
     }
+  }
 
-    // system events (init, etc.) — pass through silently or log if needed
+  // ============== Codex backend ==============
+
+  private spawnCodexTurnNow(userText: string) {
+    this.setStatus("starting");
+    this.codexBuf = "";
+    this.codexCurrent = "";
+
+    // For first turn, prepend system prompt into the user message (codex
+    // doesn't have an --append-system-prompt flag). On subsequent turns
+    // we use `resume` and codex remembers the original instructions.
+    let prompt = userText;
+    if (!this.codexThreadId && this.extraSystemPrompt) {
+      prompt = `<context>\n${this.extraSystemPrompt}\n</context>\n\n${userText}`;
+    }
+
+    const child = spawnCodexTurn({
+      prompt,
+      threadId: this.codexThreadId,
+      cwd: process.cwd(),
+      sandbox: "read-only",
+    });
+    this.child = child;
+
+    child.stdout!.setEncoding("utf8");
+    child.stderr!.setEncoding("utf8");
+
+    child.stdout!.on("data", (chunk: string) => this.handleCodexStdout(String(chunk)));
+    child.stderr!.on("data", (chunk: string) => {
+      // codex prints normal status to stderr (e.g. "Reading additional input
+      // from stdin..."); only surface real errors
+      const s = String(chunk).trim();
+      if (s && /error|failed|unauthorized|timed?\s*out|rate.?limit|quota/i.test(s)) {
+        this.emit("event", { type: "error", payload: s });
+      }
+    });
+    child.on("error", (err) => {
+      this.emit("event", { type: "error", payload: `codex spawn error: ${err.message}` });
+      this.setStatus("error");
+    });
+    child.on("close", (code) => {
+      // Emit any leftover assistant text not delivered as item.completed
+      if (this.codexCurrent && this.codexCurrent.trim()) {
+        this.emit("event", { type: "message", payload: { role: "assistant", content: this.codexCurrent } });
+      }
+      // Emit synthetic result
+      this.emit("event", { type: "result", payload: { provider: "codex", exit: code } });
+      this.setStatus("idle");
+      this.child = undefined;
+    });
+
+    // codex reads the full prompt from stdin (handled inside spawnCodexTurn)
+    this.setStatus("busy");
+  }
+
+  private handleCodexStdout(chunk: string) {
+    this.codexBuf += chunk;
+    const lines = this.codexBuf.split("\n");
+    this.codexBuf = lines.pop() || "";
+    for (const line of lines) {
+      const evt = parseCodexLine(line);
+      if (!evt) continue;
+      this.routeCodexEvent(evt);
+    }
+  }
+
+  private routeCodexEvent(evt: ReturnType<typeof parseCodexLine>) {
+    if (!evt) return;
+    if (evt.type === "thread_started" && evt.threadId) {
+      this.codexThreadId = evt.threadId;
+      return;
+    }
+    if (evt.type === "item" && evt.text) {
+      // Treat agent_message items as the assistant response
+      if (evt.itemType === "agent_message" || !evt.itemType) {
+        this.codexCurrent = evt.text;
+        // emit as one chunk (codex doesn't stream)
+        this.emit("event", { type: "delta", payload: evt.text });
+        this.emit("event", { type: "message", payload: { role: "assistant", content: evt.text } });
+      }
+      return;
+    }
+    if (evt.type === "turn_completed") {
+      // result fired in `close` handler too — but emit here to match Claude semantics
+      return;
+    }
+    if (evt.type === "error") {
+      this.emit("event", { type: "error", payload: evt.text || "codex error" });
+    }
   }
 }

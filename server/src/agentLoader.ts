@@ -152,3 +152,19 @@ export function categoryLabel(c: string): string {
 export function getCategoryOrder(): string[] {
   return CATEGORY_ORDER;
 }
+
+/**
+ * Read an agent's full definition (frontmatter + body) for providers like
+ * Codex that don't natively load agents from a directory — we need to
+ * inject the agent's persona via the prompt.
+ */
+export function readAgentDefinition(agentId: string): { name: string; body: string } | null {
+  const fp = path.join(AGENTS_DIR, `${agentId}.md`);
+  if (!fs.existsSync(fp)) return null;
+  const text = fs.readFileSync(fp, "utf8");
+  const fm = parseFrontmatter(text);
+  // strip the frontmatter block from body
+  const bodyStart = text.indexOf("\n---", 3);
+  const body = bodyStart >= 0 ? text.slice(bodyStart + 4).trimStart() : text;
+  return { name: fm.name || agentId, body };
+}

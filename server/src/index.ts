@@ -8,6 +8,8 @@ import { scheduler } from "./scheduler.js";
 import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { listInstalledMCPServers, buildMCPConfigForWorkspace } from "./mcpDetector.js";
+import { isCodexAvailable } from "./codexProcess.js";
+import { routePrompt } from "./smartRouter.js";
 import { v4 as uuid } from "uuid";
 import {
   getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
@@ -186,14 +188,11 @@ app.get("/api/search", (req, res) => {
 });
 
 app.post("/api/sessions", (req, res) => {
-  const { agentId, title } = req.body || {};
+  const { agentId, title, provider } = req.body || {};
   if (!agentId) return res.status(400).json({ error: "agentId required" });
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
 
-  // Per-agent extra hints. For prompt-engineer specifically, ask it to wrap
-  // final prompts in a ```prompt code block so the dashboard can show
-  // "open in Gemini / ChatGPT / Midjourney" buttons next to it.
   let perAgent = "";
   if (agentId === "design-image-prompt-engineer") {
     perAgent = `
@@ -211,8 +210,31 @@ A cinematic portrait of...
   }
 
   const extra = (standing ? standing : "") + perAgent;
-  const session = agentManager.start(agentId, title, extra || undefined, wsId);
-  res.json({ id: session.id });
+  const chosen: "claude" | "codex" = (provider === "codex" && isCodexAvailable()) ? "codex" : "claude";
+  const session = agentManager.start(agentId, title, extra || undefined, wsId, true, chosen);
+  res.json({ id: session.id, provider: chosen });
+});
+
+// Smart router: classify a prompt and recommend a provider.
+app.post("/api/route", async (req, res) => {
+  const { prompt, defaultProvider } = req.body || {};
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+  try {
+    const decision = await routePrompt(prompt, defaultProvider || "claude");
+    res.json(decision);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Provider availability check
+app.get("/api/providers", (_req, res) => {
+  res.json({
+    available: {
+      claude: true,
+      codex: isCodexAvailable(),
+    },
+  });
 });
 
 // Batch — fan out the same prompt to N agents in parallel. Returns the
@@ -272,7 +294,8 @@ ${labelled.slice(0, 25000)}
   let out = ""; let err = "";
   child.stdout.on("data", (d) => { out += String(d); });
   child.stderr.on("data", (d) => { err += String(d); });
-  child.stdin.write(mergePrompt);
+  child.stdout.setEncoding("utf8");
+  child.stdin.write(Buffer.from(mergePrompt, "utf8"));
   child.stdin.end();
 
   child.on("close", (code) => {
@@ -323,7 +346,8 @@ ${transcript.slice(0, 30000)}
   let err = "";
   child.stdout.on("data", (d) => { out += String(d); });
   child.stderr.on("data", (d) => { err += String(d); });
-  child.stdin.write(prompt);
+  child.stdout.setEncoding("utf8");
+  child.stdin.write(Buffer.from(prompt, "utf8"));
   child.stdin.end();
 
   child.on("close", (code) => {
