@@ -19,6 +19,33 @@
 
 ---
 
+## [0.9.0] — 2026-04-29
+
+Workflow 引擎升級到 DAG。靈感來自 jnMetaCode/Agency-orchestrator 的設計。
+
+### 新增
+- **🔀 DAG 平行執行** — workflow steps 可宣告 `dependsOn`,引擎自動偵測無依賴的 steps 並行執行(預設併發 2)
+  - 例如:同個內容改編成 IG / 小紅書 / Threads 三平台,後端**同時**跑 → 完成後再合併
+  - 步驟 `id` 可自訂,前端編輯 UI 自動帶 `step_N` 預設
+- **📌 多上游變數引用** — `{{out}}` (最後一個依賴的輸出) 與 `{{stepId.out}}` (任意上游) 都支援
+- **↻ 從某步重跑(Resume)** — 已完成 / 失敗 / 取消的 run 可選一個 step id 重跑該步及其下游,前面已完成的步驟跳過
+- **🔁 自動重試 + 指數退避** — 每步預設 2 次重試(共 3 次嘗試),timeout 1.5x 遞增
+- **🩺 Validate endpoint** — 跑前驗證 dependsOn 引用 + cycle 偵測
+- **+ 8 個新範本**(含 3 個 DAG 平行範例):
+  - 🌐 [平行] IP 多平台同步發稿
+  - 🔍 [平行] 競品深度分析(三角度同跑)
+  - 📋 [仲介] 新客戶 onboarding(含暫停批准)
+  - 📈 爆款貼文事後分析
+  - 🎓 [平行] 線上課程 launch 套組
+  - 🔬 [平行] Code PR 三角度審查
+  - 📰 週報 / Newsletter 自動化
+  - 🎤 客戶 pitch 準備(暫停批准)
+
+### 比較 jnMetaCode/Agency-orchestrator
+我們的 workflow 引擎能力與其追平(DAG / 平行 / 多變數 / resume / retry),但保留 web GUI、工作區記憶、Notes RAG、自動標題、自主分支等獨家功能。剩下對方的:Loop back、validate/plan 圖示、MCP server 模式 — 預計 v0.10.0 補。
+
+---
+
 ## [0.8.1] — 2026-04-29
 
 修一個讓使用者開不了「工作區設定顧問」的 bug。

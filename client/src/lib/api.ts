@@ -155,11 +155,13 @@ export const api = {
       body: JSON.stringify(patch),
     }).then(j<Workflow>),
   deleteWorkflowApi: (id: string) => fetch(`/api/workflows/${id}`, { method: "DELETE" }).then(j),
-  runWorkflow: (id: string, initialInput?: string) =>
+  runWorkflow: (id: string, opts: { initialInput?: string; resumeRunId?: string; fromStepId?: string } = {}) =>
     fetch(`/api/workflows/${id}/run`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initialInput }),
+      body: JSON.stringify(opts),
     }).then(j<WorkflowRun>),
+  validateWorkflow: (id: string) =>
+    fetch(`/api/workflows/${id}/validate`, { method: "POST" }).then(j<{ ok: boolean; error?: string; steps?: WorkflowStep[] }>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
   approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j),
   mcpServers: () => fetch("/api/mcp/servers").then(j<MCPServerInfo[]>),
@@ -233,10 +235,13 @@ export interface PromptTemplate {
 }
 
 export interface WorkflowStep {
+  id?: string;
   agentId: string;
   prompt: string;
+  dependsOn?: string[];
   pauseBefore?: boolean;
   skipIfMatch?: string;
+  retries?: number;
 }
 
 export interface Workflow {
@@ -256,6 +261,7 @@ export interface WorkflowRun {
   status: "running" | "paused" | "done" | "error" | "cancelled";
   currentStep: number;
   sessionIds: string[];
+  stepOutputs?: Record<string, string>;
   error?: string;
   startedAt: number;
   endedAt?: number;

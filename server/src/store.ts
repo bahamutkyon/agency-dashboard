@@ -70,10 +70,13 @@ export interface Workspace {
 }
 
 export interface WorkflowStep {
+  id?: string;               // auto-generated `step_N` if missing
   agentId: string;
-  prompt: string;            // can include {{out}} for previous step's output
+  prompt: string;            // can include {{out}} (last completed dep) or {{stepId.out}}
+  dependsOn?: string[];      // step ids this step depends on. empty/undefined = depends on previous-in-array (linear default)
   pauseBefore?: boolean;     // pause + wait for user approval before this step
   skipIfMatch?: string;      // regex on previous {{out}}; match → skip this step
+  retries?: number;          // override default retry count (default 2 attempts after first try)
 }
 
 export interface Workflow {
@@ -93,6 +96,9 @@ export interface WorkflowRun {
   status: "running" | "paused" | "done" | "error" | "cancelled";
   currentStep: number;
   sessionIds: string[];
+  // step outputs keyed by step id; populated as each step completes.
+  // Used for resume + multi-variable interpolation across runs.
+  stepOutputs?: Record<string, string>;
   error?: string;
   startedAt: number;
   endedAt?: number;
@@ -474,6 +480,7 @@ function rowToRun(r: any): WorkflowRun {
     status: r.status,
     currentStep: r.current_step,
     sessionIds: JSON.parse(r.session_ids || "[]"),
+    stepOutputs: JSON.parse(r.step_outputs || "{}"),
     error: r.error || undefined,
     startedAt: r.started_at,
     endedAt: r.ended_at || undefined,
@@ -499,14 +506,19 @@ export function listRuns(workflowId: string): WorkflowRun[] {
   return (rows as any[]).map(rowToRun);
 }
 
-export function updateRun(id: string, patch: Partial<Pick<WorkflowRun, "status" | "currentStep" | "sessionIds" | "error" | "endedAt">>) {
+export function updateRun(id: string, patch: Partial<Pick<WorkflowRun, "status" | "currentStep" | "sessionIds" | "stepOutputs" | "error" | "endedAt">>) {
   const cur = getRun(id);
   if (!cur) return;
   const next = { ...cur, ...patch };
   db.prepare(`
-    UPDATE workflow_runs SET status = ?, current_step = ?, session_ids = ?, error = ?, ended_at = ?
+    UPDATE workflow_runs SET
+      status = ?, current_step = ?, session_ids = ?, step_outputs = ?, error = ?, ended_at = ?
     WHERE id = ?
-  `).run(next.status, next.currentStep, JSON.stringify(next.sessionIds), next.error || null, next.endedAt || null, id);
+  `).run(
+    next.status, next.currentStep,
+    JSON.stringify(next.sessionIds), JSON.stringify(next.stepOutputs || {}),
+    next.error || null, next.endedAt || null, id,
+  );
 }
 
 // --- Search (much faster than the old JSON scan) ---

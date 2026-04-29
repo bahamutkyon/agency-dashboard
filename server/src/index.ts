@@ -668,12 +668,21 @@ app.delete("/api/workflows/:id", (req, res) => {
 
 app.post("/api/workflows/:id/run", async (req, res) => {
   try {
-    const { initialInput } = req.body || {};
-    const run = await workflowRunner.run({ workflowId: req.params.id, initialInput });
+    const { initialInput, resumeRunId, fromStepId } = req.body || {};
+    const run = await workflowRunner.run({
+      workflowId: req.params.id,
+      initialInput,
+      resumeRunId,
+      fromStepId,
+    });
     res.json(run);
   } catch (e: any) {
     res.status(400).json({ error: e.message });
   }
+});
+
+app.post("/api/workflows/:id/validate", (req, res) => {
+  res.json(workflowRunner.validate(req.params.id));
 });
 
 app.post("/api/runs/:id/cancel", (req, res) => {

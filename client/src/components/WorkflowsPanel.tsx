@@ -169,10 +169,22 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
             />
             <div className="space-y-2">
               <div className="text-xs text-zinc-400">步驟</div>
-              {draft.steps.map((s, i) => (
+              {draft.steps.map((s, i) => {
+                const stepId = s.id || `step_${i + 1}`;
+                const otherIds = draft.steps
+                  .map((x, idx) => x.id || `step_${idx + 1}`)
+                  .filter((id, idx) => idx !== i);
+                const deps = s.dependsOn !== undefined ? s.dependsOn : (i === 0 ? [] : [`step_${i}`]);
+                return (
                 <div key={i} className="bg-zinc-900 rounded p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500 font-mono w-12">Step {i + 1}</span>
+                    <input
+                      className="bg-zinc-950 px-2 py-1 rounded text-xs font-mono w-24 text-zinc-400"
+                      placeholder={`step_${i + 1}`}
+                      value={s.id || ""}
+                      onChange={(e) => updateStep(i, { id: e.target.value.replace(/[^a-z0-9_-]/gi, "") })}
+                      title="步驟 ID(用於依賴引用)"
+                    />
                     <select
                       className="flex-1 bg-zinc-950 px-2 py-1 rounded text-sm"
                       value={s.agentId}
@@ -188,12 +200,36 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                         className="text-xs px-2 py-1 bg-zinc-800 hover:bg-rose-700 rounded">×</button>
                     )}
                   </div>
+
+                  {otherIds.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] text-zinc-500">依賴:</span>
+                      {otherIds.map((oid) => (
+                        <label key={oid} className="text-[11px] flex items-center gap-1 cursor-pointer">
+                          <input type="checkbox"
+                            checked={deps.includes(oid)}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...deps, oid]
+                                : deps.filter((d) => d !== oid);
+                              updateStep(i, { dependsOn: next });
+                            }}
+                          />
+                          <span className="font-mono text-zinc-400">{oid}</span>
+                        </label>
+                      ))}
+                      {deps.length === 0 && (
+                        <span className="text-[10px] text-emerald-400">⚡ 無依賴 → 平行起跑</span>
+                      )}
+                    </div>
+                  )}
+
                   <textarea
                     className="w-full bg-zinc-950 px-2 py-1.5 rounded text-xs font-mono"
                     rows={3}
                     placeholder={i === 0
-                      ? "第一步指令(若 workflow 有起始輸入,用 {{out}} 引用)"
-                      : "用 {{out}} 引用上一步輸出。例:請審稿以下內容並改成更口語的版本：\\n\\n{{out}}"}
+                      ? "第一步指令(可用 {{out}} 引用 workflow 的起始輸入)"
+                      : `用 {{out}} 引用「最後一個依賴」的輸出,或用 {{stepId.out}} 引用任意上游(例如 {{step_1.out}})`}
                     value={s.prompt}
                     onChange={(e) => updateStep(i, { prompt: e.target.value })}
                   />
@@ -204,20 +240,21 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                           checked={!!s.pauseBefore}
                           onChange={(e) => updateStep(i, { pauseBefore: e.target.checked })}
                         />
-                        ⏸️ 此步前暫停等我批准
+                        ⏸️ 此步前暫停等批准
                       </label>
                     )}
                     {i > 0 && (
                       <input type="text"
                         className="flex-1 bg-zinc-950 px-2 py-1 rounded text-[11px] font-mono"
-                        placeholder="若上一步輸出符合此 regex 則跳過此步(例:不需要|skip)"
+                        placeholder="跳過條件 regex(例:不需要|skip)"
                         value={s.skipIfMatch || ""}
                         onChange={(e) => updateStep(i, { skipIfMatch: e.target.value })}
                       />
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               <button onClick={addStep}
                 className="w-full py-1.5 rounded border border-dashed border-zinc-700 hover:border-accent text-xs text-zinc-400 hover:text-accent">
                 + 新增步驟
@@ -309,15 +346,32 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                             <span className={
                               r.status === "done" ? "text-emerald-400" :
                               r.status === "running" ? "text-amber-400" :
+                              r.status === "paused" ? "text-sky-400" :
                               r.status === "error" ? "text-rose-400" : "text-zinc-500"
                             }>●</span>
                             <span>{fmtTime(r.startedAt)}</span>
                             <span className="text-zinc-600">·</span>
                             <span>{r.status}</span>
-                            {r.sessionIds.length > 0 && (
-                              <button onClick={() => setActiveRun(r)}
-                                className="ml-auto text-[10px] hover:text-zinc-200">查看 →</button>
-                            )}
+                            <div className="ml-auto flex gap-1">
+                              {(r.status === "error" || r.status === "cancelled" || r.status === "done") && r.stepOutputs && Object.keys(r.stepOutputs).length > 0 && (
+                                <button
+                                  onClick={async () => {
+                                    const stepId = prompt(`從哪一步重跑?(輸入 step id,可用的:${Object.keys(r.stepOutputs || {}).join(", ")})`);
+                                    if (!stepId) return;
+                                    try {
+                                      const newRun = await api.runWorkflow(w.id, { resumeRunId: r.id, fromStepId: stepId });
+                                      setActiveRun(newRun);
+                                    } catch (e: any) { alert(e.message); }
+                                  }}
+                                  className="text-[10px] hover:text-zinc-200"
+                                  title="從某步開始重跑(保留之前的結果)"
+                                >↻ 重跑</button>
+                              )}
+                              {r.sessionIds.length > 0 && (
+                                <button onClick={() => setActiveRun(r)}
+                                  className="text-[10px] hover:text-zinc-200">查看 →</button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

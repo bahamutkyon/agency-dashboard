@@ -122,9 +122,10 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   id TEXT PRIMARY KEY,
   workflow_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
-  status TEXT NOT NULL,        -- running / done / error / cancelled
+  status TEXT NOT NULL,        -- running / paused / done / error / cancelled
   current_step INTEGER NOT NULL DEFAULT 0,
-  session_ids TEXT NOT NULL DEFAULT '[]',  -- JSON array, one per step
+  session_ids TEXT NOT NULL DEFAULT '[]',  -- JSON array, one per step (sessionId or "" if skipped)
+  step_outputs TEXT NOT NULL DEFAULT '{}', -- JSON object: stepId → output text
   error TEXT,
   started_at INTEGER NOT NULL,
   ended_at INTEGER
@@ -147,8 +148,14 @@ try {
     db.exec("ALTER TABLE workspaces ADD COLUMN enabled_mcps TEXT DEFAULT '[]'");
     console.log("[db] migration: added workspaces.enabled_mcps column");
   }
+  // workflow_runs.step_outputs migration
+  const runCols = db.prepare("PRAGMA table_info(workflow_runs)").all() as any[];
+  if (runCols.length > 0 && !runCols.some((c) => c.name === "step_outputs")) {
+    db.exec("ALTER TABLE workflow_runs ADD COLUMN step_outputs TEXT NOT NULL DEFAULT '{}'");
+    console.log("[db] migration: added workflow_runs.step_outputs column");
+  }
 } catch (e) {
-  console.warn("[db] memory column migration failed:", e);
+  console.warn("[db] migration failed:", e);
 }
 
 // Bootstrap default workspace if none exist
