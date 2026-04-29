@@ -19,6 +19,17 @@
 
 ---
 
+## [0.8.1] — 2026-04-29
+
+修一個讓使用者開不了「工作區設定顧問」的 bug。
+
+### 修復
+- **`error: option '--append-system-prompt <prompt>' argument missing`** — 當 system prompt 含多行 / 引號 / 代碼塊時,Windows cmd.exe shell 會把參數吃掉
+- 新增 `claudeProcess.ts` helper:用 `where claude.exe` 解析全路徑,改用 `shell: false` spawn,長 prompt 不再被截
+- agentSession / autoTitler / merge / summarize 全部改用此 helper
+
+---
+
 ## [0.8.0] — 2026-04-28
 
 讓 agent 真的變聰明。

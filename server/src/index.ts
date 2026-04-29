@@ -262,12 +262,12 @@ ${labelled.slice(0, 25000)}
 
 用繁體中文,Markdown 結構化。`;
 
-  const { spawn } = await import("node:child_process");
-  const child = spawn("claude", [
+  const { spawnClaude } = await import("./claudeProcess.js");
+  const child = spawnClaude([
     "-p", "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { shell: process.platform === "win32", windowsHide: true });
+  ]);
 
   let out = ""; let err = "";
   child.stdout.on("data", (d) => { out += String(d); });
@@ -311,13 +311,13 @@ ${transcript.slice(0, 30000)}
 只輸出結論本身,不要重複轉述對話。`;
 
   // Use a one-shot claude call (no agent persona) for cheap/fast summarization
-  const { spawn } = await import("node:child_process");
-  const child = spawn("claude", [
+  const { spawnClaude } = await import("./claudeProcess.js");
+  const child = spawnClaude([
     "-p",
     "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { shell: process.platform === "win32", windowsHide: true });
+  ]);
 
   let out = "";
   let err = "";

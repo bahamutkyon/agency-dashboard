@@ -3,7 +3,7 @@
  * session that still has its default title, spawn a quick claude call to
  * generate a concise title + tags, then patch the session.
  */
-import { spawn } from "node:child_process";
+import { spawnClaude } from "./claudeProcess.js";
 import { getSession, upsertSession } from "./store.js";
 
 // sessions we've already attempted (avoid retrying on every result)
@@ -43,11 +43,11 @@ TITLE: 標題
 TAGS: tag1 / tag2 / tag3
 `;
 
-  const child = spawn("claude", [
+  const child = spawnClaude([
     "-p", "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { shell: process.platform === "win32", windowsHide: true });
+  ]);
 
   let out = "";
   child.stdout.on("data", (d) => { out += String(d); });

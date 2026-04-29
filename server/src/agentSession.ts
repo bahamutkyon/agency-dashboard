@@ -1,6 +1,7 @@
-import { spawn, ChildProcess } from "node:child_process";
+import { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { v4 as uuid } from "uuid";
+import { spawnClaude } from "./claudeProcess.js";
 
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
 
@@ -96,16 +97,12 @@ export class AgentSession extends EventEmitter {
 
     console.log(`[AgentSession ${this.id.slice(0,8)}] spawn claude ${args.join(" ")}`);
 
-    // On Windows the binary is `claude.exe`; on macOS/Linux it's `claude`.
-    // We spawn directly (shell: false) to avoid cmd.exe quoting issues with the
-    // JSON we pipe to stdin.
-    const cmd = "claude";
-    const child = spawn(cmd, args, {
+    // Use spawnClaude helper — resolves claude.exe full path and spawns with
+    // shell: false so multi-line --append-system-prompt args don't get
+    // mangled by cmd.exe.
+    const child = spawnClaude(args, {
       cwd: opts?.cwd || process.cwd(),
       env: process.env,
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: process.platform === "win32",
-      windowsHide: true,
     });
 
     child.stdout.setEncoding("utf8");
