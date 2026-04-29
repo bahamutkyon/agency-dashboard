@@ -387,9 +387,10 @@ export function ChatWindow({
     recommendedAgents.forEach((id) => onOpenAgentById(id));
   };
 
-  // detect MEMO block in latest assistant message (onboarding mode)
+  // detect MEMO block in latest assistant message — works in any session
+  // (originally tied to onboarding mode, but we also want to recover memos
+  // when user reopens an old session from history).
   const detectedMemo = useMemo(() => {
-    if (!onboardingTargetWorkspaceId) return null;
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (m.role !== "assistant" || m.partial) continue;
@@ -397,7 +398,7 @@ export function ChatWindow({
       if (match) return match[1].trim();
     }
     return null;
-  }, [messages, onboardingTargetWorkspaceId]);
+  }, [messages]);
 
   // detect ```workflow JSON block (any chat — orchestrator drafts these)
   const detectedWorkflow = useMemo(() => {
@@ -437,10 +438,16 @@ export function ChatWindow({
   const [applied, setApplied] = useState(false);
 
   const applyMemo = async () => {
-    if (!detectedMemo || !onboardingTargetWorkspaceId) return;
+    if (!detectedMemo) return;
+    const { getActiveWorkspace } = await import("../lib/workspace");
+    const wsId = onboardingTargetWorkspaceId || getActiveWorkspace();
+    if (!wsId) {
+      alert("請先在右上選好目標工作區再套用");
+      return;
+    }
     setApplying(true);
     try {
-      await api.applyOnboarding(sessionId, onboardingTargetWorkspaceId, detectedMemo);
+      await api.applyOnboarding(sessionId, wsId, detectedMemo);
       setApplied(true);
       onMemoApplied?.();
     } catch (e) {

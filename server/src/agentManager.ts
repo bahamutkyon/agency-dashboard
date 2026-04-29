@@ -101,6 +101,9 @@ export class AgentManager {
     if (!rec) return;
     const session = new AgentSession(rec.agentId, rec.id);
     if (rec.claudeSessionId) (session as any).claudeSessionId = rec.claudeSessionId;
+    // Restore workspaceId so REMEMBER detection + notes RAG keep working
+    // after server restart / tab close-reopen.
+    (session as any).workspaceId = rec.workspaceId;
     this.sessions.set(session.id, session);
     this.attachPersistence(session);
     return session;
