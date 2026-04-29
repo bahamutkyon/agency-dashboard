@@ -5,7 +5,7 @@ interface Props {
   agents: AgentMeta[];
   categories: CategoryMeta[];
   liveAgentIds: Set<string>;
-  onPick: (agent: AgentMeta, provider?: "claude" | "codex") => void;
+  onPick: (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => void;
   onAskOrchestrator: () => void;
   onOpenSchedules: () => void;
   onOpenHistory: () => void;
@@ -14,7 +14,7 @@ interface Props {
   onOpenBatch: () => void;
   onOpenNotes: () => void;
   onOpenWorkflows: () => void;
-  providersAvail?: { claude: boolean; codex: boolean };
+  providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
 export function AgentSidebar({
@@ -171,18 +171,27 @@ export function AgentSidebar({
                   {a.description}
                 </div>
               </button>
-              {providersAvail?.codex && (
+              {(providersAvail?.codex || providersAvail?.gemini) && (
                 <div className="absolute top-2 right-2 hidden group-hover:flex flex-col gap-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); onPick(a, "claude"); }}
                     className="text-[9px] px-1.5 py-0.5 rounded bg-violet-900/80 hover:bg-violet-800 text-violet-100 font-mono"
                     title="強制用 Claude"
                   >🧠</button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onPick(a, "codex"); }}
-                    className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 font-mono"
-                    title="強制用 Codex"
-                  >🤖</button>
+                  {providersAvail?.codex && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPick(a, "codex"); }}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 font-mono"
+                      title="強制用 Codex"
+                    >🤖</button>
+                  )}
+                  {providersAvail?.gemini && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPick(a, "gemini"); }}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-sky-900/80 hover:bg-sky-800 text-sky-100 font-mono"
+                      title="強制用 Gemini"
+                    >✨</button>
+                  )}
                 </div>
               )}
             </div>

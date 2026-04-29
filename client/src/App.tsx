@@ -32,7 +32,7 @@ interface Tab {
   agentId: string;
   agentName: string;
   status: string;
-  provider?: "claude" | "codex";
+  provider?: "claude" | "codex" | "gemini";
   onboardingTargetWorkspaceId?: string;
 }
 
@@ -113,12 +113,12 @@ export default function App() {
     if (agent) await openAgent(agent);
   };
 
-  const [providersAvail, setProvidersAvail] = useState({ claude: true, codex: false });
+  const [providersAvail, setProvidersAvail] = useState({ claude: true, codex: false, gemini: false });
   useEffect(() => {
     api.providers().then((p) => setProvidersAvail(p.available)).catch(() => {});
   }, []);
 
-  const openAgent = async (agent: AgentMeta, provider?: "claude" | "codex") => {
+  const openAgent = async (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => {
     const existing = tabs.find((t) => t.agentId === agent.id);
     if (existing) {
       setView({ kind: "chat", sessionId: existing.sessionId });

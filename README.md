@@ -154,6 +154,26 @@ npm run dev          # 啟動前後端
 npm run build        # 建構前端 production bundle
 ```
 
+## 🤖 多 LLM 支援(Claude / Codex / Gemini)
+
+預設使用 Claude(透過你 Claude Code 訂閱)。可選擇加裝其他 provider:
+
+```bash
+# OpenAI Codex(需 ChatGPT Plus / Pro)
+npm install -g @openai/codex
+codex login
+
+# Google Gemini(需 Google AI Pro 或免費 API key)
+npm install -g @google/gemini-cli
+gemini auth login   # 或設 GEMINI_API_KEY
+```
+
+裝完重啟 dashboard,sidebar 卡片右上 hover 會出現 🧠 / 🤖 / ✨ 三個 provider 按鈕。
+
+**Smart Router**(預設啟用)會自動為你選 provider — 規則優先,模糊問題用 Haiku 分類。**預設 Claude**,Codex / Gemini 是備胎。
+
+---
+
 ## 🇹🇼 簡轉繁(可選)
 
 agency-agents-zh 上游是簡體中文。我提供一個一鍵轉繁體腳本(用 OpenCC,業界標準):

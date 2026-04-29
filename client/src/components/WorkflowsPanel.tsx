@@ -127,6 +127,33 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
               >
                 🤖 讓專案經理幫我設計
               </button>
+              <label className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-sm cursor-pointer"
+                title="從 YAML 檔匯入(支援 jnMetaCode 格式)">
+                📥 匯入 YAML
+                <input
+                  type="file"
+                  accept=".yaml,.yml,application/x-yaml,text/yaml"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    try {
+                      const text = await f.text();
+                      const r = await api.importWorkflowYaml(text);
+                      let msg = `匯入成功:${r.stepCount} 個步驟`;
+                      if (r.unknownAgents.length > 0) {
+                        msg += `\n\n⚠️ 以下 agent ID 在你本機找不到,需手動修改:\n${r.unknownAgents.join("\n")}`;
+                      }
+                      alert(msg);
+                      reload();
+                    } catch (err: any) {
+                      alert("匯入失敗:" + err.message);
+                    } finally {
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </label>
               <button onClick={startNew} className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-sm">
                 + 新增
               </button>
@@ -470,6 +497,9 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                   </button>
                   <button onClick={() => startEdit(w)}
                     className="text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded">編輯</button>
+                  <a href={api.exportWorkflowYamlUrl(w.id)} download
+                    className="text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-center"
+                    title="匯出為 YAML(可分享或備份)">📤 YAML</a>
                   <button onClick={() => remove(w)}
                     className="text-xs px-3 py-1 bg-zinc-800 hover:bg-rose-700 rounded text-zinc-400 hover:text-white">刪除</button>
                 </div>

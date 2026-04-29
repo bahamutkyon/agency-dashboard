@@ -9,7 +9,9 @@ import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { listInstalledMCPServers, buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { isCodexAvailable } from "./codexProcess.js";
+import { isGeminiAvailable } from "./geminiProcess.js";
 import { routePrompt } from "./smartRouter.js";
+import { importWorkflowYaml, exportWorkflowYaml } from "./yamlAdapter.js";
 import { v4 as uuid } from "uuid";
 import {
   getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
@@ -210,7 +212,12 @@ A cinematic portrait of...
   }
 
   const extra = (standing ? standing : "") + perAgent;
-  const chosen: "claude" | "codex" = (provider === "codex" && isCodexAvailable()) ? "codex" : "claude";
+
+  // Resolve provider: requested provider wins if available, else fall back to Claude
+  let chosen: "claude" | "codex" | "gemini" = "claude";
+  if (provider === "codex" && isCodexAvailable()) chosen = "codex";
+  else if (provider === "gemini" && isGeminiAvailable()) chosen = "gemini";
+
   const session = agentManager.start(agentId, title, extra || undefined, wsId, true, chosen);
   res.json({ id: session.id, provider: chosen });
 });
@@ -233,6 +240,7 @@ app.get("/api/providers", (_req, res) => {
     available: {
       claude: true,
       codex: isCodexAvailable(),
+      gemini: isGeminiAvailable(),
     },
   });
 });
@@ -761,6 +769,50 @@ app.post("/api/runs/:id/loop-back", (req, res) => {
 
 app.get("/api/workflows/:id/runs", (req, res) => {
   res.json(listRuns(req.params.id));
+});
+
+// Workflow YAML export — returns text/yaml file for download
+app.get("/api/workflows/:id/yaml", (req, res) => {
+  const wf = getWorkflow(req.params.id);
+  if (!wf) return res.status(404).json({ error: "not found" });
+  const yaml = exportWorkflowYaml(wf);
+  res.setHeader("Content-Type", "application/x-yaml; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${wf.name.replace(/[^\w-]/g, "_")}.yaml"`);
+  res.send(yaml);
+});
+
+// Workflow YAML import — accept YAML body, create new workflow in workspace
+app.post("/api/workflows/import-yaml", express.text({ type: "*/*", limit: "1mb" }), (req, res) => {
+  try {
+    const text = typeof req.body === "string" ? req.body : (req.body?.yaml || "");
+    if (!text || text.length < 10) return res.status(400).json({ error: "YAML 內容為空" });
+    const parsed = importWorkflowYaml(text);
+    if (!parsed.steps || parsed.steps.length === 0) {
+      return res.status(400).json({ error: "找不到任何 steps" });
+    }
+    // validate agentIds
+    const known = new Set(loadAgents().map((a) => a.id));
+    const unknown = parsed.steps.filter((s) => s.agentId && !known.has(s.agentId)).map((s) => s.agentId);
+    const now = Date.now();
+    const wf = {
+      id: uuid(),
+      workspaceId: ws(req) || DEFAULT_WORKSPACE_ID,
+      name: parsed.name,
+      description: parsed.description,
+      steps: parsed.steps,
+      maxConcurrency: parsed.maxConcurrency,
+      createdAt: now,
+      updatedAt: now,
+    };
+    upsertWorkflow(wf);
+    res.json({
+      workflowId: wf.id,
+      stepCount: wf.steps.length,
+      unknownAgents: Array.from(new Set(unknown)),
+    });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.get("/api/runs/:id", (req, res) => {

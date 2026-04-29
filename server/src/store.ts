@@ -13,7 +13,7 @@ export interface Message {
   ts: number;
 }
 
-export type Provider = "claude" | "codex";
+export type Provider = "claude" | "codex" | "gemini";
 
 export interface SessionRecord {
   id: string;

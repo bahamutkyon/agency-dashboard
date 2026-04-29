@@ -12,7 +12,7 @@ export interface CategoryMeta {
   count: number;
 }
 
-export type Provider = "claude" | "codex";
+export type Provider = "claude" | "codex" | "gemini";
 
 export interface SessionRecord {
   id: string;
@@ -34,7 +34,7 @@ export interface RoutingDecision {
 }
 
 export interface ProviderAvailability {
-  available: { claude: boolean; codex: boolean };
+  available: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
 export interface TagInfo {
@@ -182,6 +182,12 @@ export const api = {
     }).then(j<WorkflowRun>),
   validateWorkflow: (id: string) =>
     fetch(`/api/workflows/${id}/validate`, { method: "POST" }).then(j<{ ok: boolean; error?: string; steps?: WorkflowStep[] }>),
+  exportWorkflowYamlUrl: (id: string) => `/api/workflows/${id}/yaml`,
+  importWorkflowYaml: (yamlText: string) =>
+    fetch(withWorkspace("/api/workflows/import-yaml"), {
+      method: "POST", headers: { "Content-Type": "text/plain" },
+      body: yamlText,
+    }).then(j<{ workflowId: string; stepCount: number; unknownAgents: string[] }>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
   approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j),
   loopBackRun: (id: string, stepId: string) =>

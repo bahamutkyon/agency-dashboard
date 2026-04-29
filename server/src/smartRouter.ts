@@ -15,6 +15,7 @@
 import { spawnClaude } from "./claudeProcess.js";
 import type { Provider } from "./store.js";
 import { isCodexAvailable } from "./codexProcess.js";
+import { isGeminiAvailable } from "./geminiProcess.js";
 
 export interface RoutingDecision {
   provider: Provider;
@@ -58,6 +59,16 @@ const EXPLICIT_CODEX_CJK = [
   /(交給|請|給)\s*codex/i, /(交給|請|給)\s*gpt/i,
 ];
 
+// User-explicit Gemini preference
+const EXPLICIT_GEMINI_ASCII = [
+  /\b(use\s+gemini|via\s+gemini|with\s+gemini|gemini\s+please)\b/i,
+  /\b(use\s+google\s+ai|via\s+google\s+ai)\b/i,
+];
+const EXPLICIT_GEMINI_CJK = [
+  /用\s*gemini/i, /用\s*google\s*ai/i,
+  /(交給|請|給)\s*gemini/i,
+];
+
 // Sandbox / execution-heavy work (Codex's strength)
 const CODEX_NICHE_ASCII = [
   /\b(execute|run\s+(this|the)\s+(script|command))\b/i,
@@ -96,9 +107,20 @@ function countHits(prompt: string, ascii: RegExp[], cjk: RegExp[]): number {
 }
 
 function applyRules(prompt: string): RoutingDecision | null {
-  // 1. User explicitly asks for Codex / GPT — always honor
+  // 1a. User explicitly asks for Gemini — highest priority
+  const explicitGemini = countHits(prompt, EXPLICIT_GEMINI_ASCII, EXPLICIT_GEMINI_CJK);
+  if (explicitGemini > 0 && isGeminiAvailable()) {
+    return {
+      provider: "gemini",
+      reason: "使用者明確指定 Gemini / Google AI",
+      source: "rule",
+      confidence: 1.0,
+    };
+  }
+
+  // 1b. User explicitly asks for Codex / GPT
   const explicitCodex = countHits(prompt, EXPLICIT_CODEX_ASCII, EXPLICIT_CODEX_CJK);
-  if (explicitCodex > 0) {
+  if (explicitCodex > 0 && isCodexAvailable()) {
     return {
       provider: "codex",
       reason: "使用者明確指定 Codex / GPT",
@@ -109,7 +131,7 @@ function applyRules(prompt: string): RoutingDecision | null {
 
   // 2. Sandbox / execution-heavy task — Codex's niche
   const codexNiche = countHits(prompt, CODEX_NICHE_ASCII, CODEX_NICHE_CJK);
-  if (codexNiche > 0) {
+  if (codexNiche > 0 && isCodexAvailable()) {
     return {
       provider: "codex",
       reason: "需要沙盒執行 / Codex 特長領域",

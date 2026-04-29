@@ -19,6 +19,31 @@
 
 ---
 
+## [0.13.0] — 2026-04-29
+
+第三個 LLM provider:Gemini + 跟 jnMetaCode 互通的 YAML 匯入匯出。
+
+### 新增
+- **✨ Gemini CLI 整合(第三個 provider)**
+  - `geminiProcess.ts` 偵測 `gemini.cmd` / `gemini` 全路徑
+  - AgentSession 加 gemini 路徑:每 turn fresh process,history 由我們維護(因 gemini-cli 多輪支援版本不一)
+  - System prompt 透過 `<system>...</system>` tag 注入第一條訊息
+  - Provider type 升級為 "claude" | "codex" | "gemini"
+  - DB schema 加 `sessions.gemini_meta` 欄位 + 自動遷移
+  - Sidebar 卡片 hover 加第三個 ✨ 按鈕(僅當 Gemini CLI 偵測到時顯示)
+  - ChatWindow header 顯示 🧠 / 🤖 / ✨ 對應 provider tag
+  - Smart Router 加 Gemini 規則:「用 gemini」「用 google ai」明確指定即觸發
+- **📥📤 Workflow YAML 匯入匯出**(跟 jnMetaCode 互通)
+  - `yamlAdapter.ts`:雙向欄位映射(我們的 camelCase ↔ jnMetaCode 的 snake_case)
+  - 支援他們的 `depends_on` / `depends_on_mode` / `concurrency` / `condition` / `pause_before` 等命名
+  - `any_completed` / `all_completed` 自動轉成我們的 `any` / `all`
+  - 匯入時偵測未知 agent_id 並警告
+  - WorkflowsPanel 頂部加「📥 匯入 YAML」按鈕
+  - 每筆 workflow 旁邊加「📤 YAML」匯出按鈕
+- README 加多 LLM 安裝指引(Codex + Gemini)
+
+---
+
 ## [0.12.0] — 2026-04-29
 
 整合 jnMetaCode/Agency-orchestrator 的進階 workflow 功能 + 12 個新範本。

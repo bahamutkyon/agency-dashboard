@@ -8,7 +8,7 @@ interface Props {
   sessionId: string;
   agentId: string;
   agentName: string;
-  provider?: "claude" | "codex";
+  provider?: "claude" | "codex" | "gemini";
   onStatusChange?: (status: string) => void;
   onOpenAgentById?: (agentId: string) => void;
   onHandoff?: (toAgentId: string, message: string, fromAgentName: string) => void;
@@ -575,9 +575,11 @@ export function ChatWindow({
             {agentName}
             {provider && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                provider === "codex" ? "bg-emerald-900/60 text-emerald-300" : "bg-violet-900/60 text-violet-300"
+                provider === "codex" ? "bg-emerald-900/60 text-emerald-300" :
+                provider === "gemini" ? "bg-sky-900/60 text-sky-300" :
+                "bg-violet-900/60 text-violet-300"
               }`}>
-                {provider === "codex" ? "🤖 Codex" : "🧠 Claude"}
+                {provider === "codex" ? "🤖 Codex" : provider === "gemini" ? "✨ Gemini" : "🧠 Claude"}
               </span>
             )}
           </div>

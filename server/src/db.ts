@@ -164,6 +164,12 @@ try {
     db.exec("ALTER TABLE sessions ADD COLUMN codex_thread_id TEXT");
     console.log("[db] migration: added sessions.codex_thread_id column");
   }
+  // gemini doesn't have a CLI-managed thread ID at the moment; we just
+  // serialize history into the prompt. But reserve the column for future use.
+  if (sessCols.length > 0 && !sessCols.some((c) => c.name === "gemini_meta")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN gemini_meta TEXT");
+    console.log("[db] migration: added sessions.gemini_meta column");
+  }
   // workflows.max_concurrency for per-workflow parallelism control
   const wfCols = db.prepare("PRAGMA table_info(workflows)").all() as any[];
   if (wfCols.length > 0 && !wfCols.some((c) => c.name === "max_concurrency")) {
