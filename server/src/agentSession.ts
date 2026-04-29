@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { v4 as uuid } from "uuid";
 import { spawnClaude } from "./claudeProcess.js";
 import { spawnCodexTurn, parseCodexLine } from "./codexProcess.js";
-import { spawnGeminiTurn } from "./geminiProcess.js";
+import { spawnGeminiTurn, parseGeminiLine } from "./geminiProcess.js";
 
 export type Provider = "claude" | "codex" | "gemini";
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
@@ -51,7 +51,9 @@ export class AgentSession extends EventEmitter {
   // multi-turn support is patchy. Keep the running transcript so subsequent
   // turns can reference it.
   geminiHistory: { role: "user" | "model"; text: string }[] = [];
+  geminiSessionId?: string;
   private geminiBuf = "";
+  private geminiCurrent = "";
 
   constructor(
     agentId: string,
@@ -293,8 +295,9 @@ export class AgentSession extends EventEmitter {
   private spawnGeminiTurnNow(userText: string) {
     this.setStatus("starting");
     this.geminiBuf = "";
+    this.geminiCurrent = "";
 
-    // For first turn, prepend system prompt
+    // For first turn, prepend system prompt as context
     let prompt = userText;
     if (this.geminiHistory.length === 0 && this.extraSystemPrompt) {
       prompt = `<system>\n${this.extraSystemPrompt}\n</system>\n\n${userText}`;
@@ -307,18 +310,19 @@ export class AgentSession extends EventEmitter {
     });
     this.child = child;
 
-    let collected = "";
     child.stdout!.setEncoding("utf8");
     child.stderr!.setEncoding("utf8");
+
     child.stdout!.on("data", (chunk: string) => {
       const s = String(chunk);
-      collected += s;
-      // Emit as deltas as they arrive — gemini-cli streams text by default
-      this.emit("event", { type: "delta", payload: s });
+      console.log(`[gemini ${this.id.slice(0,8)}] stdout: ${s.slice(0, 200).replace(/\n/g, " ")}`);
+      this.handleGeminiStdout(s);
     });
     child.stderr!.on("data", (chunk: string) => {
       const s = String(chunk).trim();
-      if (s && /error|failed|unauthorized|rate.?limit|quota|forbid/i.test(s)) {
+      console.log(`[gemini ${this.id.slice(0,8)}] stderr: ${s.slice(0, 300).replace(/\n/g, " ")}`);
+      if (s && /error|failed|unauthorized|rate.?limit|quota|forbid/i.test(s) &&
+          !/Windows 10 detected|true color|Ripgrep is not available/i.test(s)) {
         this.emit("event", { type: "error", payload: s });
       }
     });
@@ -327,21 +331,10 @@ export class AgentSession extends EventEmitter {
       this.setStatus("error");
     });
     child.on("close", (code) => {
-      const final = collected.trim();
-      // Try to strip CLI banner / status lines if any (heuristic: if the
-      // response looks like JSON wrapper, extract; else treat as plain text)
-      let answer = final;
-      try {
-        const j = JSON.parse(final);
-        answer = j.text || j.response || j.content || final;
-      } catch { /* plain text — use as-is */ }
-
-      if (answer) {
-        this.emit("event", { type: "message", payload: { role: "assistant", content: answer } });
-        // Update local history for next turn
+      // Persist into history
+      if (this.geminiCurrent) {
         this.geminiHistory.push({ role: "user", text: userText });
-        this.geminiHistory.push({ role: "model", text: answer });
-        // Cap history to last 20 messages
+        this.geminiHistory.push({ role: "model", text: this.geminiCurrent });
         if (this.geminiHistory.length > 20) {
           this.geminiHistory = this.geminiHistory.slice(-20);
         }
@@ -352,5 +345,47 @@ export class AgentSession extends EventEmitter {
     });
 
     this.setStatus("busy");
+  }
+
+  private handleGeminiStdout(chunk: string) {
+    this.geminiBuf += chunk;
+    const lines = this.geminiBuf.split("\n");
+    this.geminiBuf = lines.pop() || "";
+    for (const line of lines) {
+      const evt = parseGeminiLine(line);
+      if (!evt) continue;
+      this.routeGeminiEvent(evt);
+    }
+  }
+
+  private routeGeminiEvent(evt: ReturnType<typeof parseGeminiLine>) {
+    if (!evt) return;
+    if (evt.type === "init" && evt.sessionId) {
+      this.geminiSessionId = evt.sessionId;
+      return;
+    }
+    if (evt.type === "message" && evt.role === "assistant" && evt.content) {
+      // gemini-cli 0.40 sends `delta:true` messages with append-style chunks
+      // (each event's content is the NEW piece to add, not cumulative).
+      // Non-delta messages are full final replacements.
+      if (evt.isDelta) {
+        this.emit("event", { type: "delta", payload: evt.content });
+        this.geminiCurrent += evt.content;
+      } else {
+        this.geminiCurrent = evt.content;
+        this.emit("event", { type: "message", payload: { role: "assistant", content: evt.content } });
+      }
+      return;
+    }
+    if (evt.type === "result") {
+      // ensure we emit a final assistant message even if all chunks were deltas
+      if (this.geminiCurrent) {
+        this.emit("event", { type: "message", payload: { role: "assistant", content: this.geminiCurrent } });
+      }
+      return;
+    }
+    if (evt.type === "error") {
+      this.emit("event", { type: "error", payload: evt.content || "gemini error" });
+    }
   }
 }

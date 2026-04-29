@@ -19,6 +19,24 @@
 
 ---
 
+## [0.13.1] — 2026-04-29
+
+完成 Gemini 端到端整合(實測 0.40.0)。
+
+### 修復
+- **Gemini CLI 用實際介面**(不是猜的):
+  - `-p "<prompt>"` + `-o stream-json` + `--skip-trust` + `--approval-mode plan`
+  - 解析 `init / message / result` JSONL 事件格式
+  - delta 處理用 append 模式(每個 chunk 是新增,不是累積)
+- **Windows cmd.exe 吞空字串 bug**:`-p ""` 被當成沒給值,gemini 報「Not enough arguments following: p」
+  - 解法:在 Windows 上不走 `gemini.cmd` 而直接 `node gemini.js`,完全跳過 cmd.exe shell 層
+  - resolveGeminiJs() 自動找 `<npm-prefix>/node_modules/@google/gemini-cli/bundle/gemini.js`
+- **Gemini 預設 plan mode**:避免 agent 自動掃 cwd 檔案/跑工具浪費 quota
+- **乾淨的 isolated cwd**:`<temp>/agency-dashboard-gemini`,不讓 gemini 看到專案敏感檔
+- README 補多 LLM 安裝指引
+
+---
+
 ## [0.13.0] — 2026-04-29
 
 第三個 LLM provider:Gemini + 跟 jnMetaCode 互通的 YAML 匯入匯出。
