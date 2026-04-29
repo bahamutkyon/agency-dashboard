@@ -35,35 +35,46 @@ const cache = new Map<string, CachedDecision>();
 // don't work for Chinese terms. We split: ASCII patterns use \b, CJK
 // patterns are plain substring matches (case-insensitive).
 
-// ASCII tech terms (use \b)
-const CODEX_ASCII = [
-  /\b(code|coding|debug|debugger)\b/i,
-  /\b(python|javascript|typescript|java|golang|rust|cpp|bash|sql|html|css|tsx|jsx)\b/i,
-  /\b(api|sdk|library|framework|webhook|endpoint)\b/i,
-  /\b(github|git|repo|repository|commit|branch|merge|pull\s+request)\b/i,
-  /\b(docker|kubernetes|k8s|terraform|deploy)\b/i,
-  /\.(py|js|ts|tsx|jsx|java|go|rs|cpp|h|css|html|sql|sh|yml|yaml|json|toml|csv|xml)\b/i,
-  /\b(stack\s*trace|exception|traceback)\b/i,
-  /\b(unit\s*test|test\s*case)\b/i,
-  /\b(npm|pip|cargo|yarn|pnpm)\b/i,
-  /\b(localhost|127\.0\.0\.1|https?:\/\/[\w./?-]+)/i,
+// === HONEST ROUTING RULES ===
+// Claude (Sonnet/Opus 4.x) is competitive with or beats Codex on most coding
+// benchmarks (SWE-bench, HumanEval). Plus its 1M context, better Chinese,
+// and more generous Max-plan quota make it the right DEFAULT for almost
+// everything. Codex is a niche backup, not "the code provider".
+//
+// We only route to Codex when the user is doing something where Codex's
+// specific operational features matter:
+//   - Heavy autonomous shell execution (Codex's sandbox is more mature)
+//   - User explicitly mentions "用 codex / openai / gpt"
+//   - Specific OpenAI-only tool integrations
+// Otherwise → Claude.
+
+// User-explicit Codex preference
+const EXPLICIT_CODEX_ASCII = [
+  /\b(use\s+codex|via\s+codex|with\s+codex|in\s+codex|codex\s+please)\b/i,
+  /\b(use\s+gpt[-\s]?5|via\s+openai|with\s+gpt|gpt-?5\s+please)\b/i,
+];
+const EXPLICIT_CODEX_CJK = [
+  /用\s*codex/i, /用\s*gpt/i, /用\s*openai/i,
+  /(交給|請|給)\s*codex/i, /(交給|請|給)\s*gpt/i,
 ];
 
-// Chinese tech terms (no \b; substring match)
-const CODEX_CJK = [
-  /程式/, /程式碼/, /代碼/, /偵錯/, /除錯/, /重構/,
-  /套件/, /框架/, /單元測試/, /測試案例/, /錯誤訊息/,
+// Sandbox / execution-heavy work (Codex's strength)
+const CODEX_NICHE_ASCII = [
+  /\b(execute|run\s+(this|the)\s+(script|command))\b/i,
+  /\b(sandbox|安全執行)\b/i,
+];
+const CODEX_NICHE_CJK = [
+  /用沙盒/, /沙盒裡跑/, /放沙盒/, /讓\s*codex/, /要\s*codex/,
 ];
 
-// ASCII content terms
+// Strong Claude-preferred indicators (everything content / business / Chinese)
 const CLAUDE_ASCII = [
   /\b(tone|copywriting|copy|narrative|brand|branding)\b/i,
   /\b(threads|instagram|tiktok|youtube|facebook|line)\b/i,
   /\b(marketing|seo|hashtag|caption)\b/i,
   /\b(policy|propose|proposal|invoice|quote|quoted)\b/i,
+  /\b(refactor|debug|architecture|review|test)\b/i, // Claude is great at these too
 ];
-
-// Chinese content / business terms
 const CLAUDE_CJK = [
   /貼文/, /文案/, /內容創作/, /內容寫作/, /品牌/, /語氣/,
   /小紅書/, /微博/, /抖音/, /快手/, /微信/, /公眾號/, /視頻號/,
@@ -74,6 +85,7 @@ const CLAUDE_CJK = [
   /繁體/, /繁中/, /中文/, /台灣/, /香港/,
   /客戶/, /客人/, /顧客/,
   /審稿/, /審核/, /審查/,
+  /程式/, /程式碼/, /代碼/, /偵錯/, /除錯/, /重構/,  // Claude handles code well too
 ];
 
 function countHits(prompt: string, ascii: RegExp[], cjk: RegExp[]): number {
@@ -84,45 +96,62 @@ function countHits(prompt: string, ascii: RegExp[], cjk: RegExp[]): number {
 }
 
 function applyRules(prompt: string): RoutingDecision | null {
-  const codexHits = countHits(prompt, CODEX_ASCII, CODEX_CJK);
-  const claudeHits = countHits(prompt, CLAUDE_ASCII, CLAUDE_CJK);
-
-  // strong dominance — even 1 unique hit can be enough if the other side is 0
-  if (codexHits >= 1 && claudeHits === 0) {
+  // 1. User explicitly asks for Codex / GPT — always honor
+  const explicitCodex = countHits(prompt, EXPLICIT_CODEX_ASCII, EXPLICIT_CODEX_CJK);
+  if (explicitCodex > 0) {
     return {
       provider: "codex",
-      reason: `規則命中:${codexHits} 個技術/程式關鍵字`,
+      reason: "使用者明確指定 Codex / GPT",
       source: "rule",
-      confidence: codexHits >= 2 ? 0.9 : 0.7,
+      confidence: 1.0,
     };
   }
-  if (claudeHits >= 1 && codexHits === 0) {
+
+  // 2. Sandbox / execution-heavy task — Codex's niche
+  const codexNiche = countHits(prompt, CODEX_NICHE_ASCII, CODEX_NICHE_CJK);
+  if (codexNiche > 0) {
+    return {
+      provider: "codex",
+      reason: "需要沙盒執行 / Codex 特長領域",
+      source: "rule",
+      confidence: 0.8,
+    };
+  }
+
+  // 3. Anything else with content/Chinese signal → Claude (and Claude is also
+  //    strong at code, so we don't fight it)
+  const claudeHits = countHits(prompt, CLAUDE_ASCII, CLAUDE_CJK);
+  if (claudeHits >= 1) {
     return {
       provider: "claude",
-      reason: `規則命中:${claudeHits} 個內容/品牌關鍵字`,
+      reason: claudeHits >= 2
+        ? `規則命中:${claudeHits} 個 Claude 強項關鍵字`
+        : `Claude 預設(命中關鍵字)`,
       source: "rule",
-      confidence: claudeHits >= 2 ? 0.9 : 0.7,
+      confidence: claudeHits >= 2 ? 0.9 : 0.75,
     };
   }
-  // dominance with hits on both sides
-  if (codexHits >= 2 && codexHits > claudeHits + 1) {
-    return { provider: "codex", reason: `規則命中:${codexHits} 個技術關鍵字 vs ${claudeHits} 個內容關鍵字`, source: "rule", confidence: 0.85 };
-  }
-  if (claudeHits >= 2 && claudeHits > codexHits + 1) {
-    return { provider: "claude", reason: `規則命中:${claudeHits} 個內容關鍵字 vs ${codexHits} 個技術關鍵字`, source: "rule", confidence: 0.85 };
-  }
-  // both 0 or roughly tied → ambiguous
+
+  // 4. Nothing matched → ambiguous, let LLM decide
   return null;
 }
 
 async function llmClassify(prompt: string): Promise<RoutingDecision> {
   return new Promise((resolve) => {
-    // Mostly-English instruction so Windows codepage glitches can't garble
-    // it; user prompt is interpolated as data and JSON-escaped (which makes
-    // Chinese chars survive as \uXXXX).
-    const ask = `Classify the following USER_QUERY between two LLMs:
-- claude: best for Chinese long-form writing, brand/marketing copy, social posts, law/finance docs, taste judgment.
-- codex: best for code generation, debugging, API integration, command-line tools, automation scripts.
+    // Bias toward Claude unless there's a *specific* reason to pick Codex.
+    // Both models handle code well; this prompt guides the classifier to
+    // honestly pick Codex only for niche cases.
+    const ask = `Decide which LLM should handle USER_QUERY. Default is "claude".
+
+DEFAULT (claude — pick this unless USER_QUERY specifically benefits from Codex):
+- All writing tasks (Chinese long-form, marketing copy, social posts, brand/legal/finance docs)
+- All general code work (Claude is competitive with or beats Codex on most coding benchmarks)
+- Research, taste judgment, multi-step reasoning, anything ambiguous
+
+PICK CODEX only if USER_QUERY:
+- Requires autonomous shell execution in a sandbox (Codex's exec sandbox is more mature)
+- Explicitly asks for Codex / GPT / OpenAI by name
+- Needs an OpenAI-specific tool that Claude lacks
 
 USER_QUERY:
 ${prompt.slice(0, 800)}
@@ -206,24 +235,43 @@ Respond with JSON only (no commentary):
 export async function routePrompt(prompt: string, defaultProvider: Provider = "claude"): Promise<RoutingDecision> {
   // If codex isn't available, always use claude
   if (!isCodexAvailable()) {
-    return { provider: "claude", reason: "Codex CLI 未安裝,只能用 Claude", source: "default" };
+    return { provider: "claude", reason: "Codex 未安裝,使用 Claude", source: "default" };
   }
 
   // cache check
   const cacheKey = prompt.slice(0, 200).toLowerCase().replace(/\s+/g, " ").trim();
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return { ...cached.decision, source: "rule" };
+    return { ...cached.decision };
   }
 
-  // 1. rules
+  // 1. rules — these now bias heavily toward Claude
   const ruleDecision = applyRules(prompt);
   if (ruleDecision) {
     cache.set(cacheKey, { decision: ruleDecision, ts: Date.now() });
     return ruleDecision;
   }
 
-  // 2. LLM fallback for ambiguous
+  // 2. Nothing matched → don't even bother LLM, just default to Claude.
+  //    LLM classification only runs if user really needs more nuance — but
+  //    given Claude is the right default for almost everything, we save the
+  //    cost / latency and just return Claude here.
+  //    (Use LLM fallback only for highly ambiguous cases — heuristic: prompt
+  //    has no Chinese AND no English → fall through to LLM)
+  const hasCJK = /[一-鿿]/.test(prompt);
+  const hasEnglish = /[a-zA-Z]{4,}/.test(prompt);
+  if (hasCJK || hasEnglish) {
+    const decision: RoutingDecision = {
+      provider: "claude",
+      reason: "預設 Claude(無特殊 Codex 觸發訊號)",
+      source: "default",
+      confidence: 0.7,
+    };
+    cache.set(cacheKey, { decision, ts: Date.now() });
+    return decision;
+  }
+
+  // 3. Truly ambiguous (no recognizable language) → LLM fallback
   try {
     const llmDecision = await llmClassify(prompt);
     cache.set(cacheKey, { decision: llmDecision, ts: Date.now() });
@@ -231,7 +279,7 @@ export async function routePrompt(prompt: string, defaultProvider: Provider = "c
   } catch (e: any) {
     return {
       provider: defaultProvider,
-      reason: `LLM 分類失敗(${e.message}),用預設 ${defaultProvider}`,
+      reason: `LLM 分類失敗,使用預設 ${defaultProvider}`,
       source: "fallback",
     };
   }

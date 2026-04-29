@@ -19,6 +19,20 @@
 
 ---
 
+## [0.11.1] — 2026-04-29
+
+修正路由偏見 — 之前根據刻板印象把寫程式預設丟給 Codex,事實是 Claude 在程式碼上不輸甚至贏。
+
+### 修改
+- **Smart Router 預設改成 Claude**,Codex 變備胎(只在以下情境用):
+  - 使用者明確說「用 codex / GPT / OpenAI」(信心 1.0)
+  - 提到沙盒執行 / 自動跑 shell(Codex 真正強項,信心 0.8)
+- 中英文寫程式關鍵字不再強制丟 Codex
+- LLM router prompt 重寫,引導模型誠實偏向 Claude(只在 Codex 真有優勢時才選)
+- 真正模糊問題不打 LLM,直接用 Claude(省錢省延遲)
+
+---
+
 ## [0.11.0] — 2026-04-29
 
 多模型協作 — 整合 Codex (OpenAI) 並加入 Smart Router。
