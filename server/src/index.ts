@@ -3,11 +3,11 @@ import cors from "cors";
 import { createServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { loadAgents, categoryLabel } from "./agentLoader.js";
-import { agentManager } from "./agentManager.js";
+import { agentManager, securityStats } from "./agentManager.js";
 import { scheduler } from "./scheduler.js";
 import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
-import { listInstalledMCPServers, buildMCPConfigForWorkspace } from "./mcpDetector.js";
+import { listInstalledMCPServers, buildMCPConfigForWorkspace, BASELINE_MCPS } from "./mcpDetector.js";
 import { isCodexAvailable } from "./codexProcess.js";
 import { isGeminiAvailable } from "./geminiProcess.js";
 import { routePrompt } from "./smartRouter.js";
@@ -89,6 +89,29 @@ app.delete("/api/workspaces/:id", (req, res) => {
 // MCP — list available servers from user's ~/.claude.json
 app.get("/api/mcp/servers", (_req, res) => {
   res.json(listInstalledMCPServers());
+});
+
+// Security status — for the top-right protection indicator. Returns
+// whether shellward (or any baseline MCP) is configured + injection stats.
+app.get("/api/security/status", (_req, res) => {
+  const installed = listInstalledMCPServers();
+  const installedNames = new Set(installed.map((s) => s.name));
+  const baselineCheck = BASELINE_MCPS.map((name) => ({
+    name,
+    configured: installedNames.has(name),
+  }));
+  const allConfigured = baselineCheck.every((b) => b.configured);
+  res.json({
+    healthy: allConfigured && BASELINE_MCPS.length > 0,
+    baseline: baselineCheck,
+    stats: {
+      sessionsWithMcp: securityStats.sessionsWithMcp,
+      sessionsWithoutMcp: securityStats.sessionsWithoutMcp,
+      lastInjectionAt: securityStats.lastInjectionAt,
+      lastMcpNames: securityStats.lastMcpNames,
+      uptimeMs: Date.now() - securityStats.startedAt,
+    },
+  });
 });
 
 // Export — bundle a workspace's metadata + notes + templates + schedules

@@ -20,6 +20,7 @@ export interface MCPServerInfo {
   command?: string;       // for stdio servers
   url?: string;           // for http/sse servers
   hasAuth?: boolean;      // any env keys? hint that user might need to set creds
+  baseline?: boolean;     // always-on — workspace toggle has no effect
 }
 
 export function listInstalledMCPServers(): MCPServerInfo[] {
@@ -36,6 +37,7 @@ export function listInstalledMCPServers(): MCPServerInfo[] {
         command: cfg?.command,
         url: cfg?.url,
         hasAuth: Object.keys(env).length > 0,
+        baseline: BASELINE_MCPS.includes(name),
       });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -46,19 +48,42 @@ export function listInstalledMCPServers(): MCPServerInfo[] {
 }
 
 /**
- * Build an --mcp-config JSON string for the subset of servers a workspace
- * has enabled. Returns null if no servers selected (so caller can omit flag).
+ * MCPs always loaded for every Claude session regardless of workspace settings.
+ * shellward = baseline security middleware (prompt injection detection /
+ * dangerous command blocking / data exfiltration prevention / PII guards).
+ * Cannot be opted-out per-workspace — if user wants to disable globally they
+ * need to remove the name here OR uninstall the MCP server entry from
+ * ~/.claude.json. Forgetting to enable per-workspace == unprotected, so we
+ * make it default-on instead.
+ */
+export const BASELINE_MCPS = ["shellward"];
+
+export function isBaselineMcp(name: string): boolean {
+  return BASELINE_MCPS.includes(name);
+}
+
+/**
+ * Build an --mcp-config JSON string for a workspace. Always includes baseline
+ * MCPs (shellward) plus any workspace-opted-in servers. Returns null if no
+ * servers would end up in the config (so caller can omit the flag).
  */
 export function buildMCPConfigForWorkspace(enabledNames: string[]): string | null {
-  if (!enabledNames || enabledNames.length === 0) return null;
   if (!fs.existsSync(USER_CONFIG)) return null;
   try {
     const raw = JSON.parse(fs.readFileSync(USER_CONFIG, "utf8"));
     const allServers = raw.mcpServers || {};
     const subset: Record<string, any> = {};
-    for (const n of enabledNames) {
+
+    // Baseline first — always-on regardless of workspace toggle state.
+    for (const n of BASELINE_MCPS) {
       if (allServers[n]) subset[n] = allServers[n];
     }
+
+    // Workspace opt-ins layered on top.
+    for (const n of enabledNames || []) {
+      if (allServers[n]) subset[n] = allServers[n];
+    }
+
     if (Object.keys(subset).length === 0) return null;
     return JSON.stringify({ mcpServers: subset });
   } catch {

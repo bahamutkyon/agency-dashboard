@@ -19,6 +19,40 @@
 
 ---
 
+## [0.14.0] — 2026-04-29
+
+基線安全防護整合,把 shellward MCP 變成「裝了就保護所有對話」的底層守門人。
+搭配右上角 🛡️ 即時護盾、新的 AI 編程工具諮詢工作流範本。
+
+### 新增
+- **🛡️ Shellward 基線安全防護整合**(`mcpDetector.ts` / `agentManager.ts`)
+  - `BASELINE_MCPS = ["shellward"]`:工作區「啟用 MCP」開關不影響它,只要 `~/.claude.json` 裡有 shellward,**所有 Claude session 一律強制注入**
+  - 連動到 reattach 路徑 — 之前從歷史恢復對話會跳過 baseline,現在補上了
+  - In-memory `securityStats` 統計:已保護對話數、未保護數、最近一次注入時間 / MCP 名稱
+  - 攔截範圍:prompt injection、危險命令、PII 外洩、資料外送鏈;Codex 也吃到 stdio 守護;Gemini 走 plan mode 無攻擊面所以不必加
+- **🛡️ 右上角即時護盾(`SecurityBadge.tsx`)**
+  - 護盾 + 圓點:🟢 保護中 / 🔴 未啟用,10 秒輪詢 `/api/security/status`
+  - 點開詳情面板:每個 baseline MCP 的配置狀態、已保護 / 未保護對話數、最近一次注入時間 + 注入了哪些 MCP
+  - 未配置時跳紅、提示去檢查 `~/.claude.json`
+- **🛠️ Workflow 範本「AI 編程工具諮詢與落地」**(`workflowTemplates.ts`)
+  - Step 1:`ai-coding-guide-consultant` 推薦工具組合 + 為什麼選 / 不選備案 + 第一週路徑 + 預期踩坑
+  - Step 2:`engineering-codebase-onboarding-engineer` 產出可直接複製貼上的配置檔(CLAUDE.md / .cursorrules / GEMINI.md / .windsurfrules)+ daily checklist + sanity-check 任務
+  - 適合剛裝完 dashboard 想配 AI 編程工具的新使用者
+- **新 API:`GET /api/security/status`**
+  - 回傳 `{ healthy, baseline: [{name, configured}], stats: {...} }`
+  - 給 SecurityBadge / 監控面板 / 自動化腳本用
+
+### 修復
+- **Vite proxy 累積錯誤的根因記錄**:多開幾次 `npm run dev` 會留下殭屍 vite + tsx 進程互搶 5190/5191,導致 cmd.exe 滿是 `socket hang up` / `ECONNRESET`。
+  解法是關掉跑 dashboard 的 cmd 視窗 + 用工作管理員清掉所有 `node.exe`,然後重啟一次乾淨的 `start.bat`。
+
+### 文件
+- README:✨ 功能列表加入「🛡️ 基線安全防護」「🛠️ Workflow 範本庫」兩條
+- README:移除「🔖 版本管理(給維護者)」段落,改為簡潔的版本紀錄連結
+- CHANGELOG:本檔加入 0.14.0 詳細條目
+
+---
+
 ## [0.13.1] — 2026-04-29
 
 完成 Gemini 端到端整合(實測 0.40.0)。

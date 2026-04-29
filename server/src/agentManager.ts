@@ -11,6 +11,26 @@ import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 
+// In-memory tally so /api/security/status can show "X sessions protected
+// since dashboard start" without parsing logs.
+export const securityStats = {
+  startedAt: Date.now(),
+  sessionsWithMcp: 0,
+  sessionsWithoutMcp: 0,
+  lastInjectionAt: 0 as number | 0,
+  lastMcpNames: [] as string[],
+};
+
+function recordMcp(injected: boolean, names: string[]) {
+  if (injected) {
+    securityStats.sessionsWithMcp++;
+    securityStats.lastInjectionAt = Date.now();
+    securityStats.lastMcpNames = names;
+  } else {
+    securityStats.sessionsWithoutMcp++;
+  }
+}
+
 // Capability injected into normal user-initiated chats. Lets the agent
 // signal "this part should be handled by someone else" via a structured
 // marker the frontend detects and turns into an Accept/Reject banner.
@@ -89,6 +109,14 @@ export class AgentManager {
 
     const ws = getWorkspace(wsId);
     const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || []) : null;
+    if (mcpConfig) {
+      const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
+      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=${names.join(",")}`);
+      recordMcp(true, names);
+    } else {
+      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=(none)`);
+      recordMcp(false, []);
+    }
     const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider);
     // Stash workspace id on session so attachPersistence can append memory
     (session as any).workspaceId = wsId;
@@ -113,7 +141,16 @@ export class AgentManager {
     if (existing) return existing;
     const rec = getSession(sessionId);
     if (!rec) return;
-    const session = new AgentSession(rec.agentId, rec.id, undefined, undefined, rec.provider);
+    // Re-build MCP config so baseline (shellward) gets re-injected. Without
+    // this, resumed Claude sessions skipped baseline guards entirely.
+    const ws = getWorkspace(rec.workspaceId);
+    const mcpConfig = rec.provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || []) : null;
+    if (mcpConfig) {
+      const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
+      console.log(`[agentManager] reattach session=${rec.agentId} provider=${rec.provider} mcp=${names.join(",")}`);
+      recordMcp(true, names);
+    }
+    const session = new AgentSession(rec.agentId, rec.id, undefined, mcpConfig || undefined, rec.provider);
     if (rec.claudeSessionId) (session as any).claudeSessionId = rec.claudeSessionId;
     if (rec.codexThreadId) (session as any).codexThreadId = rec.codexThreadId;
     (session as any).workspaceId = rec.workspaceId;

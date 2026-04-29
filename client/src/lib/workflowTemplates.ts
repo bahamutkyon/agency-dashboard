@@ -466,6 +466,26 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
 
   {
+    id: "ai-coding-setup",
+    emoji: "🛠️",
+    label: "AI 編程工具諮詢與落地",
+    description: "顧問推薦工具組合 → 工程師產出可貼上的配置檔 + 第一週上手清單",
+    steps: [
+      {
+        id: "consult",
+        agentId: "ai-coding-guide-consultant",
+        prompt: "使用者情境如下,請給出:\n1. 推薦的工具組合(1-3 個,排序),每個附「為什麼選」與「為什麼不選備案」\n2. 每個工具需要的配置檔清單(CLAUDE.md / .cursorrules / GEMINI.md / .windsurfrules 等)\n3. 第一週的學習路徑(具體要先試什麼指令、讀本機 ai-coding-guide 哪幾篇)\n4. 預期的 3 個踩坑點\n\n使用者情境:"
+      },
+      {
+        id: "configs",
+        agentId: "engineering-codebase-onboarding-engineer",
+        dependsOn: ["consult"],
+        prompt: "根據以下 AI 編程工具諮詢結果,請產出可直接複製貼上的配置檔。\n\n要求:\n1. 每個推薦工具的配置檔**完整內容**(用 ```語言 程式碼框包起來,讓使用者一鍵複製)\n2. 每個檔案放在專案的相對路徑(例如 `./CLAUDE.md`、`./.cursor/rules/global.md`)\n3. 第一週 daily checklist(- [ ] 形式,每天 1-2 個 checkpoint)\n4. 一個 sanity-check 任務(讓使用者確認設定生效,例如「叫 Claude Code 讀 CLAUDE.md 並摘要,如果摘要正確就代表載入成功」)\n\n諮詢結果:\n\n{{consult.out}}"
+      }
+    ]
+  },
+
+  {
     id: "blank",
     emoji: "✏️",
     label: "空白(自己設計)",

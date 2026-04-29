@@ -6,6 +6,7 @@ import { HistoryPanel } from "./components/HistoryPanel";
 import { TemplatesPanel } from "./components/TemplatesPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageBar } from "./components/UsageBar";
+import { SecurityBadge } from "./components/SecurityBadge";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
@@ -300,6 +301,7 @@ ${message}
               hasActiveTabs={tabs.length > 0}
             />
             <UsageBar />
+            <SecurityBadge />
           </div>
         </div>
 
