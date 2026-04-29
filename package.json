@@ -17,7 +17,8 @@
     "release:major": "npm version major -m \"chore: release v%s\" && git push --follow-tags",
     "traditionalize": "node scripts/traditionalize-agents.mjs",
     "traditionalize:dry": "node scripts/traditionalize-agents.mjs --dry",
-    "traditionalize:revert": "node scripts/traditionalize-agents.mjs --revert"
+    "traditionalize:revert": "node scripts/traditionalize-agents.mjs --revert",
+    "mcp": "cd server && npm run mcp"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

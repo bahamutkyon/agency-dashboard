@@ -99,10 +99,14 @@ export interface WorkflowRun {
   // step outputs keyed by step id; populated as each step completes.
   // Used for resume + multi-variable interpolation across runs.
   stepOutputs?: Record<string, string>;
+  // per-step loop iteration count. Capped to prevent infinite loops.
+  iterations?: Record<string, number>;
   error?: string;
   startedAt: number;
   endedAt?: number;
 }
+
+export const MAX_LOOP_ITERATIONS = 5;
 
 // --- Helpers ---
 

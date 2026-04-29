@@ -19,6 +19,28 @@
 
 ---
 
+## [0.10.0] — 2026-04-29
+
+CHE 三件套 — 跟 jnMetaCode/Agency-orchestrator 全面追平。
+
+### 新增
+- **🩺 DAG 視覺化計畫(E)** — `WorkflowPlan` 元件,在編輯器與執行中 banner 顯示:
+  - 拓樸層級(`L1 ⚡×3`):同層平行 step 用綠框、單層用灰框
+  - 執行中當前 step 黃色脈動 highlight
+  - 循環依賴偵測,有錯標紅
+  - 暫停 / 條件跳過小提示
+- **↺ Loop back + 迭代上限(C)** — paused 時除了「✓ 批准繼續」外,可選下拉「↺ 回到某步重做」:
+  - 選任何已完成的 step,從那步重跑(rewind 該 step + 所有下游)
+  - 每個 step 各有迭代計數,上限 5 次防無限迴圈
+  - confirm dialog 顯示目前迭代次數
+- **🔌 MCP server 模式(H)** — `npm run mcp` 啟動 stdio MCP server,讓 Cursor / Claude Code 等 AI 工具調用我們:
+  - `agency_list_workflows / run_workflow / list_agents / chat_with_agent / list_notes / search_sessions` 6 個 tool
+  - 透過 `DASHBOARD_URL` env 連到主儀表板,不重複實作 workflow 邏輯
+  - 不同工作區可用 `AGENCY_WORKSPACE` env 切換
+  - README 補完整安裝指引
+
+---
+
 ## [0.9.0] — 2026-04-29
 
 Workflow 引擎升級到 DAG。靈感來自 jnMetaCode/Agency-orchestrator 的設計。

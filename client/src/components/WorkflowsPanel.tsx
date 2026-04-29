@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type AgentMeta, type Workflow, type WorkflowRun, type WorkflowStep } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { WORKFLOW_TEMPLATES } from "../lib/workflowTemplates";
+import { WorkflowPlan } from "./WorkflowPlan";
 
 interface Props {
   agents: AgentMeta[];
@@ -260,6 +261,10 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                 + 新增步驟
               </button>
             </div>
+
+            {draft.steps.filter((s) => s.agentId).length > 0 && (
+              <WorkflowPlan steps={draft.steps.filter((s) => s.agentId)} agents={agents} />
+            )}
             <div className="flex gap-2">
               <button onClick={save} className="flex-1 py-2 rounded bg-accent hover:bg-violet-500 text-white text-sm">
                 {editing === "new" ? "建立" : "儲存"}
@@ -284,14 +289,45 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                 <span className="text-zinc-400 ml-2">Step {activeRun.currentStep + 1} / {activeRun.sessionIds.length || "?"}</span>
               </div>
               <div className="flex gap-2">
-                {activeRun.status === "paused" && (
-                  <button
-                    onClick={async () => { await api.approveRun(activeRun.id); }}
-                    className="text-xs px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-medium"
-                  >
-                    ✓ 批准繼續
-                  </button>
-                )}
+                {activeRun.status === "paused" && (() => {
+                  const wf = list.find((w) => w.id === activeRun.workflowId);
+                  const completedSteps = Object.keys(activeRun.stepOutputs || {});
+                  return (
+                    <>
+                      <button
+                        onClick={async () => { await api.approveRun(activeRun.id); }}
+                        className="text-xs px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-medium"
+                      >
+                        ✓ 批准繼續
+                      </button>
+                      {completedSteps.length > 0 && (
+                        <select
+                          className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200"
+                          defaultValue=""
+                          onChange={async (e) => {
+                            const sid = e.target.value;
+                            if (!sid) return;
+                            const iter = activeRun.iterations?.[sid] || 0;
+                            if (!confirm(`回到 step「${sid}」重做?它跟所有下游 step 會重新執行。\n\n目前迭代次數:${iter} / 5`)) {
+                              e.target.value = "";
+                              return;
+                            }
+                            try { await api.loopBackRun(activeRun.id, sid); }
+                            catch (err: any) { alert(err.message); }
+                            e.target.value = "";
+                          }}
+                        >
+                          <option value="">↺ 回到某步重做…</option>
+                          {wf?.steps.filter((s) => completedSteps.includes(s.id || "")).map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.id} {activeRun.iterations?.[s.id!] ? `(已迭代 ${activeRun.iterations[s.id!]}/5)` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </>
+                  );
+                })()}
                 {(activeRun.status === "running" || activeRun.status === "paused") && (
                   <button onClick={cancelRun} className="text-xs px-2 py-1 bg-zinc-800 hover:bg-rose-700 rounded">中止</button>
                 )}
@@ -299,14 +335,28 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
               </div>
             </div>
             {activeRun.error && <div className="mt-2 text-xs text-rose-400">{activeRun.error}</div>}
+            {(() => {
+              const wf = list.find((w) => w.id === activeRun.workflowId);
+              if (!wf) return null;
+              const currentStepId = wf.steps[activeRun.currentStep]?.id || `step_${activeRun.currentStep + 1}`;
+              return (
+                <div className="mt-3">
+                  <WorkflowPlan
+                    steps={wf.steps}
+                    agents={agents}
+                    highlightStep={activeRun.status === "running" || activeRun.status === "paused" ? currentStepId : null}
+                  />
+                </div>
+              );
+            })()}
             <div className="mt-2 flex flex-wrap gap-1">
-              {activeRun.sessionIds.map((sid, i) => (
-                <button key={sid}
+              {activeRun.sessionIds.map((sid, i) => sid ? (
+                <button key={sid + i}
                   onClick={() => onOpenSession?.(sid, "", `Workflow Step ${i + 1}`)}
                   className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded">
                   Step {i + 1} 對話 →
                 </button>
-              ))}
+              ) : null)}
             </div>
           </div>
         )}

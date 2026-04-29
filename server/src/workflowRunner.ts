@@ -20,6 +20,7 @@ import { EventEmitter } from "node:events";
 import { agentManager } from "./agentManager.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
+  MAX_LOOP_ITERATIONS,
   type Workflow, type WorkflowRun, type WorkflowStep,
 } from "./store.js";
 
@@ -72,7 +73,11 @@ function validateGraph(steps: WorkflowStep[]): string | null {
   return null;
 }
 
-interface PausedRun { resume: () => void; }
+interface PausedRun {
+  // resume(loopToStepId?) — if a step id passed, pause handler signals
+  // executor to loop back to that step. Otherwise, just continue.
+  resume: (loopToStepId?: string) => void;
+}
 
 class WorkflowRunner extends EventEmitter {
   private active = new Map<string, AbortController>();
@@ -151,6 +156,19 @@ class WorkflowRunner extends EventEmitter {
     }
   }
 
+  /**
+   * Loop back from a paused step. Re-executes from `toStepId` (forgetting its
+   * output and all descendants). Bumps iteration counter for that step;
+   * refuses if it would exceed MAX_LOOP_ITERATIONS.
+   */
+  loopBack(runId: string, toStepId: string): { ok: boolean; error?: string } {
+    const p = this.paused.get(runId);
+    if (!p) return { ok: false, error: "run is not paused" };
+    p.resume(toStepId);
+    this.paused.delete(runId);
+    return { ok: true };
+  }
+
   private async execute(
     wf: Workflow,
     runId: string,
@@ -173,16 +191,44 @@ class WorkflowRunner extends EventEmitter {
     // Track running in-flight
     const inFlight = new Map<string, Promise<void>>();
 
+    const iterations: Record<string, number> = {};
+
+    // helper: rewind outputs for a step + all its descendants
+    const rewindFrom = (stepId: string) => {
+      const reExec = new Set([stepId, ...descendantsOf(stepId, steps)]);
+      for (const sid of reExec) {
+        delete outputs[sid];
+        completed.delete(sid);
+      }
+    };
+
     const tryRunStep = async (step: WorkflowStep, idx: number): Promise<void> => {
       // pauseBefore
       if (step.pauseBefore) {
         updateRun(runId, { status: "paused", currentStep: idx, sessionIds, stepOutputs: outputs });
         this.emit("update", runId);
-        await new Promise<void>((resolve, reject) => {
-          this.paused.set(runId, { resume: resolve });
+        const decision = await new Promise<{ loopTo?: string }>((resolve, reject) => {
+          this.paused.set(runId, { resume: (loopTo?: string) => resolve({ loopTo }) });
           signal.addEventListener("abort", () => reject(new Error("cancelled")));
         });
         if (signal.aborted) throw new Error("cancelled");
+
+        if (decision.loopTo) {
+          // user wants to loop back to a previous step
+          const target = steps.find((s) => s.id === decision.loopTo);
+          if (target) {
+            const cnt = (iterations[decision.loopTo] || 0) + 1;
+            if (cnt > MAX_LOOP_ITERATIONS) {
+              throw new Error(`達到最大迴圈次數 ${MAX_LOOP_ITERATIONS},強制停止`);
+            }
+            iterations[decision.loopTo] = cnt;
+            console.log(`[workflow] loop back to ${decision.loopTo} (iteration ${cnt})`);
+            rewindFrom(decision.loopTo);
+            updateRun(runId, { status: "running", iterations });
+            this.emit("update", runId);
+            return; // skip running THIS step; scheduler will pick up the rewound chain
+          }
+        }
         updateRun(runId, { status: "running" });
         this.emit("update", runId);
       }

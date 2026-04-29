@@ -695,6 +695,14 @@ app.post("/api/runs/:id/approve", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/runs/:id/loop-back", (req, res) => {
+  const { stepId } = req.body || {};
+  if (!stepId) return res.status(400).json({ error: "stepId required" });
+  const r = workflowRunner.loopBack(req.params.id, stepId);
+  if (!r.ok) return res.status(400).json(r);
+  res.json(r);
+});
+
 app.get("/api/workflows/:id/runs", (req, res) => {
   res.json(listRuns(req.params.id));
 });

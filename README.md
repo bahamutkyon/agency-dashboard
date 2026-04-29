@@ -194,6 +194,50 @@ A: 任何對話 → 右上「匯出 .md」,把產生的 Markdown 檔給他即可
 
 ---
 
+## 🔌 當作 MCP server 給其他 AI 工具用(v0.10+)
+
+讓 Cursor / Claude Code / Continue 等 AI 工具能調用我們的 workflow:
+
+### 1. 確認 dashboard 在跑
+```bash
+npm run dev   # 確保 localhost:5191 有 server
+```
+
+### 2. 在你的 AI 工具設定 MCP
+
+**Claude Code** — 編輯 `~/.claude.json`,在 `mcpServers` 加:
+```json
+{
+  "mcpServers": {
+    "agency-dashboard": {
+      "command": "npx",
+      "args": ["-y", "tsx", "/abs/path/to/agency-dashboard/server/src/mcpServer.ts"]
+    }
+  }
+}
+```
+
+或用我們提供的 npm script(同 repo 內):
+```bash
+npm run mcp    # 啟動 stdio MCP server
+```
+
+### 3. 你的 AI 工具會看到這些 tool
+- `agency_list_workflows` — 列出可用 workflows
+- `agency_run_workflow(workflow_id, initial_input)` — 執行 workflow,等完成回傳所有步驟輸出
+- `agency_list_agents(category, search)` — 找專家
+- `agency_chat_with_agent(agent_id, message)` — 單輪請教
+- `agency_list_notes()` — 取工作區筆記
+- `agency_search_sessions(query)` — 全文搜過往對話
+
+### 環境變數
+- `DASHBOARD_URL`(預設 `http://localhost:5191`)
+- `AGENCY_WORKSPACE`(預設 `default`)
+
+可以針對不同工作區開不同 MCP server instance。
+
+---
+
 ## 🔖 版本管理(給維護者)
 
 版號遵循 [SemVer](https://semver.org/lang/zh-TW/):**主.次.修**(例 `0.1.0`)。

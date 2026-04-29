@@ -164,6 +164,11 @@ export const api = {
     fetch(`/api/workflows/${id}/validate`, { method: "POST" }).then(j<{ ok: boolean; error?: string; steps?: WorkflowStep[] }>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
   approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j),
+  loopBackRun: (id: string, stepId: string) =>
+    fetch(`/api/runs/${id}/loop-back`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stepId }),
+    }).then(j),
   mcpServers: () => fetch("/api/mcp/servers").then(j<MCPServerInfo[]>),
   workflowRuns: (id: string) => fetch(`/api/workflows/${id}/runs`).then(j<WorkflowRun[]>),
   startWorkflowDraft: () =>
@@ -262,6 +267,7 @@ export interface WorkflowRun {
   currentStep: number;
   sessionIds: string[];
   stepOutputs?: Record<string, string>;
+  iterations?: Record<string, number>;
   error?: string;
   startedAt: number;
   endedAt?: number;
