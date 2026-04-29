@@ -19,6 +19,40 @@
 
 ---
 
+## [0.12.0] — 2026-04-29
+
+整合 jnMetaCode/Agency-orchestrator 的進階 workflow 功能 + 12 個新範本。
+
+### 新增
+- **🎬 12 個新範本**(從 jnMetaCode 22 個 YAML 翻譯成繁體 + DAG 化):
+  - 短影音腳本(TikTok / 抖音 / Reels)
+  - [平行] 投資 / 商業機會分析(市場+財務+技術+風險四角度)
+  - OKR 目標拆解(年→季→週)
+  - Pitch Deck 大綱(10 頁標準結構 + 預設 Q&A)
+  - 會議紀錄整理
+  - 小紅書爆款貼文(平台特定)
+  - 故事創作(角色 + 大綱 + 章節)
+  - **[協作] CEO 委派多部門 SOP**(產品/行銷/財務並行 + CEO 整合審核)
+  - **[協作] 突發事件 / 危機回應**(對外 + 對內稿並行 + post-mortem)
+  - **[協作] 行銷活動全鏈路**(IG / 小紅書 / YT 並行 + KPI 儀表板)
+  - **[協作] 招聘 pipeline**(JD / 篩選題 / 面試題 / 評分表)
+  - **[協作] 內容發佈前審查**(事實 / 品牌 / 法務 / SEO 四層並行 → 修改清單)
+  - 範本總數從 14 → 26 個
+- **🏃 `dependsOnMode: "any"`** — 多依賴可選「任一完成就觸發」(賽跑 / fan-in 模式)
+  - WorkflowStep 加 `dependsOnMode` 欄位
+  - Runner 區分 all / any 觸發邏輯
+  - prompt 變數 `{{out}}` 在 any 模式下取「先完成的勝者輸出」
+  - UI:多依賴時下拉切換
+- **⚡ Workflow 自訂並行上限** — `maxConcurrency` per workflow(預設 2,可設 1-5)
+  - DB 加 `max_concurrency` 欄位 + 自動遷移
+  - 編輯器加並行上限選擇
+- **🤖 強化「讓專案經理設計 workflow」**
+  - 重寫 system prompt,主動引導 AI 使用 DAG 平行
+  - 教 AI 用 step id、`{{stepId.out}}`、`pauseBefore`、`skipIfMatch`、`any` 模式
+  - 內建 5 個典範 patterns(多平台內容 / 競品分析 / 客戶提案 / 內容審查 / CEO 委派)
+
+---
+
 ## [0.11.1] — 2026-04-29
 
 修正路由偏見 — 之前根據刻板印象把寫程式預設丟給 Codex,事實是 Claude 在程式碼上不輸甚至贏。

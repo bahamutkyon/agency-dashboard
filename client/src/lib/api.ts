@@ -264,6 +264,7 @@ export interface WorkflowStep {
   agentId: string;
   prompt: string;
   dependsOn?: string[];
+  dependsOnMode?: "all" | "any";
   pauseBefore?: boolean;
   skipIfMatch?: string;
   retries?: number;
@@ -276,6 +277,7 @@ export interface Workflow {
   name: string;
   description: string;
   steps: WorkflowStep[];
+  maxConcurrency?: number;
   createdAt: number;
   updatedAt: number;
 }

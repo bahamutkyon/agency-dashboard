@@ -33,8 +33,16 @@ interface RunOptions {
   fromStepId?: string;        // re-execute this step + its descendants only
 }
 
-const MAX_CONCURRENCY = 2;
+const DEFAULT_MAX_CONCURRENCY = 2;
 const DEFAULT_RETRIES = 2;
+
+function depsReady(step: WorkflowStep, completed: Set<string>): boolean {
+  const deps = step.dependsOn || [];
+  if (deps.length === 0) return true;
+  const mode = step.dependsOnMode || "all";
+  if (mode === "any") return deps.some((d) => completed.has(d));
+  return deps.every((d) => completed.has(d));
+}
 
 function normalizeSteps(steps: WorkflowStep[]): WorkflowStep[] {
   return steps.map((s, i) => ({
@@ -236,9 +244,17 @@ class WorkflowRunner extends EventEmitter {
 
       // resolve dependency outputs and substitute prompt vars
       const directDeps = step.dependsOn || [];
-      const lastDepOutput = directDeps.length > 0
-        ? (outputs[directDeps[directDeps.length - 1]] || "")
-        : initialInput || "";
+      // For "any" mode, pick the first completed dep's output (the "winner");
+      // for "all" mode, pick the last dep's output (chain semantics).
+      let lastDepOutput = initialInput || "";
+      if (directDeps.length > 0) {
+        if ((step.dependsOnMode || "all") === "any") {
+          const winner = directDeps.find((d) => outputs[d] !== undefined);
+          lastDepOutput = winner ? (outputs[winner] || "") : "";
+        } else {
+          lastDepOutput = outputs[directDeps[directDeps.length - 1]] || "";
+        }
+      }
       let promptText = step.prompt
         .replace(/\{\{out\}\}/g, lastDepOutput || "(無上一步輸出)");
       // {{stepId.out}} — substitute any upstream step's output
@@ -340,6 +356,8 @@ class WorkflowRunner extends EventEmitter {
       throw lastErr || new Error(`step ${step.id} failed`);
     };
 
+    const maxConcurrency = wf.maxConcurrency && wf.maxConcurrency > 0 ? wf.maxConcurrency : DEFAULT_MAX_CONCURRENCY;
+
     // Schedule loop: keep launching ready steps until all done
     const tickStartReady = async () => {
       while (true) {
@@ -347,23 +365,20 @@ class WorkflowRunner extends EventEmitter {
         const ready = steps.filter((s) =>
           !completed.has(s.id!) &&
           !inFlight.has(s.id!) &&
-          (s.dependsOn || []).every((d) => completed.has(d))
+          depsReady(s, completed)
         );
         if (ready.length === 0) {
           if (inFlight.size === 0) return; // done
-          // wait for any in-flight to finish
           await Promise.race([...inFlight.values()]);
           continue;
         }
-        // Start up to MAX_CONCURRENCY - inFlight.size new ones
-        const slots = MAX_CONCURRENCY - inFlight.size;
+        const slots = maxConcurrency - inFlight.size;
         for (const s of ready.slice(0, Math.max(1, slots))) {
           const idx = stepIndexMap.get(s.id!)!;
           const p = tryRunStep(s, idx).finally(() => { inFlight.delete(s.id!); });
           inFlight.set(s.id!, p);
-          if (inFlight.size >= MAX_CONCURRENCY) break;
+          if (inFlight.size >= maxConcurrency) break;
         }
-        // wait for at least one to finish before checking again
         if (inFlight.size > 0) {
           await Promise.race([...inFlight.values()]);
         }

@@ -164,6 +164,12 @@ try {
     db.exec("ALTER TABLE sessions ADD COLUMN codex_thread_id TEXT");
     console.log("[db] migration: added sessions.codex_thread_id column");
   }
+  // workflows.max_concurrency for per-workflow parallelism control
+  const wfCols = db.prepare("PRAGMA table_info(workflows)").all() as any[];
+  if (wfCols.length > 0 && !wfCols.some((c) => c.name === "max_concurrency")) {
+    db.exec("ALTER TABLE workflows ADD COLUMN max_concurrency INTEGER");
+    console.log("[db] migration: added workflows.max_concurrency column");
+  }
 } catch (e) {
   console.warn("[db] migration failed:", e);
 }

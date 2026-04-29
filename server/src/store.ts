@@ -78,6 +78,7 @@ export interface WorkflowStep {
   agentId: string;
   prompt: string;            // can include {{out}} (last completed dep) or {{stepId.out}}
   dependsOn?: string[];      // step ids this step depends on. empty/undefined = depends on previous-in-array (linear default)
+  dependsOnMode?: "all" | "any"; // "all" (default): all deps must complete; "any": fire when first dep completes (race / fan-in)
   pauseBefore?: boolean;     // pause + wait for user approval before this step
   skipIfMatch?: string;      // regex on previous {{out}}; match → skip this step
   retries?: number;          // override default retry count (default 2 attempts after first try)
@@ -90,6 +91,7 @@ export interface Workflow {
   name: string;
   description: string;
   steps: WorkflowStep[];
+  maxConcurrency?: number;   // override default 2; 1 = strict serial; >2 = more parallel
   createdAt: number;
   updatedAt: number;
 }
@@ -452,6 +454,7 @@ function rowToWorkflow(r: any): Workflow {
     name: r.name,
     description: r.description || "",
     steps: JSON.parse(r.steps || "[]"),
+    maxConcurrency: r.max_concurrency ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -473,14 +476,20 @@ export function upsertWorkflow(w: Workflow): void {
   const exists = db.prepare("SELECT id FROM workflows WHERE id = ?").get(w.id);
   if (exists) {
     db.prepare(`
-      UPDATE workflows SET workspace_id = ?, name = ?, description = ?, steps = ?, updated_at = ?
+      UPDATE workflows SET workspace_id = ?, name = ?, description = ?, steps = ?, max_concurrency = ?, updated_at = ?
       WHERE id = ?
-    `).run(w.workspaceId || DEFAULT_WORKSPACE_ID, w.name, w.description, JSON.stringify(w.steps), w.updatedAt, w.id);
+    `).run(
+      w.workspaceId || DEFAULT_WORKSPACE_ID, w.name, w.description, JSON.stringify(w.steps),
+      w.maxConcurrency ?? null, w.updatedAt, w.id,
+    );
   } else {
     db.prepare(`
-      INSERT INTO workflows (id, workspace_id, name, description, steps, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(w.id, w.workspaceId || DEFAULT_WORKSPACE_ID, w.name, w.description, JSON.stringify(w.steps), w.createdAt, w.updatedAt);
+      INSERT INTO workflows (id, workspace_id, name, description, steps, max_concurrency, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      w.id, w.workspaceId || DEFAULT_WORKSPACE_ID, w.name, w.description, JSON.stringify(w.steps),
+      w.maxConcurrency ?? null, w.createdAt, w.updatedAt,
+    );
   }
 }
 

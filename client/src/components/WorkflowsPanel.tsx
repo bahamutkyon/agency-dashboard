@@ -18,8 +18,8 @@ function fmtTime(ts?: number) {
 export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }: Props) {
   const [list, setList] = useState<Workflow[]>([]);
   const [editing, setEditing] = useState<Workflow | "new" | null>(null);
-  const [draft, setDraft] = useState<{ name: string; description: string; steps: WorkflowStep[] }>(
-    { name: "", description: "", steps: [{ agentId: "", prompt: "" }] }
+  const [draft, setDraft] = useState<{ name: string; description: string; steps: WorkflowStep[]; maxConcurrency?: number }>(
+    { name: "", description: "", steps: [{ agentId: "", prompt: "" }], maxConcurrency: 2 }
   );
   const [runs, setRuns] = useState<Record<string, WorkflowRun[]>>({});
   const [activeRun, setActiveRun] = useState<WorkflowRun | null>(null);
@@ -41,12 +41,16 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
 
   const startNew = () => {
     setEditing("new");
-    setDraft({ name: "", description: "", steps: [{ agentId: "", prompt: "" }] });
+    setDraft({ name: "", description: "", steps: [{ agentId: "", prompt: "" }], maxConcurrency: 2 });
   };
 
   const startEdit = (w: Workflow) => {
     setEditing(w);
-    setDraft({ name: w.name, description: w.description, steps: w.steps.length ? w.steps : [{ agentId: "", prompt: "" }] });
+    setDraft({
+      name: w.name, description: w.description,
+      steps: w.steps.length ? w.steps : [{ agentId: "", prompt: "" }],
+      maxConcurrency: w.maxConcurrency ?? 2,
+    });
   };
 
   const save = async () => {
@@ -55,10 +59,11 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
       alert("名稱跟至少一個有效步驟必填");
       return;
     }
+    const payload = { ...draft, steps: cleanSteps, maxConcurrency: draft.maxConcurrency || 2 };
     if (editing === "new") {
-      await api.createWorkflow({ ...draft, steps: cleanSteps });
+      await api.createWorkflow(payload);
     } else if (editing) {
-      await api.updateWorkflow(editing.id, { ...draft, steps: cleanSteps });
+      await api.updateWorkflow(editing.id, payload);
     }
     setEditing(null);
     reload();
@@ -168,6 +173,21 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
             />
+            <div className="flex items-center gap-2 text-xs">
+              <label className="text-zinc-400">並行上限:</label>
+              <select
+                className="bg-zinc-900 px-2 py-1 rounded"
+                value={draft.maxConcurrency || 2}
+                onChange={(e) => setDraft({ ...draft, maxConcurrency: Number(e.target.value) })}
+              >
+                <option value={1}>1(嚴格序列)</option>
+                <option value={2}>2(預設)</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5(注意配額)</option>
+              </select>
+              <span className="text-zinc-600">同一時間最多幾個 step 並行,設大會更快但更耗 quota</span>
+            </div>
             <div className="space-y-2">
               <div className="text-xs text-zinc-400">步驟</div>
               {draft.steps.map((s, i) => {
@@ -203,24 +223,39 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                   </div>
 
                   {otherIds.length > 0 && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] text-zinc-500">依賴:</span>
-                      {otherIds.map((oid) => (
-                        <label key={oid} className="text-[11px] flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox"
-                            checked={deps.includes(oid)}
-                            onChange={(e) => {
-                              const next = e.target.checked
-                                ? [...deps, oid]
-                                : deps.filter((d) => d !== oid);
-                              updateStep(i, { dependsOn: next });
-                            }}
-                          />
-                          <span className="font-mono text-zinc-400">{oid}</span>
-                        </label>
-                      ))}
-                      {deps.length === 0 && (
-                        <span className="text-[10px] text-emerald-400">⚡ 無依賴 → 平行起跑</span>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-zinc-500">依賴:</span>
+                        {otherIds.map((oid) => (
+                          <label key={oid} className="text-[11px] flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox"
+                              checked={deps.includes(oid)}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...deps, oid]
+                                  : deps.filter((d) => d !== oid);
+                                updateStep(i, { dependsOn: next });
+                              }}
+                            />
+                            <span className="font-mono text-zinc-400">{oid}</span>
+                          </label>
+                        ))}
+                        {deps.length === 0 && (
+                          <span className="text-[10px] text-emerald-400">⚡ 無依賴 → 平行起跑</span>
+                        )}
+                      </div>
+                      {deps.length > 1 && (
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="text-zinc-500">觸發模式:</span>
+                          <select
+                            className="bg-zinc-950 px-1 py-0.5 rounded text-[11px]"
+                            value={s.dependsOnMode || "all"}
+                            onChange={(e) => updateStep(i, { dependsOnMode: e.target.value as any })}
+                          >
+                            <option value="all">all(等所有依賴完成)</option>
+                            <option value="any">any(任一依賴完成就跑,賽跑)</option>
+                          </select>
+                        </div>
                       )}
                     </div>
                   )}
