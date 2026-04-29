@@ -1,6 +1,6 @@
 {
   "name": "agency-dashboard",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "private": true,
   "description": "Multi-agent orchestration dashboard for the agency-agents-zh team — drives claude CLI via OAuth subscription.",
   "scripts": {
