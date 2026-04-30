@@ -25,6 +25,8 @@
 - 📝 **Markdown 渲染** + 訊息一鍵複製 + 編輯重送 / 重新產生
 - 📎 **拖曳上傳檔案** — 直接把圖片 / 文件丟進對話框
 - 🛡️ **基線安全防護(Shellward)** — 偵測到就強制注入,prompt injection / 危險命令 / PII 外洩 / 資料外送鏈一律攔下,工作區關不掉。右上角護盾即時顯示「保護中 / 未啟用 + 已保護幾場對話」
+- 🧠 **能力總覽徽章** — 右上 🧠 一眼看出你機器上 21 skills + 7 MCPs + 211 agents 是否全到位,缺項有一鍵複製的 fix 指令
+- 🩺 **`npm run doctor` + `npm run setup:full`** — 體檢報告 + 互動式安裝精靈,新機器 / 朋友 clone 後 5 分鐘搞定
 - 🛠️ **內建 workflow 範本庫** — 一鍵跑「AI 編程工具諮詢 → 配置檔產出」「品牌定位 → 內容生產 → 多平台分發」等多步驟協作模板
 
 ---
@@ -42,7 +44,30 @@
 
 ## 🚀 快速開始
 
-### 1️⃣ 安裝 Claude CLI 並登入
+### 🌟 推薦:一鍵完整安裝(新機器 / 朋友 clone 用這個)
+
+```bash
+git clone <this-repo>
+cd agency-dashboard
+npm install
+npm run setup:full   # 互動式精靈,逐步問你要不要裝 skills / agents / 7 個 MCP
+npm run doctor       # 體檢,確認所有能力都到位
+start.bat            # Windows 啟動 / Linux/Mac: ./start.sh
+```
+
+`setup:full` 會自動帶你裝齊:
+- 📚 21 個 skills(superpowers-zh + bundled chinese-presentation-style)
+- 👥 211 位 agents(agency-agents-zh)
+- 🔌 7 個 MCP servers(shellward / playwright / doc-ops / excel / powerpoint / gemini-image / google-workspace)
+- ⌨️ Codex / Gemini CLI(可選)
+
+**每一步都先問你**,絕不偷偷動家目錄。`~/.claude.json` 修改前會自動備份。
+
+---
+
+### 🛠 手動分步安裝(進階)
+
+#### 1️⃣ 安裝 Claude CLI 並登入
 
 ```bash
 # 跨平台安裝(細節參照官方文件)
@@ -52,7 +77,7 @@ claude /login
 # export ANTHROPIC_API_KEY=sk-...
 ```
 
-### 2️⃣ 安裝 agents 庫(211 位中文 agent)
+#### 2️⃣ 安裝 agents 庫(211 位中文 agent)
 
 ```bash
 git clone https://github.com/jnMetaCode/agency-agents-zh.git
@@ -63,10 +88,9 @@ cd agency-agents-zh
 
 這會把 211 個 .md 複製到 `~/.claude/agents/`。
 
-### 3️⃣ 安裝 dashboard 本身
+#### 3️⃣ 啟動 dashboard
 
 ```bash
-git clone <this-repo>
 cd agency-dashboard
 
 # Windows
@@ -83,7 +107,7 @@ chmod +x start.sh
 3. 啟動前後端
 4. 提示你開瀏覽器到 **http://localhost:5190**
 
-如果出問題,單獨執行 `npm run check` 看錯誤訊息。
+如果出問題,單獨執行 `npm run check` 看錯誤訊息;`npm run doctor` 看完整體檢報告。
 
 ---
 
@@ -109,6 +133,47 @@ chmod +x start.sh
 ```
 
 同一位 agent 在兩個工作區會收到完全不同的 context,**不會串味**。
+
+---
+
+## 🧠 站在 Claude Code 全域配置之上(三層繼承)
+
+dashboard 不是孤島,它**站在你 Claude Code 的家目錄配置之上**。每個 agent 對話都會自動繼承你機器上裝的東西:
+
+```
+~/CLAUDE.md          ← 你的全域指令(中文團隊規範等)
+~/.claude/
+  ├── skills/        ← 21 個 skills(思考框架、品味規範)
+  ├── agents/        ← 211 位 agent 的人設
+  └── ...
+~/.claude.json       ← 7 個 MCP servers(瀏覽器、Office、安全防護)
+```
+
+→ **每位 dashboard agent 都會自動拿到這些 buff**,不需要任何整合工作。
+
+### 你機器上完整一套 = 朋友 clone 也要一套
+
+| 層 | 來源 | 沒裝會怎樣 |
+|---|---|---|
+| 🎭 **Agents (211)** | `agency-agents-zh` | dashboard 沒專家可選,核心功能掛掉 |
+| 📚 **Skills (21)** | `superpowers-zh` + 本 repo bundled | agent 行為變單薄,不會自動跑 TDD / brainstorm 等流程 |
+| 🔌 **MCPs (7)** | npm-global / pip(每個獨立裝) | 該功能就沒了(但 baseline shellward 沒裝會跳警示) |
+| ⌨️ **CLI** | claude / codex / gemini | 沒 claude 就動不了,codex/gemini 是備胎 |
+
+朋友 clone 之後**只要跑 `npm run setup:full`**,精靈會比對 `capabilities.manifest.json` 自動補齊缺項。
+
+### UI 上隨時看狀態
+
+dashboard 右上角:
+- 🛡️ **SecurityBadge** — baseline 防護是否啟用(shellward)
+- 🧠 **CapabilitiesBadge** — 28/29 之類的數字,點開分四個 tab(Skills / MCPs / Agents / CLI)詳列每一項狀態 + 缺項的 fix 指令(可一鍵複製)
+
+### CLI 體檢
+
+```bash
+npm run doctor      # 比對 manifest,輸出彩色報告 + fix 指令(只讀,不改)
+npm run setup:full  # 互動式安裝精靈(改檔但每步先問)
+```
 
 ---
 

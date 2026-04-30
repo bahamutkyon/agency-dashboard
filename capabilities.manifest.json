@@ -1,0 +1,172 @@
+{
+  "$schema": "./capabilities.manifest.schema.json",
+  "manifest_version": "1.0",
+  "description": "Agency Dashboard 完整能力清單 — doctor / setup:full / CapabilitiesBadge 共用的單一真相源",
+
+  "skills": {
+    "framework": "superpowers-zh",
+    "source": "https://github.com/jnMetaCode/superpowers-zh",
+    "target_dir": "~/.claude/skills/",
+    "install": {
+      "method": "git-clone-and-copy",
+      "note": "clone repo 後把 skills/ 內每個子目錄複製到 ~/.claude/skills/,既有目錄不覆寫"
+    },
+    "expected": [
+      { "name": "brainstorming",                  "from": "superpowers-zh" },
+      { "name": "chinese-code-review",            "from": "superpowers-zh" },
+      { "name": "chinese-commit-conventions",     "from": "superpowers-zh" },
+      { "name": "chinese-documentation",          "from": "superpowers-zh" },
+      { "name": "chinese-git-workflow",           "from": "superpowers-zh" },
+      { "name": "chinese-presentation-style",     "from": "agency-dashboard", "protected": true, "bundled": "skills/chinese-presentation-style/" },
+      { "name": "dispatching-parallel-agents",    "from": "superpowers-zh" },
+      { "name": "executing-plans",                "from": "superpowers-zh" },
+      { "name": "finishing-a-development-branch", "from": "superpowers-zh" },
+      { "name": "mcp-builder",                    "from": "superpowers-zh" },
+      { "name": "receiving-code-review",          "from": "superpowers-zh" },
+      { "name": "requesting-code-review",         "from": "superpowers-zh" },
+      { "name": "subagent-driven-development",    "from": "superpowers-zh" },
+      { "name": "systematic-debugging",           "from": "superpowers-zh" },
+      { "name": "test-driven-development",        "from": "superpowers-zh" },
+      { "name": "using-git-worktrees",            "from": "superpowers-zh" },
+      { "name": "using-superpowers",              "from": "superpowers-zh" },
+      { "name": "verification-before-completion", "from": "superpowers-zh" },
+      { "name": "workflow-runner",                "from": "superpowers-zh" },
+      { "name": "writing-plans",                  "from": "superpowers-zh" },
+      { "name": "writing-skills",                 "from": "superpowers-zh" }
+    ]
+  },
+
+  "mcps": [
+    {
+      "name": "shellward",
+      "tier": "baseline",
+      "description": "基線安全防護:prompt injection 偵測、危險命令攔截、PII 外洩防護、資料外送鏈阻斷",
+      "command": "shellward-mcp",
+      "install": {
+        "method": "npm-global",
+        "package": "shellward"
+      },
+      "env_required": [],
+      "env_recommended": {
+        "SHELLWARD_MODE": "enforce",
+        "SHELLWARD_LOCALE": "zh",
+        "SHELLWARD_THRESHOLD": "60"
+      }
+    },
+    {
+      "name": "playwright",
+      "tier": "recommended",
+      "description": "瀏覽器自動化:抓網頁、截圖、表單填寫、E2E 測試",
+      "command": "playwright-mcp",
+      "install": {
+        "method": "npm-global",
+        "package": "@playwright/mcp"
+      },
+      "env_required": []
+    },
+    {
+      "name": "doc-ops",
+      "tier": "recommended",
+      "description": "Word 文件 + Markdown / HTML / PDF 互轉、QR / 浮水印",
+      "command": "udp",
+      "install": {
+        "method": "npm-global",
+        "package": "doc-ops-mcp"
+      },
+      "env_required": []
+    },
+    {
+      "name": "excel",
+      "tier": "recommended",
+      "description": "Excel 讀寫、表格建立、儲存格格式、工作表複製",
+      "command": "excel-mcp-server",
+      "install": {
+        "method": "npm-global",
+        "package": "@negokaz/excel-mcp-server"
+      },
+      "env_required": []
+    },
+    {
+      "name": "powerpoint",
+      "tier": "recommended",
+      "description": "PowerPoint 簡報製作:37 個 tool 含建檔、加投影片、表格、圖表、套用設計、自動生成",
+      "command_hint": "ppt_mcp_server (Windows: <python311>/Scripts/ppt_mcp_server.exe)",
+      "install": {
+        "method": "pip",
+        "package": "office-powerpoint-mcp-server",
+        "python": ">=3.10",
+        "note": "Windows 上若 python 命令指到舊版,改用 py -3.11 -m pip install"
+      },
+      "env_required": []
+    },
+    {
+      "name": "gemini-image",
+      "tier": "optional",
+      "description": "AI 生圖 + 本地圖片處理(sharp)",
+      "command": "gemini-image-mcp",
+      "install": {
+        "method": "npm-global",
+        "package": "@jimothy-snicket/gemini-image-mcp"
+      },
+      "env_required": ["GEMINI_API_KEY"],
+      "manual_setup_note": "需 Google AI Pro 訂閱或免費 API key,設 GEMINI_API_KEY 環境變數"
+    },
+    {
+      "name": "google-workspace",
+      "tier": "optional",
+      "description": "Gmail / Calendar / Drive / Docs / Sheets / Slides / Contacts 全 Google 套件",
+      "command": "google-workspace-mcp",
+      "install": {
+        "method": "npm-global",
+        "package": "@dguido/google-workspace-mcp"
+      },
+      "env_required": [],
+      "manual_setup_note": "首次啟動會走 OAuth,需 Google 帳號授權"
+    }
+  ],
+
+  "agents": {
+    "source": "https://github.com/jnMetaCode/agency-agents-zh",
+    "target_dir": "~/.claude/agents/",
+    "expected_count": 211,
+    "install": {
+      "method": "git-clone-and-script",
+      "repo": "https://github.com/jnMetaCode/agency-agents-zh",
+      "script": "./scripts/install.sh --tool claude-code",
+      "note": "Windows 用戶改用 bash scripts/install.sh --tool claude-code"
+    }
+  },
+
+  "cli_tools": [
+    {
+      "name": "claude",
+      "tier": "required",
+      "description": "Claude Code CLI(主 provider,用 OAuth 訂閱或 ANTHROPIC_API_KEY)",
+      "install": {
+        "method": "external",
+        "url": "https://claude.com/claude-code"
+      },
+      "verify": "claude --version"
+    },
+    {
+      "name": "codex",
+      "tier": "optional",
+      "description": "OpenAI Codex CLI(備用 provider)",
+      "install": {
+        "method": "npm-global",
+        "package": "@openai/codex"
+      },
+      "verify": "codex --version"
+    },
+    {
+      "name": "gemini",
+      "tier": "optional",
+      "description": "Google Gemini CLI(備用 provider)",
+      "install": {
+        "method": "npm-global",
+        "package": "@google/gemini-cli"
+      },
+      "verify": "gemini --version"
+    }
+  ]
+}

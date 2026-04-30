@@ -9,6 +9,8 @@
     "dev:client": "cd client && npm run dev",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "check": "node scripts/check-env.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "setup:full": "node scripts/setup-full.mjs",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
     "setup": "npm run install:all && npm run check",

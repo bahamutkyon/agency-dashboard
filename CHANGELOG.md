@@ -19,6 +19,49 @@
 
 ---
 
+## [0.15.0] — 2026-04-30
+
+「移植零思考」基礎建設 — 朋友 clone repo 後跑一行 `npm run setup:full` 就能裝齊
+21 skills + 211 agents + 7 MCPs。manifest 是單一真相源,doctor / setup:full / UI badge 全部讀同一份。
+
+### 新增
+- **📋 `capabilities.manifest.json`(專案根目錄)** — 完整宣告一台「完整 dashboard 機器」該有的全部能力:
+  21 skills(來源 + protected 標記)、7 MCPs(tier + install method + env_required)、agents 預期數、CLI tools。
+  改一份所有工具自動跟著更新。
+- **🩺 `npm run doctor`(`scripts/doctor.mjs`)** — 體檢腳本,只讀不改:
+  比對 manifest 與你機器實際狀態,輸出彩色報告 + 缺項的 fix 指令(可複製)。退出碼:0 全 OK / 2 有關鍵缺項
+- **🚀 `npm run setup:full`(`scripts/setup-full.mjs`)** — 互動式安裝精靈,每步先問:
+  Step 1 Skills:從 superpowers-zh clone + 複製,bundled 的 protected skills 用本地版本(不被覆寫)
+  Step 2 Agents:clone agency-agents-zh + 跑 install.sh
+  Step 3 MCPs:逐個問,跑 npm install -g / pip install + 自動 patch ~/.claude.json(會先備份)
+  Step 4 CLI:codex / gemini 可選裝
+- **🧠 CapabilitiesBadge UI(`client/src/components/CapabilitiesBadge.tsx`)** — 右上角能力總覽:
+  - 數字徽章 `28/29` 一眼看出有東西缺
+  - 健康燈號:🟢 全 OK / 🟡 缺 optional / 🔴 缺 baseline 或 required
+  - 點開分四 tab(Skills / MCPs / Agents / CLI),每項顯示狀態
+  - 缺項直接顯示 fix 指令 + 一鍵複製按鈕
+- **後端 `capabilitiesDetector.ts` + `GET /api/capabilities`** — 同樣讀 manifest,回傳 `{ skills, mcps, agents, cli, health }`
+- **🎨 Bundled skill「chinese-presentation-style」(`skills/chinese-presentation-style/`)** — 中文簡報美學規範:
+  字型黑名單(微軟雅黑 / 宋體 / Times / Comic Sans / Calibri 全封殺)
+  三色法則 + 安全色盤
+  文案密度上限(封面 ≤ 15 字、內頁 ≤ 80 字)
+  9 段結構公式
+  AI 翻車翻譯表 + PowerPoint MCP 整合範例 + 7 題自檢清單
+- **🔌 PowerPoint MCP(`office-powerpoint-mcp-server` v2.0.7,via pip)** — 補上 Office 三件套缺口:
+  37 個 tool(create_presentation / add_slide / add_chart / add_table / apply_professional_design / auto_generate_presentation 等)
+  搭配 chinese-presentation-style skill,出來的簡報像專業設計師做的
+- README:新章節「站在 Claude Code 全域配置之上(三層繼承)」說明 dashboard 怎麼自動繼承你機器上的 skills / agents / MCPs
+- README:✨ 功能列表新增 🧠 能力總覽徽章、🩺 doctor / setup:full
+- README:快速開始改成 🌟 推薦一鍵安裝(setup:full)+ 🛠 手動分步安裝兩條路
+
+### 修改
+- `package.json` 加 `doctor` 與 `setup:full` 兩個 npm script
+
+### 修復
+- `agentLoader.loadAgents()` 回傳值類型修正(原本誤以為是 `{agents, categories}`,實際是 `AgentMeta[]`)
+
+---
+
 ## [0.14.0] — 2026-04-29
 
 基線安全防護整合,把 shellward MCP 變成「裝了就保護所有對話」的底層守門人。

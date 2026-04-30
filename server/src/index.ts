@@ -8,6 +8,7 @@ import { scheduler } from "./scheduler.js";
 import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { listInstalledMCPServers, buildMCPConfigForWorkspace, BASELINE_MCPS } from "./mcpDetector.js";
+import { buildCapabilitiesSummary } from "./capabilitiesDetector.js";
 import { isCodexAvailable } from "./codexProcess.js";
 import { isGeminiAvailable } from "./geminiProcess.js";
 import { routePrompt } from "./smartRouter.js";
@@ -112,6 +113,17 @@ app.get("/api/security/status", (_req, res) => {
       uptimeMs: Date.now() - securityStats.startedAt,
     },
   });
+});
+
+// Capabilities — full inventory of skills + MCPs + agents + CLI tools
+// vs the manifest. Powers the CapabilitiesBadge UI and is the same
+// source `npm run doctor` reads from.
+app.get("/api/capabilities", (_req, res) => {
+  try {
+    res.json(buildCapabilitiesSummary());
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Export — bundle a workspace's metadata + notes + templates + schedules
