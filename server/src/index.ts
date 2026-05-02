@@ -9,6 +9,7 @@ import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { listInstalledMCPServers, buildMCPConfigForWorkspace, BASELINE_MCPS } from "./mcpDetector.js";
 import { buildCapabilitiesSummary } from "./capabilitiesDetector.js";
+import { loadRemoteConfig, buildRemoteAccessMiddleware, publicStatus as remotePublicStatus } from "./remoteAccess.js";
 import { isCodexAvailable } from "./codexProcess.js";
 import { isGeminiAvailable } from "./geminiProcess.js";
 import { routePrompt } from "./smartRouter.js";
@@ -24,6 +25,7 @@ import {
 } from "./store.js";
 
 const PORT = Number(process.env.PORT || 5191);
+const REMOTE_CFG = loadRemoteConfig();
 
 import fs from "node:fs";
 import path from "node:path";
@@ -32,8 +34,10 @@ const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = express();
+app.set("trust proxy", "loopback");  // for accurate req.ip behind localhost
 app.use(cors());
 app.use(express.json({ limit: "20mb" })); // bumped for base64 file uploads
+app.use(buildRemoteAccessMiddleware(REMOTE_CFG));
 
 // --- REST ---
 
@@ -113,6 +117,12 @@ app.get("/api/security/status", (_req, res) => {
       uptimeMs: Date.now() - securityStats.startedAt,
     },
   });
+});
+
+// Remote access status — for the 📱 indicator. Sanitised: never returns
+// the actual token, IPs, or hostname.
+app.get("/api/remote-access/status", (_req, res) => {
+  res.json(remotePublicStatus(REMOTE_CFG));
 });
 
 // Capabilities — full inventory of skills + MCPs + agents + CLI tools
@@ -941,8 +951,14 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`[agency-dashboard] listening on http://localhost:${PORT}`);
+server.listen(PORT, REMOTE_CFG.bindHost, () => {
+  if (REMOTE_CFG.enabled) {
+    console.log(`[agency-dashboard] 🌐 listening on http://${REMOTE_CFG.bindHost}:${PORT} (REMOTE ACCESS ENABLED)`);
+    console.log(`[agency-dashboard]    allowed ranges: ${REMOTE_CFG.allowRanges.join(", ")}`);
+    console.log(`[agency-dashboard]    token auth: ${REMOTE_CFG.hasToken ? "ON" : "off"}`);
+  } else {
+    console.log(`[agency-dashboard] listening on http://127.0.0.1:${PORT} (local-only, default)`);
+  }
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
   scheduler.init();
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));

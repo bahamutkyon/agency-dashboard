@@ -8,6 +8,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageBar } from "./components/UsageBar";
 import { SecurityBadge } from "./components/SecurityBadge";
 import { CapabilitiesBadge } from "./components/CapabilitiesBadge";
+import { RemoteAccessBadge } from "./components/RemoteAccessBadge";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
@@ -44,9 +45,14 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [view, setView] = useState<View | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
-    localStorage.getItem("agency:sidebar") !== "closed"
-  );
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    // Mobile (<768px): default closed unless user explicitly opened before.
+    // Desktop: default open unless user explicitly closed before.
+    const stored = localStorage.getItem("agency:sidebar");
+    if (stored === "open") return true;
+    if (stored === "closed") return false;
+    return typeof window !== "undefined" && window.innerWidth >= 768;
+  });
 
   const toggleSidebar = () => {
     const next = !sidebarOpen;
@@ -230,31 +236,43 @@ ${message}
         onAskOrchestrator={askOrchestrator}
       />
       {sidebarOpen && (
-        <AgentSidebar
-          agents={agents}
-          categories={categories}
-          liveAgentIds={liveAgentIds}
-          onPick={openAgent}
-          onAskOrchestrator={askOrchestrator}
-          onOpenSchedules={openSchedules}
-          onOpenHistory={openHistory}
-          onOpenTemplates={openTemplates}
-          onOpenSettings={openSettings}
-          onOpenBatch={openBatch}
-          onOpenNotes={openNotes}
-          onOpenWorkflows={openWorkflows}
-          providersAvail={providersAvail}
-        />
+        <>
+          {/* mobile backdrop — tap outside sidebar to close */}
+          <div
+            onClick={toggleSidebar}
+            className="md:hidden fixed inset-0 bg-black/60 z-30"
+            aria-hidden="true"
+          />
+          <div className="fixed md:static inset-y-0 left-0 z-40 md:z-auto h-full">
+            <AgentSidebar
+              agents={agents}
+              categories={categories}
+              liveAgentIds={liveAgentIds}
+              onPick={(a, p) => { openAgent(a, p); if (window.innerWidth < 768) toggleSidebar(); }}
+              onAskOrchestrator={() => { askOrchestrator(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenSchedules={() => { openSchedules(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenHistory={() => { openHistory(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenTemplates={() => { openTemplates(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenSettings={() => { openSettings(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenBatch={() => { openBatch(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenNotes={() => { openNotes(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenWorkflows={() => { openWorkflows(); if (window.innerWidth < 768) toggleSidebar(); }}
+              providersAvail={providersAvail}
+            />
+          </div>
+        </>
       )}
 
-      <main className="flex-1 flex flex-col">
-        <div className="h-10 bg-panel border-b border-zinc-800 flex items-center pr-2 gap-1">
+      <main className="flex-1 flex flex-col min-w-0">
+        <div className="h-12 md:h-10 bg-panel border-b border-zinc-800 flex items-center pr-2 gap-1 pt-[env(safe-area-inset-top)]">
           <button
             onClick={toggleSidebar}
-            className="px-2 h-full hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+            className="px-3 md:px-2 h-full hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 text-base md:text-sm"
             title={sidebarOpen ? "收合側欄 (Ctrl+B)" : "展開側欄 (Ctrl+B)"}
+            aria-label="切換側欄"
           >
-            {sidebarOpen ? "◀" : "▶"}
+            <span className="md:hidden">☰</span>
+            <span className="hidden md:inline">{sidebarOpen ? "◀" : "▶"}</span>
           </button>
           <div className="flex-1 flex items-center px-2 gap-1 overflow-x-auto h-full">
           {tabs.length === 0 && !view && (
@@ -304,6 +322,7 @@ ${message}
             <UsageBar />
             <SecurityBadge />
             <CapabilitiesBadge />
+            <RemoteAccessBadge />
           </div>
         </div>
 

@@ -7,3 +7,8 @@ server/data/
 .vscode/
 .idea/
 .claude/
+
+# 環境變數(個人設定:Tailscale IP / token / API key 等不能上 git)
+.env
+.env.local
+.env.*.local

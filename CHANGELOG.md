@@ -19,6 +19,49 @@
 
 ---
 
+## [0.16.0] — 2026-05-02
+
+📱 手機 / 遠端存取支援(可選 opt-in)+ PWA。預設關閉,你不開就跟以前一樣只跑 localhost。
+個人設定(IP / token)走 `.env.local` 不會上 git。
+
+### 新增
+- **🔧 `.env.local` 環境變數系統(`.env.example` 範本 + 內建 loader)** —
+  `server/src/remoteAccess.ts` 寫了 30 行 inline loader,讀 project root 的 `.env.local` / `.env`,
+  不引入 dotenv 依賴。Vite config 也讀同一份(`client/vite.config.ts`)。
+  - `.env.local` 已加入 `.gitignore`,你的個人 IP / token 永遠不會被 push
+- **📱 遠端存取中介層(`server/src/remoteAccess.ts`)** — 三層獨立:
+  1. **Bind host**:`ENABLE_REMOTE_ACCESS=true` → 綁 `0.0.0.0`(預設綁 `127.0.0.1`)
+  2. **IP 白名單**:預設允許 RFC1918 + Tailscale CGNAT(`192.168.*`、`10.*`、`172.16-31.*`、`100.64-127.*`),
+     公網 IP 直連被擋。可改 `ALLOW_RANGES=127.0.0.1,::1,100.64.0.0/10` 限縮成「只 Tailscale」
+  3. **Token 認證**(可選):`ACCESS_TOKEN=xxx` 設了就強制要帶 token,
+     支援 `Authorization: Bearer / X-Access-Token / ?token / Cookie`,首次帶 query 後自動存 cookie
+- **新 API:`GET /api/remote-access/status`** — 回傳目前模式(經過清洗,**不洩漏實際 IP / token**)
+- **🎨 PWA 完整支援** — `manifest.webmanifest` + SVG icon + iOS / Android meta tags,
+  手機瀏覽器加到主畫面後全螢幕無瀏覽器列。`viewport-fit=cover` 配 `env(safe-area-inset-*)` 處理 iPhone notch
+- **📱 RemoteAccessBadge UI(`client/src/components/RemoteAccessBadge.tsx`)** —
+  右上角 📱 徽章**只在 `ENABLE_REMOTE_ACCESS=true` 時才顯示**,
+  點開看綁定 host / 允許網段數 / token 啟用狀態,沒設 token 時跳警告
+- **手機 Responsive 改造**:
+  - sidebar 改 mobile drawer(`<768px` 時 fixed 浮層 + backdrop tap-to-close)
+  - 點 agent 後自動關 sidebar(避免擋住對話)
+  - 漢堡按鈕(☰)取代左右箭頭
+  - 對話輸入框 `text-base` 防 iOS Safari 自動 zoom
+  - 對話底部 `pb-[calc(0.75rem+env(safe-area-inset-bottom))]` 處理 iPhone home indicator
+  - sidebar 寬度改 `w-[85vw] max-w-96`(手機填滿,桌面維持 384px)
+  - sidebar 預設行為:桌面開、手機關(localStorage 沒 override 時)
+- **README 新章節「📱 手機 / 遠端存取(可選功能,預設關閉)」** —
+  包含 Tailscale 推薦設定、Cloudflare Tunnel 進階、PWA 加主畫面、安全機制說明
+- README ✨ 功能列表加「📱 手機 / 遠端存取」一條
+
+### 修改
+- `server/src/index.ts`:`server.listen(PORT, REMOTE_CFG.bindHost)`,console 顯示模式狀態
+- `server/src/index.ts`:`app.set("trust proxy", "loopback")` 確保 `req.ip` 準確
+
+### 修復
+- `client/vite.config.ts` 的 proxy 加 `changeOrigin: true`,防止 LAN 連線時 socket.io WebSocket 握手失敗
+
+---
+
 ## [0.15.0] — 2026-04-30
 
 「移植零思考」基礎建設 — 朋友 clone repo 後跑一行 `npm run setup:full` 就能裝齊

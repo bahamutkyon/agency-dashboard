@@ -41,7 +41,7 @@ export function AgentSidebar({
   }, [agents, cat, query]);
 
   return (
-    <aside className="w-96 bg-panel border-r border-zinc-800 flex flex-col">
+    <aside className="w-[85vw] max-w-96 md:w-96 h-full bg-panel border-r border-zinc-800 flex flex-col pt-[env(safe-area-inset-top)]">
       <div className="m-3 space-y-2">
         <button
           data-tour="orchestrator-btn"

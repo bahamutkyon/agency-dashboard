@@ -27,6 +27,7 @@
 - 🛡️ **基線安全防護(Shellward)** — 偵測到就強制注入,prompt injection / 危險命令 / PII 外洩 / 資料外送鏈一律攔下,工作區關不掉。右上角護盾即時顯示「保護中 / 未啟用 + 已保護幾場對話」
 - 🧠 **能力總覽徽章** — 右上 🧠 一眼看出你機器上 21 skills + 7 MCPs + 211 agents 是否全到位,缺項有一鍵複製的 fix 指令
 - 🩺 **`npm run doctor` + `npm run setup:full`** — 體檢報告 + 互動式安裝精靈,新機器 / 朋友 clone 後 5 分鐘搞定
+- 📱 **手機 / 遠端存取(可選)** — 透過 Tailscale 或 Cloudflare Tunnel 從手機 / 平板用 dashboard,內建 PWA(可加到主畫面),預設關閉不影響本機使用
 - 🛠️ **內建 workflow 範本庫** — 一鍵跑「AI 編程工具諮詢 → 配置檔產出」「品牌定位 → 內容生產 → 多平台分發」等多步驟協作模板
 
 ---
@@ -195,6 +196,75 @@ npm run setup:full  # 互動式安裝精靈(改檔但每步先問)
 3. **完全用他們自己的訂閱**,你看不到他們的對話、他們也看不到你的
 
 對話資料存在 `server/data/store.db`(本機 SQLite),從不離開機器。
+
+---
+
+## 📱 手機 / 遠端存取(可選功能,預設關閉)
+
+dashboard 預設只綁 `127.0.0.1`(只有你電腦本機能連),跟筆電上的本機 server 一樣安全。
+**沒做任何設定就保持這樣**,不用擔心 clone 下來莫名暴露。
+
+如果你想從**手機 / 平板 / 另一台筆電**用 dashboard,有兩條路:
+
+### 🌟 推薦:Tailscale(免費 + 完全私密 + 無流量限制)
+
+Tailscale 是 P2P VPN — 你的裝置之間直接連,流量不過第三方伺服器。
+**個人用永久免費**(100 個裝置、3 個帳號、無流量上限)。
+
+```bash
+# 1. 你電腦 + 手機都裝 Tailscale,用同一個 Google 帳號登入
+#    https://tailscale.com/download
+
+# 2. 在 dashboard 專案根目錄
+cp .env.example .env.local
+
+# 3. 編輯 .env.local,只改一行:
+#    ENABLE_REMOTE_ACCESS=true
+
+# 4. 重啟 dashboard
+start.bat   # Windows
+./start.sh  # macOS / Linux
+
+# 5. 手機開瀏覽器 http://<你電腦的 Tailscale IP>:5190
+#    (Tailscale app 裡看你電腦那一行的 100.x.x.x)
+```
+
+### 🌐 進階:Cloudflare Tunnel(公網存取,免費)
+
+想完全不靠 VPN、隨便哪台電腦都能連?用 Cloudflare Tunnel 把 localhost:5190 暴露到公網。
+**這時候務必設 ACCESS_TOKEN**,否則任何人有 URL 就能用你 Claude 訂閱。
+
+```bash
+# 1. 編輯 .env.local
+ENABLE_REMOTE_ACCESS=true
+ACCESS_TOKEN=<隨機 32 字元,例:openssl rand -base64 32>
+
+# 2. 重啟 dashboard
+
+# 3. 另開 terminal 跑 Cloudflare Tunnel
+cloudflared tunnel --url http://localhost:5190
+
+# 4. 拿到的 https://xxx.trycloudflare.com 加 ?token=<你的 ACCESS_TOKEN> 就能用
+#    第一次登入後 token 會自動存 cookie,之後直接連即可
+```
+
+### 📲 加到手機主畫面(PWA)
+
+dashboard 已內建 PWA:手機瀏覽器打開 dashboard → 「分享」→「加入主畫面」,
+從此像 app 一樣用,全螢幕無瀏覽器列。
+
+### 🛡️ 安全機制
+
+開啟 `ENABLE_REMOTE_ACCESS` 後,後端會自動套用兩層防護:
+
+1. **IP 白名單** — 預設只允許 RFC1918 + Tailscale CGNAT 網段(`192.168.*`、`10.*`、`172.16-31.*`、`100.64-127.*`)。
+   公網 IP 直連會被擋(防你哪天意外 port forward)。
+   想限縮成「只 Tailscale」:`ALLOW_RANGES=127.0.0.1,::1,100.64.0.0/10`
+
+2. **Token 認證(可選)** — `ACCESS_TOKEN=xxx` 設了之後所有 API 要帶 token,
+   `?token=xxx` 一次後存 cookie,之後免再帶。
+
+你的 Tailscale IP / token / 任何個人設定**都在 `.env.local` 裡,該檔案在 `.gitignore` 內,不會上 GitHub**。
 
 ---
 

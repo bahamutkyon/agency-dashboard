@@ -779,7 +779,7 @@ export function ChatWindow({
         })}
       </div>
 
-      <div className="p-3 border-t border-zinc-800 bg-panel relative">
+      <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-zinc-800 bg-panel relative">
         {showNotePicker && notes.length > 0 && (
           <div className="absolute bottom-full left-3 right-3 mb-2 max-h-64 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-10">
             <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-800 flex items-center justify-between">
@@ -818,7 +818,7 @@ export function ChatWindow({
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
-            className="flex-1 bg-zinc-900 px-3 py-2 rounded text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+            className="flex-1 bg-zinc-900 px-3 py-2 rounded text-base md:text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
             rows={2}
             placeholder="跟這位員工說話… (Enter 送出 / Shift+Enter 換行 / 「/」叫出模板)"
             value={input}
