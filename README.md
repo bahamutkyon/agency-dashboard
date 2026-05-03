@@ -204,67 +204,291 @@ npm run setup:full  # 互動式安裝精靈(改檔但每步先問)
 dashboard 預設只綁 `127.0.0.1`(只有你電腦本機能連),跟筆電上的本機 server 一樣安全。
 **沒做任何設定就保持這樣**,不用擔心 clone 下來莫名暴露。
 
-如果你想從**手機 / 平板 / 另一台筆電**用 dashboard,有兩條路:
+如果你想從**手機 / 平板 / 另一台筆電**用 dashboard,以下三條路任選。
 
-### 🌟 推薦:Tailscale(免費 + 完全私密 + 無流量限制)
+---
 
-Tailscale 是 P2P VPN — 你的裝置之間直接連,流量不過第三方伺服器。
-**個人用永久免費**(100 個裝置、3 個帳號、無流量上限)。
+### 🤔 先選對工具
+
+| 場景 | 推薦方案 | 為什麼 |
+|---|---|---|
+| 只在家裡用(同 WiFi) | **LAN-only**(下面 ⓒ) | 最簡單,不用裝任何 app |
+| 出門 / 通勤 / 咖啡店都想用 | **🌟 Tailscale**(下面 ⓐ) | 完全私密、跨網路、永久免費 |
+| 想用「任何電腦」連(別人筆電 / 客戶辦公室) | **Cloudflare Tunnel**(下面 ⓑ) | 拿 https URL 隨便連,但要設 token |
+| 多人共用同一台 dashboard | **不建議**,改各自部署 | 認證系統不夠完善,容易踩坑 |
+
+---
+
+### ⓐ 🌟 Tailscale(推薦 — 免費、完全私密、無流量限制)
+
+Tailscale 是 P2P VPN — 你的裝置之間直接連,流量**不過第三方伺服器**(Tailscale 只負責協調 NAT 穿透)。
+**個人方案永久免費**:100 個裝置、3 個帳號、無流量上限、無連線數限制。
+
+#### 設定步驟
 
 ```bash
-# 1. 你電腦 + 手機都裝 Tailscale,用同一個 Google 帳號登入
+# === 你電腦上 ===
+
+# 1. 裝 Tailscale 並登入(用 Google / GitHub / Microsoft 帳號都行)
 #    https://tailscale.com/download
 
-# 2. 在 dashboard 專案根目錄
+# 2. 在 dashboard 根目錄建立 .env.local
 cp .env.example .env.local
 
-# 3. 編輯 .env.local,只改一行:
+# 3. 編輯 .env.local,把這行解註解:
 #    ENABLE_REMOTE_ACCESS=true
 
-# 4. 重啟 dashboard
-start.bat   # Windows
-./start.sh  # macOS / Linux
-
-# 5. 手機開瀏覽器 http://<你電腦的 Tailscale IP>:5190
-#    (Tailscale app 裡看你電腦那一行的 100.x.x.x)
+# 4. 重啟 dashboard(關掉 cmd 視窗,重開 start.bat)
+#    啟動 log 應該看到:
+#    [agency-dashboard] 🌐 listening on http://0.0.0.0:5191 (REMOTE ACCESS ENABLED)
+#    [vite] 🌐 ENABLE_REMOTE_ACCESS=true → binding 0.0.0.0
 ```
 
-### 🌐 進階:Cloudflare Tunnel(公網存取,免費)
+```bash
+# === 手機上 ===
 
-想完全不靠 VPN、隨便哪台電腦都能連?用 Cloudflare Tunnel 把 localhost:5190 暴露到公網。
-**這時候務必設 ACCESS_TOKEN**,否則任何人有 URL 就能用你 Claude 訂閱。
+# 1. App Store / Play Store 裝 Tailscale,用同一個帳號登入
+
+# 2. 打開 Tailscale app 切到 ON,看「Devices」清單裡你電腦的 100.x.x.x IP
+#    (例:你電腦顯示 100.64.0.5,以下用這個示意)
+
+# 3. 手機瀏覽器開:
+#    http://100.64.0.5:5190
+```
+
+#### 確認設定生效
+
+| 檢查項目 | 怎麼看 |
+|---|---|
+| Server 開了 0.0.0.0 | dashboard 啟動 log 看到 `🌐 ... REMOTE ACCESS ENABLED` |
+| 手機有連到 Tailscale | Tailscale app 裡你電腦那一行是綠點 |
+| 兩端互通 | 手機瀏覽器能載入 dashboard 首頁 |
+| UI 確認 | 右上角出現 📱 徽章(關閉時不會出現) |
+
+---
+
+### ⓑ 🌐 Cloudflare Tunnel(進階 — 公網存取、免費)
+
+想**不靠 VPN、隨便哪台電腦都能連**?用 Cloudflare Tunnel 把 `localhost:5190` 暴露成 `https://xxx.trycloudflare.com` 公網 URL。
+
+⚠️ **這時候務必設 `ACCESS_TOKEN`**,否則任何人拿到 URL 就能用你的 Claude 訂閱、看你的對話。
+
+#### 設定步驟
 
 ```bash
 # 1. 編輯 .env.local
 ENABLE_REMOTE_ACCESS=true
-ACCESS_TOKEN=<隨機 32 字元,例:openssl rand -base64 32>
+ACCESS_TOKEN=<隨機強密碼,32 字元以上>
+
+# 產生 token 的方法(任選):
+# macOS / Linux:  openssl rand -base64 32
+# Windows PS:     [Convert]::ToBase64String((1..32 | %{Get-Random -Max 256}))
 
 # 2. 重啟 dashboard
 
-# 3. 另開 terminal 跑 Cloudflare Tunnel
+# 3. 裝 Cloudflare Tunnel(只要裝一次)
+# Windows: winget install Cloudflare.cloudflared
+# macOS:   brew install cloudflared
+# Linux:   見 https://github.com/cloudflare/cloudflared
+
+# 4. 另開 terminal 跑 tunnel(這個視窗別關)
 cloudflared tunnel --url http://localhost:5190
 
-# 4. 拿到的 https://xxx.trycloudflare.com 加 ?token=<你的 ACCESS_TOKEN> 就能用
-#    第一次登入後 token 會自動存 cookie,之後直接連即可
+# 5. 看到輸出類似:
+#    +--------------------------------------------------------------------------------------------+
+#    |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+#    |  https://random-words-here.trycloudflare.com                                                |
+#    +--------------------------------------------------------------------------------------------+
 ```
+
+#### 第一次連線
+
+手機 / 任何瀏覽器打:
+```
+https://random-words-here.trycloudflare.com/?token=<你的 ACCESS_TOKEN>
+```
+
+成功後 cookie 會自動存,之後**直接打 URL 不用再帶 token**(同一台裝置 30 天內有效)。
+
+#### Cloudflare Tunnel 的注意事項
+
+- **`trycloudflare.com` 是免費快速 tunnel**,**每次重啟 cloudflared URL 會變**(隨機域名)
+- 想要固定 URL → 用自己的網域(免費):https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+- 免費版**頻寬不限**、**連線數不限**,但 ToS 寫不能拿來做大流量影音串流(對 dashboard 完全夠用)
+
+---
+
+### ⓒ 🏠 LAN-only(最簡單 — 只在家用)
+
+只在家裡 WiFi 內用,不開公網,設定最少:
+
+```bash
+# .env.local
+ENABLE_REMOTE_ACCESS=true
+# 限縮白名單只接受 192.168.x.x 的家用 WiFi 網段:
+ALLOW_RANGES=127.0.0.1,::1,192.168.0.0/16
+
+# 重啟 dashboard,然後:
+# Windows 找你電腦 IP:ipconfig | findstr IPv4
+# macOS:           ifconfig | grep "inet "
+# 找到 192.168.x.x 那一行,假設 192.168.1.100
+
+# 手機(同一 WiFi)打:http://192.168.1.100:5190
+```
+
+⚠️ **離開家就連不到了** — 出門想用就要切到 Tailscale 或 Cloudflare Tunnel。
+
+---
 
 ### 📲 加到手機主畫面(PWA)
 
-dashboard 已內建 PWA:手機瀏覽器打開 dashboard → 「分享」→「加入主畫面」,
-從此像 app 一樣用,全螢幕無瀏覽器列。
+dashboard 內建 PWA(Progressive Web App)。**任一上述方案連得上後**,手機都能加到主畫面,從此像 app 一樣用:
 
-### 🛡️ 安全機制
+| 手機 | 步驟 |
+|---|---|
+| **iOS Safari** | 連到 dashboard → 底部「分享」按鈕 → 「加入主畫面」 |
+| **Android Chrome** | 連到 dashboard → 右上 ⋮ → 「加入主畫面」或「安裝應用程式」 |
 
-開啟 `ENABLE_REMOTE_ACCESS` 後,後端會自動套用兩層防護:
+加入後:
+- 桌面圖示是 dashboard 自己的 icon(深藍底 AD 字)
+- 點開後**全螢幕**,沒有瀏覽器網址列
+- 處理 iPhone 瀏海與底部 home indicator
+- 對話輸入框字級調整成 16px,**不會觸發 iOS 自動 zoom**
 
-1. **IP 白名單** — 預設只允許 RFC1918 + Tailscale CGNAT 網段(`192.168.*`、`10.*`、`172.16-31.*`、`100.64-127.*`)。
-   公網 IP 直連會被擋(防你哪天意外 port forward)。
-   想限縮成「只 Tailscale」:`ALLOW_RANGES=127.0.0.1,::1,100.64.0.0/10`
+---
 
-2. **Token 認證(可選)** — `ACCESS_TOKEN=xxx` 設了之後所有 API 要帶 token,
-   `?token=xxx` 一次後存 cookie,之後免再帶。
+### 🛡️ 安全機制(深度說明)
 
-你的 Tailscale IP / token / 任何個人設定**都在 `.env.local` 裡,該檔案在 `.gitignore` 內,不會上 GitHub**。
+開啟 `ENABLE_REMOTE_ACCESS` 後,後端自動啟用三層獨立防護(每層可單獨配置):
+
+#### 第 1 層:Bind host
+
+| 設定 | 行為 |
+|---|---|
+| 預設(沒設 / 設 false) | server 綁 `127.0.0.1`,**只有電腦本機**能連,跟以前一樣 |
+| `ENABLE_REMOTE_ACCESS=true` | server 綁 `0.0.0.0`,網卡上的所有介面都接受連線 |
+
+#### 第 2 層:IP 白名單(只在 ENABLE_REMOTE_ACCESS=true 時生效)
+
+預設允許**所有不可能是公網**的 IP 範圍:
+
+| 網段 | 用途 |
+|---|---|
+| `127.0.0.1`, `::1` | localhost |
+| `192.168.0.0/16` | 一般家用 WiFi |
+| `10.0.0.0/8` | 公司 / 進階家用 / Docker |
+| `172.16.0.0/12` | Docker / 部分企業網 |
+| `100.64.0.0/10` | Tailscale CGNAT |
+
+來自其他網段(例如公網 IP)的請求**直接 403 拒絕**,console 會 log warning。
+→ **這就是為什麼即使你哪天不小心 port forward 5191 到公網,也不會立刻被打爆**。
+
+想限縮成「**只 Tailscale**」(最私密):
+```bash
+ALLOW_RANGES=127.0.0.1,::1,100.64.0.0/10
+```
+
+想限縮成「**只家裡 WiFi**」:
+```bash
+ALLOW_RANGES=127.0.0.1,::1,192.168.0.0/16
+```
+
+#### 第 3 層:Token 認證(可選,公網場景必設)
+
+```bash
+ACCESS_TOKEN=<你的 token>
+```
+
+設了之後**所有 API 請求都要帶 token**,支援四種傳遞方式:
+
+| 方式 | 用法 | 適合 |
+|---|---|---|
+| Authorization header | `Authorization: Bearer <token>` | 程式呼叫 |
+| Custom header | `X-Access-Token: <token>` | 程式呼叫 |
+| Query param | `?token=<token>` | 第一次瀏覽器連,自動存 cookie |
+| Cookie | `agency_token=<token>` | 之後自動帶,免再輸 |
+
+cookie 存活 30 天,過期後再用 `?token=...` 一次即可。
+
+---
+
+### 🔐 你的個人設定不會被推上 GitHub
+
+`.gitignore` 已加入:
+
+```
+.env
+.env.local
+.env.*.local
+```
+
+repo 裡只追蹤 `.env.example` — **它只放佔位符與通用網段**(`192.168.0.0/16`、`100.64.0.0/10`),
+**沒有任何你機器上的真實 IP / 主機名 / token**。
+
+朋友 clone 下來,他們**完全不會看到**你的:
+- Tailscale IP
+- Cloudflare Tunnel URL
+- ACCESS_TOKEN
+- 任何 API key
+
+他們需要自己 `cp .env.example .env.local` 然後填**他們自己**的設定。
+
+---
+
+### 🐛 故障排除
+
+#### 手機連不到 dashboard?
+
+依序檢查:
+
+```bash
+# 1. 確認 .env.local 有開 remote
+cat .env.local | grep ENABLE_REMOTE_ACCESS
+# 應該看到:ENABLE_REMOTE_ACCESS=true
+
+# 2. 確認 dashboard 真的綁了 0.0.0.0
+# 啟動 log 應該有:🌐 ... REMOTE ACCESS ENABLED
+# 沒看到?→ 重啟 dashboard(關 cmd 視窗,重開 start.bat)
+
+# 3. 確認手機與電腦在同一網路
+#    Tailscale:兩邊 app 都是綠點
+#    LAN:兩邊接同一個 WiFi SSID
+
+# 4. 從電腦自己測一下對外 IP 通不通
+#    PowerShell:Test-NetConnection <你的 LAN/Tailscale IP> -Port 5190
+#    應該回 TcpTestSucceeded : True
+
+# 5. Windows 防火牆可能擋 5190/5191
+#    cmd 系統管理員身份:
+#    netsh advfirewall firewall add rule name="agency-dashboard" dir=in action=allow protocol=TCP localport=5190-5191
+```
+
+#### 連到了但 API 都 403 / 401?
+
+- 403:你的 IP 不在 `ALLOW_RANGES` 範圍內 → 改 `.env.local` 加進你的網段
+- 401:你設了 `ACCESS_TOKEN` 但請求沒帶 token → URL 加 `?token=<你的 token>`
+
+#### 右上角沒看到 📱 徽章?
+
+徽章**只在 `ENABLE_REMOTE_ACCESS=true` 時才顯示**,沒看到代表 server 沒收到 env。檢查:
+1. `.env.local` 是否在專案根目錄(不是 server/ 或 client/ 子目錄)
+2. dashboard 是否真的重啟過(改 env 不會 hot reload)
+
+#### Cloudflare Tunnel 用了一陣子被斷線?
+
+- `trycloudflare.com` 免費 tunnel 設計上是**短期測試用**,長時間不穩
+- 想要穩定 → 接自己的網域(免費,5 分鐘設定):
+  https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/
+
+---
+
+### ⚠️ 注意事項彙總
+
+1. **Claude 訂閱額度共用** — 從手機跑 dashboard 用的還是你 Claude OAuth 訂閱,不是另一個額度。批次同題 + 排程同時跑會吃光 5 小時 quota
+2. **對話資料不會雲端同步** — 都存在你電腦的 `server/data/store.db`,手機只是 thin client。電腦關機 = 手機連不上
+3. **MCP 工具能力以電腦為準** — playwright / excel / powerpoint 等是裝在電腦上的,從手機呼叫等於遠端控制電腦執行
+4. **公網場景一定要 token** — 沒設 ACCESS_TOKEN 又走 Cloudflare Tunnel = 任何人有 URL 就能燒你的 Claude 訂閱
+5. **token 一旦洩漏立刻換** — 編 `.env.local` 改新 token,重啟,所有舊 cookie 失效
 
 ---
 
