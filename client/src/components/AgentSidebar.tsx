@@ -5,6 +5,8 @@ interface Props {
   agents: AgentMeta[];
   categories: CategoryMeta[];
   liveAgentIds: Set<string>;
+  /** agentId → past session count in current workspace; renders 「💬 N」badge */
+  sessionCounts?: Record<string, number>;
   onPick: (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => void;
   onAskOrchestrator: () => void;
   onOpenSchedules: () => void;
@@ -18,7 +20,7 @@ interface Props {
 }
 
 export function AgentSidebar({
-  agents, categories, liveAgentIds,
+  agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
   onOpenBatch, onOpenNotes, onOpenWorkflows,
@@ -165,7 +167,15 @@ export function AgentSidebar({
                       live ? "bg-emerald-400" : "bg-zinc-700"
                     }`}
                   />
-                  <span className="text-sm font-medium">{a.name}</span>
+                  <span className="text-sm font-medium flex-1 truncate">{a.name}</span>
+                  {sessionCounts && sessionCounts[a.id] > 0 && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 font-mono flex-shrink-0"
+                      title={`已有 ${sessionCounts[a.id]} 場會議`}
+                    >
+                      💬 {sessionCounts[a.id]}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-zinc-400 mt-1 leading-relaxed break-words whitespace-pre-wrap">
                   {a.description}

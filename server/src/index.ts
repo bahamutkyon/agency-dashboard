@@ -9,6 +9,7 @@ import { usageTracker } from "./usageTracker.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { listInstalledMCPServers, buildMCPConfigForWorkspace, BASELINE_MCPS } from "./mcpDetector.js";
 import { buildCapabilitiesSummary } from "./capabilitiesDetector.js";
+import { distillAgentMemory } from "./memoryDistiller.js";
 import { loadRemoteConfig, buildRemoteAccessMiddleware, publicStatus as remotePublicStatus } from "./remoteAccess.js";
 import { isCodexAvailable } from "./codexProcess.js";
 import { isGeminiAvailable } from "./geminiProcess.js";
@@ -22,6 +23,7 @@ import {
   searchSessions, aggregateTags, listSchedules, DEFAULT_WORKSPACE_ID,
   listWorkflows, getWorkflow, upsertWorkflow, deleteWorkflow as removeWorkflow,
   listRuns, getRun,
+  getAgentMemory, setAgentMemory, deleteAgentMemory,
 } from "./store.js";
 
 const PORT = Number(process.env.PORT || 5191);
@@ -226,6 +228,72 @@ app.get("/api/sessions/:id", (req, res) => {
   const s = getSession(req.params.id);
   if (!s) return res.status(404).json({ error: "not found" });
   res.json({ ...s, status: agentManager.liveStatus(s.id) });
+});
+
+// =========== Agent Memory(同事記憶 / Layer 2) ===========
+
+app.get("/api/agent-memory", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const agentId = String(req.query.agentId || "");
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  const m = getAgentMemory(wsId, agentId);
+  res.json(m || { workspaceId: wsId, agentId, content: "", updatedAt: 0, distilledFromSessionId: null });
+});
+
+app.put("/api/agent-memory", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const { agentId, content } = req.body || {};
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  setAgentMemory(wsId, agentId, String(content || ""));
+  res.json({ ok: true });
+});
+
+app.delete("/api/agent-memory", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const agentId = String(req.query.agentId || "");
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  const ok = deleteAgentMemory(wsId, agentId);
+  res.json({ ok });
+});
+
+// 手動觸發蒸餾 — 從某 session 抽出新版同事記憶寫入 agent_memory。
+app.post("/api/agent-memory/distill", async (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const { sessionId, agentId } = req.body || {};
+  if (!sessionId || !agentId) {
+    return res.status(400).json({ error: "sessionId 與 agentId 都必填" });
+  }
+  try {
+    const result = await distillAgentMemory(sessionId, wsId, agentId);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// "會議室"視圖:列出該 agent 在當前工作區的所有對話 + 每場最後一句訊息預覽。
+// 給 sidebar 點擊 agent 後跳出來的 AgentMeetingRoom 組件用。
+app.get("/api/agents/:agentId/sessions", (req, res) => {
+  const agentId = req.params.agentId;
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const all = listSessions(wsId).filter((s) => s.agentId === agentId);
+  const out = all.map((s) => {
+    const full = getSession(s.id);
+    const lastMsg = full?.messages?.[full.messages.length - 1];
+    return {
+      id: s.id,
+      title: s.title,
+      tags: s.tags,
+      provider: s.provider,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      messageCount: full?.messages?.length || 0,
+      status: agentManager.liveStatus(s.id),
+      lastSnippet: lastMsg ? lastMsg.content.slice(0, 120) : null,
+      lastRole: lastMsg?.role || null,
+    };
+  });
+  res.json(out);
 });
 
 app.get("/api/search", (req, res) => {

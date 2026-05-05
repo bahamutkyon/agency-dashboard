@@ -9,6 +9,7 @@ import { UsageBar } from "./components/UsageBar";
 import { SecurityBadge } from "./components/SecurityBadge";
 import { CapabilitiesBadge } from "./components/CapabilitiesBadge";
 import { RemoteAccessBadge } from "./components/RemoteAccessBadge";
+import { AgentMeetingRoom } from "./components/AgentMeetingRoom";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
@@ -28,12 +29,15 @@ type View =
   | { kind: "settings" }
   | { kind: "batch" }
   | { kind: "notes" }
-  | { kind: "workflows" };
+  | { kind: "workflows" }
+  | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
   sessionId: string;
   agentId: string;
   agentName: string;
+  /** 對話主題(autoTitler 產或 user 自取)— 跟 agentName 不同時就顯示為 subtitle */
+  topic?: string;
   status: string;
   provider?: "claude" | "codex" | "gemini";
   onboardingTargetWorkspaceId?: string;
@@ -105,6 +109,20 @@ export default function App() {
     });
   }, []);
 
+  // session counts by agent — for sidebar 「💬 N」 badges. Refetched whenever
+  // workspace changes, tabs change, or user comes back to a panel view.
+  const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    api.sessions().then((all) => {
+      if (!alive) return;
+      const counts: Record<string, number> = {};
+      for (const s of all) counts[s.agentId] = (counts[s.agentId] || 0) + 1;
+      setSessionCounts(counts);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [reloadKey, tabs.length, view?.kind]);
+
   // When the workspace changes, drop all open tabs (they belong to the old
   // workspace) and force-reload the active panel by bumping reloadKey.
   const onWorkspaceSwitched = () => {
@@ -126,15 +144,29 @@ export default function App() {
     api.providers().then((p) => setProvidersAvail(p.available)).catch(() => {});
   }, []);
 
-  const openAgent = async (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => {
+  /**
+   * Click an agent in sidebar:
+   *   - If there's already an open tab for this agent (current session) → switch to it
+   *   - Otherwise open the agent's meeting room (lists past sessions + 「+ 開新會議」)
+   *
+   * Old behavior of "always start a new session" is now `startNewMeeting()`.
+   */
+  const openAgent = async (agent: AgentMeta, _provider?: "claude" | "codex" | "gemini") => {
     const existing = tabs.find((t) => t.agentId === agent.id);
     if (existing) {
       setView({ kind: "chat", sessionId: existing.sessionId });
       return;
     }
-    const r = await api.startSession(agent.id, agent.name, provider);
+    setView({ kind: "meeting-room", agentId: agent.id });
+  };
+
+  /** Actually create a new session with this agent + custom topic. */
+  const startNewMeeting = async (agent: AgentMeta, topic: string, provider?: "claude" | "codex" | "gemini") => {
+    const title = topic.trim() ? `${agent.name} · ${topic.trim()}` : undefined;
+    const r = await api.startSession(agent.id, title, provider);
     setTabs((prev) => [...prev, {
       sessionId: r.id, agentId: agent.id, agentName: agent.name,
+      topic: topic.trim() || undefined,
       status: "idle", provider: r.provider,
     }]);
     setView({ kind: "chat", sessionId: r.id });
@@ -189,7 +221,21 @@ ${message}
       setView({ kind: "chat", sessionId });
       return;
     }
-    setTabs((prev) => [...prev, { sessionId, agentId, agentName: title, status: "idle" }]);
+    // Resolve agent name from the agents catalog so the tab always shows
+    // "who" first; topic (title minus agent prefix) becomes a subtitle.
+    const agent = agents.find((a) => a.id === agentId);
+    const agentName = agent?.name || agentId;
+    const isDefaultTitle =
+      title === `${agentId} 對話` ||
+      title === agentName ||
+      title.endsWith(" 對話");
+    // Strip leading "{agentName} · " prefix from auto-titled / meeting-room titles
+    let topic: string | undefined;
+    if (!isDefaultTitle) {
+      const prefix = `${agentName} · `;
+      topic = title.startsWith(prefix) ? title.slice(prefix.length) : title;
+    }
+    setTabs((prev) => [...prev, { sessionId, agentId, agentName, topic, status: "idle" }]);
     setView({ kind: "chat", sessionId });
   };
 
@@ -248,6 +294,7 @@ ${message}
               agents={agents}
               categories={categories}
               liveAgentIds={liveAgentIds}
+              sessionCounts={sessionCounts}
               onPick={(a, p) => { openAgent(a, p); if (window.innerWidth < 768) toggleSidebar(); }}
               onAskOrchestrator={() => { askOrchestrator(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenSchedules={() => { openSchedules(); if (window.innerWidth < 768) toggleSidebar(); }}
@@ -299,15 +346,20 @@ ${message}
               } ${draggingTab === t.sessionId ? "opacity-40" : ""}`}
             >
               <span
-                className={`inline-block w-1.5 h-1.5 rounded-full ${
+                className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                   t.status === "busy" ? "bg-amber-400 animate-pulse" :
                   t.status === "error" ? "bg-rose-500" : "bg-emerald-400"
                 }`}
               />
-              <span>{t.agentName}</span>
+              <span className="flex items-baseline gap-1.5 min-w-0" title={t.topic ? `${t.agentName} · ${t.topic}` : t.agentName}>
+                <span className="truncate">{t.agentName}</span>
+                {t.topic && (
+                  <span className="text-zinc-500 text-[10px] truncate hidden sm:inline">· {t.topic}</span>
+                )}
+              </span>
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(t.sessionId); }}
-                className="text-zinc-500 hover:text-zinc-200 px-1"
+                className="text-zinc-500 hover:text-zinc-200 px-1 flex-shrink-0"
                 title="關閉"
               >×</button>
             </div>
@@ -329,6 +381,19 @@ ${message}
         <div className="flex-1 overflow-hidden">
           {isView("schedules") && <SchedulePanel key={`s-${reloadKey}`} agents={agents} />}
           {isView("history") && <HistoryPanel key={`h-${reloadKey}`} agents={agents} onOpen={openHistorySession} />}
+          {view?.kind === "meeting-room" && (() => {
+            const a = agents.find((x) => x.id === view.agentId);
+            if (!a) return <div className="p-6 text-zinc-500">找不到 agent: {view.agentId}</div>;
+            return (
+              <AgentMeetingRoom
+                key={`mr-${view.agentId}-${reloadKey}`}
+                agent={a}
+                onOpen={openHistorySession}
+                onStartNew={(agent, topic) => startNewMeeting(agent, topic)}
+                onClose={() => setView(null)}
+              />
+            );
+          })()}
           {isView("templates") && <TemplatesPanel key={`t-${reloadKey}`} agents={agents} />}
           {isView("settings") && <SettingsPanel />}
           {isView("batch") && <BatchPanel key={`b-${reloadKey}`} agents={agents} />}

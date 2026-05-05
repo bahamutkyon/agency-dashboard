@@ -19,6 +19,63 @@
 
 ---
 
+## [0.17.0] — 2026-05-05
+
+「同事感工作流」+ 三層記憶架構。讓 agent 真的像同事:你跟 TA 開多次會、TA 記得你、
+不同主題的會議互不污染、Tab 永遠看得出在跟誰聊。
+
+### 新增
+
+#### Phase 1:會議室 UX
+- **🏢 AgentMeetingRoom 組件(`client/src/components/AgentMeetingRoom.tsx`)** —
+  點 sidebar 任一 agent 跳出會議室視圖:
+  - 列出該 agent 在當前工作區的所有過往對話(含最後訊息預覽 + 相對時間)
+  - 「+ 開新會議」按鈕(帶 inline 主題輸入欄)
+  - 預設行為:沒舊對話 → 直接跳「+ 開新會議」表單;有舊對話 → 顯示清單供選擇繼續
+- **後端 `GET /api/agents/:agentId/sessions`** — 列出該 agent 在當前工作區所有對話
+  + lastSnippet / messageCount / status,給會議室用
+- **Tab 顯示「Agent · 主題」雙段** — Tab 上 agent 名稱永遠主要、對話主題作 subtitle,
+  小螢幕 truncate,hover 完整 tooltip
+- **Sidebar agent 卡片顯示「💬 N」會議數** — 一眼看出哪些同事有歷史會議
+- **HistoryPanel 加「按專家分組」切換** — 時間軸 vs 按 agent 分組,後者每個 agent
+  一個可摺疊區段;偏好存 localStorage
+
+#### Phase 2:三層記憶
+- **DB:`agent_memory(workspace_id, agent_id, content, updated_at, distilled_from_session_id)`**
+  — 每個 (workspace, agent) 一份同事記憶,主鍵雙欄保證唯一,自動 migration
+- **Store helpers:`getAgentMemory / setAgentMemory / deleteAgentMemory`** — 上限 4 KB 自動截斷
+- **API:`GET / PUT / DELETE /api/agent-memory`** — 完整 CRUD
+- **`agentManager.start()` 注入同事記憶** — 啟動 session 時自動把 agent×workspace 記憶
+  prepend 到 system prompt(在 workspace memo 之後),agent 一進來就「認得你」
+- **`memoryDistiller.ts` + `POST /api/agent-memory/distill`** — 從某場 session 蒸餾出新版記憶:
+  - 用 Haiku 4.5(便宜快,5-15 秒)
+  - 結果取代舊記憶(不是累積),避免膨脹
+  - 帶既有 memory + 對話最後 30 則訊息進去當 context,讓蒸餾「進化」而非從零重做
+- **🪟 AgentMemoryModal(`client/src/components/AgentMemoryModal.tsx`)** —
+  ChatWindow header 加「📝 記憶」按鈕,點開可:
+  - 看當前同事記憶內容 + 最後更新時間 + 字數
+  - 手動編輯 + 儲存
+  - 「🔬 從這場對話蒸餾」按鈕(會跳確認)
+  - 「🗑 清空」按鈕(會跳確認)
+- **autoTitler 大改造**:
+  - 只在 title 還是 default(`{agentId} 對話` / agent 顯示名 / 以「對話」結尾)時才接管
+  - 你給主題或會議室自命名後,autoTitler 完全退讓不再覆寫
+  - 自動命名結果加上 agent 顯示名前綴(`👨‍💼 專案經理 · 三週衝刺規劃`),Tab 永遠看得出「跟誰」
+- **README 新章節「👥 同事感工作流」** — 完整說明流程、三層記憶架構圖、命名建議、UX 對應
+
+### 修改
+- `App.tsx`:`openAgent()` 行為改為跳會議室(不直接開新對話),新增 `startNewMeeting()`
+- `App.tsx`:Tab type 加 `topic` 欄位,從歷史開時自動拆 `agentName · topic`
+- `App.tsx`:加 `sessionCounts` state 自動同步給 sidebar
+- `AgentSidebar.tsx`:加 `sessionCounts` prop,顯示「💬 N」徽章
+- `HistoryPanel.tsx`:加 view mode toggle + by-agent grouped 渲染
+
+### 修復
+- 從歷史紀錄重開對話時,Tab 標題會錯誤顯示成 autoTitler 命名(失去 agent 身份)→ 改用 agent
+  catalog 對應正確 agentName,topic 拆出來放 subtitle
+
+---
+
 ## [0.16.0] — 2026-05-02
 
 📱 手機 / 遠端存取支援(可選 opt-in)+ PWA。預設關閉,你不開就跟以前一樣只跑 localhost。

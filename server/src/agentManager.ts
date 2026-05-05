@@ -2,7 +2,7 @@ import { AgentSession, type Provider } from "./agentSession.js";
 import {
   upsertSession, getSession, listSessions, deleteSession, appendMessage, setSessionClaudeId,
   setSessionCodexThread,
-  appendWorkspaceMemory, getWorkspace,
+  appendWorkspaceMemory, getWorkspace, getAgentMemory,
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
 import { readAgentDefinition } from "./agentLoader.js";
@@ -94,9 +94,17 @@ export class AgentManager {
       memoryBlock = `\n\n# 你對這個工作區的累積記憶\n以下是過去對話中你已經學到、確認過的事實。請以此為前提繼續對話,不需要重新確認:\n\n${memory}\n`;
     }
 
+    // Layer 2: agent × workspace 同事記憶 — 這位 agent 對這個使用者在這個
+    // 工作區累積的個人理解。透過 memoryDistiller 蒸餾或使用者手動編輯。
+    const agentMem = getAgentMemory(wsId, agentId);
+    let agentMemoryBlock = "";
+    if (agentMem && agentMem.content.trim()) {
+      agentMemoryBlock = `\n\n# 你對這位使用者的個人理解(同事記憶)\n以下是你跟這位使用者過去合作中累積的關鍵理解 — 包含他是誰、進行中的專案、他的偏好、過去的關鍵決定。請以此為基礎繼續合作,**不要每次都重新自我介紹或重新詢問同樣的事**:\n\n${agentMem.content.trim()}\n`;
+    }
+
     const memoryCapability = `\n\n# 累積記憶能力\n如果在對話中你發現使用者揭露了重要的、跨對話有價值的事實(偏好、決定、客戶背景、品牌規則等),你可以**在回答最末尾**輸出記憶標記讓系統累積:\n\n\`\`\`\n=== REMEMBER ===\n簡短描述(一行,< 80 字),例如:使用者偏好親切口語、不要長篇大論\n=== END REMEMBER ===\n\`\`\`\n\n規則:每次回答最多 1 條;只記跨對話有用的事實;不要記當下情境的瑣事。\n`;
 
-    let combined = (extraSystemPrompt || "") + memoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+    let combined = (extraSystemPrompt || "") + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.

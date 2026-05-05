@@ -5,6 +5,7 @@
  */
 import { spawnClaude } from "./claudeProcess.js";
 import { getSession, upsertSession } from "./store.js";
+import { loadAgents } from "./agentLoader.js";
 
 // sessions we've already attempted (avoid retrying on every result)
 const attempted = new Set<string>();
@@ -18,8 +19,24 @@ export function maybeAutoTitle(sessionId: string) {
   const assistantCount = rec.messages.filter((m) => m.role === "assistant").length;
   if (userCount < 1 || assistantCount < 1) return;
 
-  // Skip if user/orchestrator already gave a custom-looking title
-  // Heuristic: default titles look like "agent-name 對話" or contain "[排程"/"[批次"/"[workflow"
+  // Skip if user/orchestrator already gave a custom-looking title.
+  // Default titles are one of:
+  //   "${agentId} 對話"                  — frontend didn't pass title
+  //   the agent's display name           — orchestrator / openAgent default
+  //   `${agentName} · {topic}`           — meeting room custom topic
+  //   anything starting with "[排程" / "[批次" / "[workflow"  — automated runs
+  //
+  // Only the first two count as "default — please replace me".
+  const agent = loadAgents().find((a) => a.id === rec.agentId);
+  const agentDisplayName = agent?.name || rec.agentId;
+  const looksLikeDefault =
+    rec.title === `${rec.agentId} 對話` ||
+    rec.title === agentDisplayName ||
+    rec.title.endsWith(" 對話");
+  if (!looksLikeDefault) {
+    console.log(`[auto-titler] skip ${sessionId.slice(0, 8)} (custom title: "${rec.title.slice(0, 30)}")`);
+    return;
+  }
   if (rec.title.includes("[排程") || rec.title.includes("[批次") || rec.title.includes("[workflow")) return;
 
   attempted.add(sessionId);
@@ -65,9 +82,15 @@ TAGS: tag1 / tag2 / tag3
       const gm = text.match(/TAGS:\s*(.+)/);
       const cur = getSession(sessionId);
       if (!cur) return;
-      const title = tm?.[1]?.trim().slice(0, 40);
+      const rawTitle = tm?.[1]?.trim().slice(0, 40);
       const tags = gm?.[1]?.split(/[\/、,，]/).map((t) => t.trim()).filter(Boolean).slice(0, 4);
-      if (title) cur.title = title;
+      // Prefix with agent display name so titles never lose the "who" —
+      // e.g. "👨‍💼 專案經理 · 三週衝刺規劃" instead of just "三週衝刺規劃".
+      // Skip if AI happens to already include the name (avoid duplication).
+      const newTitle = rawTitle
+        ? (rawTitle.includes(agentDisplayName) ? rawTitle : `${agentDisplayName} · ${rawTitle}`)
+        : null;
+      if (newTitle) cur.title = newTitle;
       if (tags && tags.length > 0) {
         // merge with existing
         const set = new Set([...(cur.tags || []), ...tags]);

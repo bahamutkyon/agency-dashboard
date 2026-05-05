@@ -236,6 +236,49 @@ export function appendWorkspaceMemory(id: string, entry: string): void {
   db.prepare("UPDATE workspaces SET memory = ? WHERE id = ?").run(capped, id);
 }
 
+// =============== Agent Memory (workspace × agent) ===============
+
+export interface AgentMemory {
+  workspaceId: string;
+  agentId: string;
+  content: string;
+  updatedAt: number;
+  distilledFromSessionId: string | null;
+}
+
+export function getAgentMemory(workspaceId: string, agentId: string): AgentMemory | null {
+  const r = db.prepare(`
+    SELECT workspace_id, agent_id, content, updated_at, distilled_from_session_id
+    FROM agent_memory WHERE workspace_id = ? AND agent_id = ?
+  `).get(workspaceId, agentId) as any;
+  if (!r) return null;
+  return {
+    workspaceId: r.workspace_id,
+    agentId: r.agent_id,
+    content: r.content || "",
+    updatedAt: r.updated_at,
+    distilledFromSessionId: r.distilled_from_session_id,
+  };
+}
+
+export function setAgentMemory(workspaceId: string, agentId: string, content: string, sessionId?: string): void {
+  // Cap at 4 KB so injection cost stays reasonable
+  const capped = content.length > 4000 ? content.slice(0, 4000) + "\n\n…(已截斷)" : content;
+  db.prepare(`
+    INSERT INTO agent_memory (workspace_id, agent_id, content, updated_at, distilled_from_session_id)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(workspace_id, agent_id) DO UPDATE SET
+      content = excluded.content,
+      updated_at = excluded.updated_at,
+      distilled_from_session_id = excluded.distilled_from_session_id
+  `).run(workspaceId, agentId, capped, Date.now(), sessionId || null);
+}
+
+export function deleteAgentMemory(workspaceId: string, agentId: string): boolean {
+  const r = db.prepare("DELETE FROM agent_memory WHERE workspace_id = ? AND agent_id = ?").run(workspaceId, agentId);
+  return r.changes > 0;
+}
+
 export function deleteWorkspace(id: string): boolean {
   if (id === DEFAULT_WORKSPACE_ID) return false; // protect default
   const tx = db.prepare("BEGIN"); tx.run();

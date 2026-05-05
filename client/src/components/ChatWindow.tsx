@@ -3,6 +3,7 @@ import { getSocket } from "../lib/socket";
 import { api, type Note, type PromptTemplate, type SessionRecord } from "../lib/api";
 import { notify } from "../lib/notifications";
 import { MarkdownView } from "./MarkdownView";
+import { AgentMemoryModal } from "./AgentMemoryModal";
 
 interface Props {
   sessionId: string;
@@ -203,6 +204,7 @@ export function ChatWindow({
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerFilter, setPickerFilter] = useState("");
+  const [showMemory, setShowMemory] = useState(false);
   const streamingRef = useRef<string>("");
   const scrollerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -542,6 +544,15 @@ export function ChatWindow({
   };
 
   return (
+    <>
+      {showMemory && (
+        <AgentMemoryModal
+          sessionId={sessionId}
+          agentId={agentId}
+          agentName={agentName}
+          onClose={() => setShowMemory(false)}
+        />
+      )}
     <div
       className="flex flex-col h-full relative"
       onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
@@ -586,6 +597,13 @@ export function ChatWindow({
           <div className="text-xs text-zinc-500">session: {sessionId.slice(0, 8)}</div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowMemory(true)}
+            className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"
+            title={`看/編輯 ${agentName} 對你的記憶(跨對話注入給 TA)`}
+          >
+            📝 記憶
+          </button>
           <button
             onClick={summarize}
             disabled={summarizing || messages.length < 2}
@@ -871,5 +889,6 @@ export function ChatWindow({
         </div>
       </div>
     </div>
+    </>
   );
 }

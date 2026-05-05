@@ -118,6 +118,18 @@ CREATE TABLE IF NOT EXISTS workflows (
 );
 CREATE INDEX IF NOT EXISTS idx_workflows_ws ON workflows(workspace_id, updated_at DESC);
 
+-- 每位 agent 在每個工作區的「同事記憶」— 跨 session 累積的事實摘要,
+-- 新對話啟動時自動注入給 agent。一行 = (workspace, agent) 的最新記憶。
+CREATE TABLE IF NOT EXISTS agent_memory (
+  workspace_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL,
+  distilled_from_session_id TEXT,
+  PRIMARY KEY (workspace_id, agent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_memory_ws ON agent_memory(workspace_id);
+
 CREATE TABLE IF NOT EXISTS workflow_runs (
   id TEXT PRIMARY KEY,
   workflow_id TEXT NOT NULL,
