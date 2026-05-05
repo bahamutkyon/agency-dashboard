@@ -19,3 +19,10 @@ export function onWorkspaceChange(cb: (id: string) => void): () => void {
   listeners.add(cb);
   return () => { listeners.delete(cb); };
 }
+
+/** Append ?workspace=<active> to a URL — same logic as api.ts's private helper. */
+export function withWorkspace(url: string): string {
+  const ws = getActiveWorkspace();
+  if (!ws) return url;
+  return url + (url.includes("?") ? "&" : "?") + "workspace=" + encodeURIComponent(ws);
+}
