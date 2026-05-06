@@ -216,11 +216,18 @@ function ws(req: any): string | undefined {
 }
 
 app.get("/api/sessions", (req, res) => {
-  const out = listSessions(ws(req)).map((s) => ({
-    ...s,
-    status: agentManager.liveStatus(s.id),
-    messages: undefined,
-  }));
+  // ?includeEmpty=1 to bypass filter (e.g. for sessionCounts that want totals).
+  // Default: drop sessions with zero messages (殭屍 session 不該出現在歷史).
+  const includeEmpty = String(req.query.includeEmpty || "") === "1";
+  const out = listSessions(ws(req)).map((s) => {
+    const full = getSession(s.id);
+    return {
+      ...s,
+      status: agentManager.liveStatus(s.id),
+      messages: undefined,
+      messageCount: full?.messages?.length || 0,
+    };
+  }).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting");
   res.json(out);
 });
 
@@ -271,13 +278,14 @@ app.post("/api/agent-memory/distill", async (req, res) => {
   }
 });
 
-// "會議室"視圖:列出該 agent 在當前工作區的所有對話 + 每場最後一句訊息預覽。
+// "會議室"視圖:列出該 agent 在當前工作區「有對話內容」的場次 + 每場最後一句訊息預覽。
 // 給 sidebar 點擊 agent 後跳出來的 AgentMeetingRoom 組件用。
+// 過濾掉 messages.length === 0 的空場次(誤點開沒講話就關掉留下的殭屍 session)。
 app.get("/api/agents/:agentId/sessions", (req, res) => {
   const agentId = req.params.agentId;
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const all = listSessions(wsId).filter((s) => s.agentId === agentId);
-  const out = all.map((s) => {
+  const enriched = all.map((s) => {
     const full = getSession(s.id);
     const lastMsg = full?.messages?.[full.messages.length - 1];
     return {
@@ -293,6 +301,10 @@ app.get("/api/agents/:agentId/sessions", (req, res) => {
       lastRole: lastMsg?.role || null,
     };
   });
+  // 過濾空場次,但保留正在進行 / 剛開的(status === "busy" / "starting")
+  const out = enriched.filter((s) =>
+    s.messageCount > 0 || s.status === "busy" || s.status === "starting"
+  );
   res.json(out);
 });
 

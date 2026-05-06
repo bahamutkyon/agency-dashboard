@@ -57,21 +57,22 @@ export function UsageBar() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-3 text-xs px-3 py-1 hover:bg-zinc-900 rounded"
-        title="點擊查看詳細用量"
+        className="flex items-center gap-2 md:gap-3 text-xs px-2 md:px-3 py-1 hover:bg-zinc-900 rounded"
+        title={`點擊查看詳細用量 — 5h 額度:${rlText}${rl && rl.resetsAt > 0 ? `,${fmtCountdown(rl.resetsAt)} 後重置` : ""}`}
       >
+        {/* mobile: 只一個小燈號代表 5h 額度狀態 */}
         <div className="flex items-center gap-1">
           <span className={`inline-block w-1.5 h-1.5 rounded-full ${rlColor}`} />
-          <span className="text-zinc-400">5h 額度</span>
-          <span className="text-zinc-200">{rlText}</span>
+          <span className="text-zinc-400 hidden lg:inline">5h 額度</span>
+          <span className="text-zinc-200 hidden md:inline">{rlText}</span>
           {rl && rl.resetsAt > 0 && (
-            <span className="text-zinc-500">· 重置 {fmtCountdown(rl.resetsAt)}</span>
+            <span className="text-zinc-500 hidden xl:inline">· 重置 {fmtCountdown(rl.resetsAt)}</span>
           )}
         </div>
-        <span className="text-zinc-700">|</span>
-        <span className="text-zinc-400">今日</span>
-        <span className="text-zinc-200">{u.today.turns} 次對話</span>
-        <span className="text-zinc-500">{fmtUSD(u.today.costUSD)}</span>
+        <span className="text-zinc-700 hidden md:inline">|</span>
+        <span className="text-zinc-400 hidden md:inline">今日</span>
+        <span className="text-zinc-200">{u.today.turns} <span className="hidden md:inline">次對話</span></span>
+        <span className="text-zinc-500 hidden md:inline">{fmtUSD(u.today.costUSD)}</span>
       </button>
 
       {open && (

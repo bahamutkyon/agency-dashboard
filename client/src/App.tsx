@@ -239,13 +239,17 @@ ${message}
     setView({ kind: "chat", sessionId });
   };
 
-  const closeTab = async (sessionId: string) => {
+  /**
+   * Close a tab — does NOT delete the session. Conversation stays in DB,
+   * findable via History or the agent's meeting room. Real deletion only
+   * happens via the explicit 「刪除」 button in HistoryPanel.
+   */
+  const closeTab = (sessionId: string) => {
     setTabs((prev) => prev.filter((t) => t.sessionId !== sessionId));
     if (view?.kind === "chat" && view.sessionId === sessionId) {
       const remaining = tabs.filter((t) => t.sessionId !== sessionId);
       setView(remaining[0] ? { kind: "chat", sessionId: remaining[0].sessionId } : null);
     }
-    try { await api.deleteSession(sessionId); } catch {}
   };
 
   const updateStatus = (sessionId: string, status: string) => {

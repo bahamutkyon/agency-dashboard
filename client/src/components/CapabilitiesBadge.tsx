@@ -184,7 +184,7 @@ export function CapabilitiesBadge() {
         title={tip}
       >
         <span className="text-sm">🧠</span>
-        <span className="text-[11px] font-mono">{totalInstalled}/{totalExpected}</span>
+        <span className="text-[11px] font-mono hidden sm:inline">{totalInstalled}/{totalExpected}</span>
         <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
       </button>
       {open && (

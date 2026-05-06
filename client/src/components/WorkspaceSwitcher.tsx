@@ -80,12 +80,13 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
     <div className="relative" data-tour="workspace-switcher">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1 rounded text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-700"
-        title="切換工作區"
+        className="flex items-center gap-1.5 px-2 md:px-3 py-1 rounded text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 max-w-[40vw] md:max-w-none"
+        title={`切換工作區 — 目前:${activeW?.name || "預設工作區"}`}
       >
-        <span className="text-zinc-500">工作區:</span>
-        <span className="font-medium">{activeW?.name || "預設工作區"}</span>
-        <span className="text-zinc-500">▼</span>
+        <span className="text-zinc-500 hidden sm:inline">工作區:</span>
+        <span className="sm:hidden">🗂</span>
+        <span className="font-medium truncate">{activeW?.name || "預設"}</span>
+        <span className="text-zinc-500 flex-shrink-0">▼</span>
       </button>
 
       {open && (
