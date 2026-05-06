@@ -111,16 +111,22 @@ export class AgentSession extends EventEmitter {
       "--include-partial-messages",
       "--verbose",
       "--permission-mode", "acceptEdits",
-      "--session-id", this.id,
     ];
+    // Claude CLI 2.1+ rule: --session-id and --resume are mutually exclusive
+    // (unless --fork-session is set, which we don't want — that creates a
+    // diverging branch). On first turn we seed the session with our own UUID;
+    // after that Claude returns its canonical claudeSessionId which we use
+    // for --resume from then on.
+    if (this.claudeSessionId) {
+      args.push("--resume", this.claudeSessionId);
+    } else {
+      args.push("--session-id", this.id);
+    }
     if (this.extraSystemPrompt) {
       args.push("--append-system-prompt", this.extraSystemPrompt);
     }
     if (this.mcpConfigJson) {
       args.push("--mcp-config", this.mcpConfigJson);
-    }
-    if (this.claudeSessionId) {
-      args.push("--resume", this.claudeSessionId);
     }
 
     this.setStatus("starting");
