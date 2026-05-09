@@ -175,6 +175,24 @@ export class AgentManager {
     const s = this.sessions.get(sessionId) || this.reattach(sessionId);
     if (!s) return { ok: false };
 
+    // Refresh MCP config from current workspace state — picks up enabledMcps
+    // changes made AFTER session was created (e.g. user just enabled
+    // playwright in workspace settings, an existing session should immediately
+    // get the new tool, no restart needed).
+    const wsIdForMcp = (s as any).workspaceId as string | undefined;
+    if (s.provider === "claude" && wsIdForMcp) {
+      const ws = getWorkspace(wsIdForMcp);
+      const fresh = buildMCPConfigForWorkspace(ws?.enabledMcps || []);
+      if (fresh !== s.mcpConfigJson) {
+        const oldNames = s.mcpConfigJson ? Object.keys(JSON.parse(s.mcpConfigJson).mcpServers || {}) : [];
+        const newNames = fresh ? Object.keys(JSON.parse(fresh).mcpServers || {}) : [];
+        console.log(`[agentManager] session=${sessionId.slice(0, 8)} MCP refresh: ${oldNames.join(",") || "(none)"} → ${newNames.join(",") || "(none)"}`);
+        s.mcpConfigJson = fresh || undefined;
+        // Force respawn so next claude invocation picks up new --mcp-config
+        s.stop();
+      }
+    }
+
     // Persist the original (clean) user message — don't bloat history with
     // auto-injected note context.
     appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });

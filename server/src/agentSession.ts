@@ -34,7 +34,9 @@ export class AgentSession extends EventEmitter {
   readonly agentId: string;
   readonly provider: Provider;
   readonly extraSystemPrompt?: string;
-  readonly mcpConfigJson?: string;
+  /** MCP config can be refreshed mid-session by manager when workspace
+   *  enabledMcps change — read at every spawnClaudeChild call. */
+  mcpConfigJson?: string;
   status: SessionStatus = "idle";
 
   // Claude-specific state
