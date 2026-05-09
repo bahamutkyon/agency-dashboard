@@ -50,7 +50,10 @@ if %errorlevel% equ 0 (
 )
 
 echo Launching Chrome...
-start "" "%CHROME%" --remote-debugging-port=%PORT% --user-data-dir="%PROFILE%"
+REM --start-maximized: avoid narrow window — narrow viewport makes responsive
+REM sites (Threads / IG) switch to mobile layout, agent screenshots look wrong.
+REM --window-size as fallback for systems without start-maximized support.
+start "" "%CHROME%" --remote-debugging-port=%PORT% --user-data-dir="%PROFILE%" --start-maximized --window-size=1920,1080
 
 echo.
 echo Chrome launched. Next steps:
