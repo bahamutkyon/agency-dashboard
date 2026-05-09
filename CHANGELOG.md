@@ -19,6 +19,36 @@
 
 ---
 
+## [0.18.0] — 2026-05-09
+
+🌐 Agent 接管已登入瀏覽器 + 多項使用體驗修復。
+
+### 新增
+- **🌐 Agent 接管 Chrome(playwright MCP CDP 模式)** —
+  agent 可以直接在你已登入的 Threads / YouTube / LinkedIn 等網站動手:
+  - **`start-agent-chrome.bat`** — 一鍵啟動專用 Chrome profile(隔離日常 Chrome,
+    不會看到你 Gmail / 銀行),帶 `--remote-debugging-port=9222`
+  - playwright MCP 改用 `--cdp-endpoint http://localhost:9222`,接管專用 Chrome
+  - 完整使用流程:啟動 agent Chrome → 登入目標網站 → dashboard 開對話 →
+    agent 用 `browser_navigate / browser_fill_form / browser_take_screenshot` 操作
+- **README 新章節「🌐 Agent 接管你登入的瀏覽器」** —
+  含完整設定步驟、使用範例(改 Threads 簡介)、安全可登入清單、故障排除
+
+### 修復
+- **Tab × 永久刪對話** — `closeTab` 不再呼叫 `api.deleteSession()`,按 X 只關 Tab,
+  對話保留在 DB,從歷史 / 會議室找得回。真要刪只能用歷史面板的「刪除」按鈕
+- **歷史 / 會議室出現殭屍 session** — `/api/sessions` 與 `/api/agents/:id/sessions`
+  預設過濾 `messageCount === 0` 的空場次(沒講話就關掉留下的),可加 `?includeEmpty=1` 取消
+- **Claude CLI 2.1+ resume 衝突** — `--session-id` 與 `--resume` 互斥;有 claudeSessionId
+  時改用 `--resume`,跳過 `--session-id`(否則 CLI 直接拒絕,繼續對話會失敗)
+- **白屏錯誤** — 補 `withWorkspace` 的 export(AgentMeetingRoom / AgentMemoryModal 找得到)
+
+### 修改
+- 手機頂部列精簡:UsageBar 隱藏 5h 額度文字、CapabilitiesBadge 隱藏分數、
+  WorkspaceSwitcher 用 🗂 取代「工作區:」字樣
+
+---
+
 ## [0.17.0] — 2026-05-05
 
 「同事感工作流」+ 三層記憶架構。讓 agent 真的像同事:你跟 TA 開多次會、TA 記得你、

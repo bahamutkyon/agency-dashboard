@@ -30,6 +30,7 @@
 - 📱 **手機 / 遠端存取(可選)** — 透過 Tailscale 或 Cloudflare Tunnel 從手機 / 平板用 dashboard,內建 PWA(可加到主畫面),預設關閉不影響本機使用
 - 👥 **同事感工作流** — 點 sidebar agent 跳「會議室」列出所有過往會議 + 「+ 開新會議」(可命名主題);Tab 顯示「Agent · 主題」永遠看得出在跟誰聊;歷史對話可按專家分組
 - 🧠 **三層記憶架構** — 工作區備忘錄(共用) → Agent×Workspace 同事記憶(個人理解) → 對話歷史(當前 context),每位 agent 在每個工作區有獨立的「對你的理解」,可手動編輯或叫 TA 從對話蒸餾
+- 🌐 **Agent 接管已登入瀏覽器** — 透過 playwright MCP + 獨立 Chrome profile,讓 agent 直接在你登入的 Threads / YouTube / LinkedIn 改個人簡介、發內容、回留言,跟你日常 Chrome 完全隔離
 - 🛠️ **內建 workflow 範本庫** — 一鍵跑「AI 編程工具諮詢 → 配置檔產出」「品牌定位 → 內容生產 → 多平台分發」等多步驟協作模板
 
 ---
@@ -288,6 +289,121 @@ dashboard 右上角:
 npm run doctor      # 比對 manifest,輸出彩色報告 + fix 指令(只讀,不改)
 npm run setup:full  # 互動式安裝精靈(改檔但每步先問)
 ```
+
+---
+
+## 🌐 Agent 接管你登入的瀏覽器(可選功能,0.18+)
+
+讓 dashboard agent 直接在你**已登入**的網站動手 — 改 Threads 個人簡介、更新 YouTube 影片描述、編輯 LinkedIn 介紹、回 IG 留言等等。
+
+### 為什麼要這樣?
+
+不靠這個,流程是:agent 寫好內容 → 你複製 → 切 tab → 找到正確欄位 → 貼上 → 存。
+**有了這個**,agent 看你的瀏覽器、改你的欄位、截圖給你確認、按你話送出。**手動的步驟全省**。
+
+### 設計原則:**不碰你的日常 Chrome**
+
+我們建一個**獨立 Chrome profile** 給 agent 用,跟你日常 Chrome 完全分開:
+
+```
+你的日常 Chrome              ↔   完全不被 agent 看見
+   ├─ Gmail
+   ├─ 銀行
+   └─ 個人帳號
+
+Agent 專用 Chrome(新建)     ↔   agent 只看得到這個
+   ├─ Threads(已登入)
+   ├─ YouTube(已登入)
+   └─ LinkedIn(已登入)
+```
+
+### 設定步驟
+
+**第 1 次**:
+
+```bash
+# 1. 雙擊 dashboard 根目錄的 start-agent-chrome.bat
+#    (或 macOS / Linux 自己包裝同樣指令)
+
+# 2. 會跳出一個全新空白的 Chrome
+#    (網址列會看到「您正在使用 Chromium」之類的提示)
+
+# 3. 在這個 Chrome 內登入你想讓 agent 操作的網站
+#    例:打開 threads.net → 登入 → 不要 logout
+#    例:打開 youtube.com → 登入 → 不要 logout
+#    登入狀態會記住,下次啟動還在
+```
+
+**之後每次**:
+
+雙擊 `start-agent-chrome.bat`,Chrome 啟動就好。
+
+### 第一次設定 dashboard 端
+
+`~/.claude.json` 的 playwright MCP 要走 CDP 模式(`v0.18` 已預設好,新使用者跑 `npm run setup:full` 會自動帶):
+
+```json
+"playwright": {
+  "type": "stdio",
+  "command": "playwright-mcp",
+  "args": ["--cdp-endpoint", "http://localhost:9222"]
+}
+```
+
+改完後 dashboard **新建的對話**就會走這個模式。舊對話不影響。
+
+### 使用範例:讓品牌守護者改 Threads 簡介
+
+1. 確認 agent 專用 Chrome 已啟動且登入 Threads
+2. dashboard 開新對話 → 找「品牌守護者」→ 「+ 開新會議」(主題:Threads 個人簡介改版)
+3. 跟他說:
+
+```
+我想把 Threads 個人簡介改成更聚焦在 B2B 顧問。
+請先草稿三版給我看,我選一版後再用 playwright 套上去。
+記得套之前先給我看截圖確認。
+```
+
+4. 品牌守護者:
+   - 看你工作區備忘錄知道你的定位
+   - 草稿 3 版給你選
+   - 你說「用第 2 版」
+   - 他呼叫 `mcp__playwright__browser_navigate` 到 threads.net/edit_profile
+   - 用 `browser_fill_form` 填新簡介
+   - **用 `browser_take_screenshot` 截圖給你看**
+   - 你說「OK 送出」→ 他點儲存
+
+### 🛡️ 安全提醒(必看)
+
+```
+✅ Agent 專用 Chrome 可以登入:
+   ├─ Threads / Instagram / Twitter / LinkedIn(內容平台)
+   ├─ YouTube / Vimeo(影片平台)
+   ├─ 部落格後台(WordPress / Substack 等)
+   └─ 任何「丟出去要本來就公開的」服務
+
+🚫 Agent 專用 Chrome 絕對不要登入:
+   ├─ Gmail / 任何 email
+   ├─ 銀行 / 證券 / 加密貨幣交易所
+   ├─ 雲端服務管理後台(AWS / Cloudflare 等)
+   ├─ 公司內網 / VPN
+   └─ 任何「被亂操作會出事」的服務
+
+💡 Agent 在這個 Chrome 操作的所有東西都沒有「Are you sure?」攔網
+   — playwright 點按鈕跟你點按鈕一樣有效。所以:
+   1. prompt 裡明確要求 agent 「修改前先給我看計畫 / 截圖」
+   2. 工作區備忘錄寫:「在外部網站操作前必須等我點頭」
+   3. 不可逆操作(刪文、發推、轉帳)永遠手動最後一按
+```
+
+### 故障排除
+
+| 問題 | 處理 |
+|---|---|
+| Agent 說「無法連到 CDP 9222」 | 你還沒跑 `start-agent-chrome.bat`,或 Chrome 被關了 |
+| Agent 看不到我登入的 Threads | 你登入是在「日常 Chrome」不是 agent 專用 → 在 agent 專用 Chrome 重登一次 |
+| 不小心關 agent Chrome 了 | 沒事,雙擊 `start-agent-chrome.bat` 再開,登入狀態還在 |
+| 想 reset 整個 agent profile | 刪 `C:\Users\baham\AppData\Local\agent-chrome-profile` 整個資料夾,下次啟動重來 |
 
 ---
 
