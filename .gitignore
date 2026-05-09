@@ -12,3 +12,10 @@ server/data/
 .env
 .env.local
 .env.*.local
+
+# Playwright MCP 工作目錄(agent 操作產生的暫存,含可能含個人資料的截圖)
+.playwright-mcp/
+server/.playwright-mcp/
+server/*.png
+server/*.jpg
+server/*.jpeg
