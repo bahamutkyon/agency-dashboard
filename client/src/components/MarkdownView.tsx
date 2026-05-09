@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -11,10 +11,11 @@ interface Props {
  * Renders Markdown with GFM (tables, strikethrough, task lists). Code blocks
  * get a copy button. Links open in a new tab.
  *
- * Tailwind's `prose` would be ideal but adding @tailwindcss/typography is a
- * dependency we can avoid — just style elements directly.
+ * Memoized — markdown parsing for 50+ message chat history was being redone
+ * on every keystroke in the input box. With memo + stable string children,
+ * unchanged messages skip re-parse entirely.
  */
-export function MarkdownView({ children, className = "" }: Props) {
+function MarkdownViewImpl({ children, className = "" }: Props) {
   return (
     <div className={`md-view text-sm leading-relaxed ${className}`}>
       <ReactMarkdown
@@ -66,6 +67,10 @@ export function MarkdownView({ children, className = "" }: Props) {
     </div>
   );
 }
+
+// Wrap with memo — children is a string, so React's default shallow comparison
+// is exactly what we want: re-render only if message content actually changed.
+export const MarkdownView = memo(MarkdownViewImpl);
 
 function CodeBlock({ children }: { children?: any }) {
   const [copied, setCopied] = useState(false);

@@ -112,7 +112,13 @@ export class AgentSession extends EventEmitter {
       "--output-format", "stream-json",
       "--include-partial-messages",
       "--verbose",
-      "--permission-mode", "acceptEdits",
+      // bypassPermissions:在 -p 非互動模式下,acceptEdits 對 MCP 工具仍會
+      // 跳 prompt,但沒人能點 → 全部自動 deny。dashboard 使用情境:
+      //   - 使用者在 workspace 設定中明確 opt-in 啟用 MCP
+      //   - shellward MCP 作為 baseline 守門人(攔危險命令 / 注入)
+      //   - UI 上有 SecurityBadge 即時顯示是否被保護
+      // 所以這裡放開所有工具,讓「使用者授權 → 工具可用」這條鏈接通。
+      "--permission-mode", "bypassPermissions",
     ];
     // Claude CLI 2.1+ rule: --session-id and --resume are mutually exclusive
     // (unless --fork-session is set, which we don't want — that creates a
