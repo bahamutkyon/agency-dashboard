@@ -10,6 +10,11 @@ import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
+import fs from "node:fs";
+import path from "node:path";
+
+const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // In-memory tally so /api/security/status can show "X sessions protected
 // since dashboard start" without parsing logs.
@@ -256,6 +261,22 @@ export class AgentManager {
         usageTracker.recordTurn(evt.payload);
         // background auto-titler: kicks in once after first turn
         setTimeout(() => maybeAutoTitle(s.id), 500);
+      } else if (evt.type === "tool_image") {
+        // MCP 工具回傳的圖片(主要是 playwright 截圖)— 存到 uploads 目錄,
+        // 在對話裡插一條 markdown 圖訊息,讓使用者直接看得到。
+        try {
+          const { base64, mediaType } = evt.payload;
+          const ext = (mediaType || "image/png").split("/")[1] || "png";
+          const ts = Date.now();
+          const fname = `agent-${s.id.slice(0, 8)}-${ts}.${ext}`;
+          const filepath = path.join(UPLOAD_DIR, fname);
+          fs.writeFileSync(filepath, Buffer.from(base64, "base64"));
+          const url = `/api/uploads/${fname}`;
+          const md = `![agent screenshot](${url})`;
+          appendMessage(s.id, { role: "assistant", content: md, ts: Date.now() });
+        } catch (e: any) {
+          console.warn(`[agentManager] failed to save tool_image:`, e.message);
+        }
       } else if (evt.type === "rate_limit") {
         usageTracker.recordRateLimit(evt.payload);
       }

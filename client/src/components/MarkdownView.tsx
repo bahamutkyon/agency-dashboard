@@ -41,6 +41,17 @@ function MarkdownViewImpl({ children, className = "" }: Props) {
             </a>
           ),
           hr: () => <hr className="my-3 border-zinc-700" />,
+          img: ({ src, alt }) => (
+            <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+              <img
+                src={src}
+                alt={alt || "image"}
+                className="max-w-full max-h-[480px] rounded border border-zinc-800 hover:border-accent cursor-zoom-in transition"
+                loading="lazy"
+              />
+              {alt && <div className="text-[10px] text-zinc-500 mt-0.5">{alt}</div>}
+            </a>
+          ),
           table: ({ children }) => (
             <div className="overflow-x-auto my-2">
               <table className="border-collapse text-xs">{children}</table>

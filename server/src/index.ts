@@ -41,6 +41,10 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" })); // bumped for base64 file uploads
 app.use(buildRemoteAccessMiddleware(REMOTE_CFG));
 
+// 服務 server/data/uploads/ 下的檔案(使用者拖曳上傳的 + agent 截圖)
+// 讓 <img src="/api/uploads/xxx.png"> 在對話內 inline 顯示
+app.use("/api/uploads", express.static(UPLOAD_DIR));
+
 // --- REST ---
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));

@@ -207,7 +207,31 @@ export class AgentSession extends EventEmitter {
       }
       return;
     }
-    if (evt.type === "user") return;
+    if (evt.type === "user") {
+      // Tool results from MCPs may contain images (e.g. playwright screenshots).
+      // Pull them out and emit a "tool_image" event so the dashboard can save +
+      // render them inline.
+      const content = evt.message?.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === "tool_result" && Array.isArray(block.content)) {
+            for (const c of block.content) {
+              if (c.type === "image" && c.source?.type === "base64" && c.source?.data) {
+                this.emit("event", {
+                  type: "tool_image",
+                  payload: {
+                    base64: c.source.data,
+                    mediaType: c.source.media_type || "image/png",
+                    toolUseId: block.tool_use_id || "",
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+      return;
+    }
     if (evt.type === "result") {
       this.emit("event", { type: "result", payload: evt });
       this.setStatus("idle");
