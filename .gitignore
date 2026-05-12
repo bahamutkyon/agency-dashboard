@@ -19,3 +19,5 @@ server/.playwright-mcp/
 server/*.png
 server/*.jpg
 server/*.jpeg
+server/x*.json
+server/*-base64.json

@@ -10,6 +10,7 @@ import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
+import { buildSkillPrimingBlock } from "./skillPriming.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -107,9 +108,13 @@ export class AgentManager {
       agentMemoryBlock = `\n\n# 你對這位使用者的個人理解(同事記憶)\n以下是你跟這位使用者過去合作中累積的關鍵理解 — 包含他是誰、進行中的專案、他的偏好、過去的關鍵決定。請以此為基礎繼續合作,**不要每次都重新自我介紹或重新詢問同樣的事**:\n\n${agentMem.content.trim()}\n`;
     }
 
+    // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
+    // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
+    const skillPrimingBlock = buildSkillPrimingBlock(agentId);
+
     const memoryCapability = `\n\n# 累積記憶能力\n如果在對話中你發現使用者揭露了重要的、跨對話有價值的事實(偏好、決定、客戶背景、品牌規則等),你可以**在回答最末尾**輸出記憶標記讓系統累積:\n\n\`\`\`\n=== REMEMBER ===\n簡短描述(一行,< 80 字),例如:使用者偏好親切口語、不要長篇大論\n=== END REMEMBER ===\n\`\`\`\n\n規則:每次回答最多 1 條;只記跨對話有用的事實;不要記當下情境的瑣事。\n`;
 
-    let combined = (extraSystemPrompt || "") + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+    let combined = (extraSystemPrompt || "") + skillPrimingBlock + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.

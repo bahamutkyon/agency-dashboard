@@ -1,0 +1,4631 @@
+{
+  "generated_at": "2026-05-12T09:34:49.310Z",
+  "skill_count": 21,
+  "agent_count": 212,
+  "agents": {
+    "academic-anthropologist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "设计前必须探索用户需求、文化约束和设计空间,避免仓促拼湊文化陈词滥调"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定详细的文化系统设计规划,确保每个元素(亲属制、交换系统、仪式)的功能和相互依赖关系"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "识别和修复文化系统中的矛盾、逻辑断裂和不一致性——这是评估文化真实性的核心工作"
+        },
+        {
+          "id": "executing-plans",
+          "why": "按计划逐步构建文化系统各个层面,在实现过程中保持设计意图和内部一致性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "宣称文化系统完成前,验证其内部一致性、功能合理性和原始元素的正确理解"
+        }
+      ]
+    },
+    "academic-geographer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "构建地理一致的世界系统前,需要深入探索气候驱动、资源约束、聚落逻辑等复杂的地理相互作用"
+        },
+        {
+          "id": "writing-plans",
+          "why": "地形→气候→水文→生物群落→人文地理,这是有序的多步骤设计流程,需要前期规划避免返工"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当地理设计出现矛盾(如河流分流、气候不合理),需要系统性地诊断问题根源并修复一致性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "地理学家有严格的科学规则约束,每项设计完成前必须验证物理一致性和遵守地理学原理"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要输出规范的地理一致性报告,清晰结构化地呈现地形、气候、资源、人文地理等分析结果"
+        }
+      ]
+    },
+    "academic-historian": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "歷史學家的核心使命就是驗證歷史一致性；輸出任何時期真實性報告前必須檢驗資料、識別時代錯誤、確認設定的學術可信度"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "用系統性方法論診斷歷史敘述中的矛盾、技術/經濟/社會不一致之處，就像除錯複雜系統一樣找根本原因而非表面症狀"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "將歷史驗證標準化：先定義「時期X應符合的物質文化/社會結構標準」，再逐一驗證設定中的主張是否通過這些標準"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要輸出結構清晰、術語精確的「時期真實性報告」，用專業的文檔寫作規範組織複雜的歷史分析和多層次的證據論述"
+        }
+      ]
+    },
+    "academic-narratologist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "敘事學家需要幫客戶在提出分析前先探索故事理念、人物設定、情節方向——這是創意基礎"
+        },
+        {
+          "id": "writing-plans",
+          "why": "故事改進是多步驟任務（結構調整→人物弧線修正→敘事欠債補償），需要制定清晰的改進路線圖"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "敘事學家的建議必須經過驗證——確保提出的改進在框架層面站得住腳且不會引入新的敘事問題"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "複雜故事分析涉及多個獨立維度（核心理念、結構、人物、主題一致性），可並行處理後整合"
+        }
+      ]
+    },
+    "academic-psychologist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "心理分析的本質是多維度創意思考——探索行為動機、防禦機制、人際模式時需要發散思維，而非線性推導"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "診斷心理問題的根源就像 debugging：從表面症狀→追蹤潛在機制→驗證假設，是心理學家的核心工作方法"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計複雜的角色成長弧線、人際動態映射、多層次心理檔案都需要結構化計畫才能避免遺漏關鍵維度"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "心理學家必須「每一個觀察都基於具名理論或實證發現」——驗證確保分析不淪為直覺臆測，符合其科學嚴謹的核心價值"
+        }
+      ]
+    },
+    "academic-study-planner": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "制定多步驟、複雜的個性化備考計劃是學習規劃師的核心職責"
+        },
+        {
+          "id": "executing-plans",
+          "why": "實現計劃需要監測進度、動態調整、應對檢查點和異常"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "診斷學習進度問題、分析計劃失效原因、優化備考策略"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "在確認學習者達成目標或通過考試前進行嚴格驗證"
+        },
+        {
+          "id": "brainstorming",
+          "why": "根據每位學習者的個性化情況設計創意性的備考方案"
+        }
+      ]
+    },
+    "accounts-payable-agent": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "應付賬款的核心價值——發送前必須驗證收款方、檢查重複支付、確認金額，絕不倉促行事"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "複雜的業務邏輯（冪等性、發票驗證、限額控制、重複支付檢查）必須通過 TDD 確保正確性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "支付失敗、通道異常、金額不匹配等異常情況需要系統化調試和多層級應急處理"
+        },
+        {
+          "id": "workflow-runner",
+          "why": "與合同智能體、項目經理、HR 等多 agent 協作，需要處理複雜的跨 agent 工作流和付款確認"
+        }
+      ]
+    },
+    "agentic-identity-trust": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "身份系統涉及密鑰管理、簽名驗證、授權鏈驗證等高風險代碼，TDD 對確保正確性和安全性最關鍵"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "與 agent 的核心原則'證據強迫症'高度一致，所有交付物都必須驗證審計鏈完整性、簽名有效性和授權邏輯"
+        },
+        {
+          "id": "writing-plans",
+          "why": "身份信任體系涉及密鑰生成、憑證管理、審計鏈、委託授權、信任評分等多個子系統，需要詳細架構計畫才能系統化實現"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計零信任身份模型、信任評分機制、委託鏈約束等都是創意架構工作，必須先探索需求和邊界情況才能方案設計"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "規範文檔確保其他 agents 能正確和安全地集成身份系統，清晰的密碼學、授權邏輯說明直接影響整體安全性"
+        }
+      ]
+    },
+    "agents-orchestrator": {
+      "skills": [
+        {
+          "id": "executing-plans",
+          "why": "核心職責是執行多階段工作流規劃，需要按順序推進、檢查點驗證和階段間轉接"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "需要協調多個專業智能體並行工作，優化流水線效率，管理分發和依賴關係"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "質量門禁執行者，每個任務必須驗證才能推進，這是流水線的核心保障機制"
+        },
+        {
+          "id": "subagent-driven-development",
+          "why": "驅動子智能體完成實現任務，處理失敗重試邏輯和上下文傳遞，維持流水線持續循環"
+        }
+      ]
+    },
+    "ai-coding-guide-consultant": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "用户问「该用哪个工具？」时,通常需要先理解他的真实需求、约束条件(如网络限制)、团队现状,才能给出正确的选型建议"
+        },
+        {
+          "id": "writing-plans",
+          "why": "用户经常会说「我要用 Claude Code 完成 X 任务」,需要帮他们规划分步骤执行计划,而不是只给工具选型"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "这个顾问经常输出配置示例、故障排除、最佳实践指南,文档表达质量直接影响用户的学习曲线和落地效果"
+        },
+        {
+          "id": "workflow-runner",
+          "why": "当用户涉及多个 AI 编程工具协作、或提供 YAML 工作流时,顾问需要帮他们理解和优化跨工具的自动化流程"
+        }
+      ]
+    },
+    "automation-governance-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "批准自动化前需全面评估价值、风险、可维护性，使用决策框架逐一分析"
+        },
+        {
+          "id": "writing-plans",
+          "why": "为每个自动化请求制定明确的架构方案和治理决策，包含防护措施和回退方案"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "实现n8n工作流前编写测试，满足agent明确要求的测试基线（正常路径、边界、故障、压力等）"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "完成前验证测试和文档完整性，直接对应agent核心规则：没有测试和文档证据不能标记为完成"
+        }
+      ]
+    },
+    "blender-addon-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "構建管線工具必須在交付前確保驗證器正確、導出邏輯不破壞數據，測試優先確保可靠性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "Blender API 脆弱且上下文依賴，插件開發中的奇怪行為、兼容性問題需要系統化調試"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 規則明確要求驗證工具先報告問題再修復、批處理記錄更改、導出驗證結果，不允許靜默失敗"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的管線工具需要事先規劃命名規範、Property Group 設計、Collection 結構和驗證邏輯"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "涉及複雜 Python 代碼和 Blender API 調用，需驗證工作符合管線規範和跨團隊交付標準"
+        }
+      ]
+    },
+    "blockchain-security-auditor": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "審計的根本原則——每個發現都必須附帶 PoC 或具體攻擊場景驗證，不能只說「有問題」"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "漏洞檢測本質是系統化地發現 bug，需要結構化診斷方法論而非碎片化的檢查"
+        },
+        {
+          "id": "chinese-code-review",
+          "why": "深度代碼審查是核心工作，需要中文環境下的專業審查規範和嚴謹的反饋方式"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "形式化驗證、屬性測試和 PoC 開發都需要驗證驅動思維——先定義協議不變量再驗證"
+        }
+      ]
+    },
+    "code-reviewer": {
+      "skills": [
+        {
+          "id": "chinese-code-review",
+          "why": "code-reviewer 的核心职责就是代码审查，需要遵循中文代码审查规范进行结构化、可操作的反馈"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "审查时需要验证实现是否真的完成了计划中的所有功能、测试是否都通过，以证据支撑评估结论"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "代码质量评估中需要评估测试覆盖率和实现质量，理解 TDD 方法论有助于做出更深入的判断"
+        },
+        {
+          "id": "executing-plans",
+          "why": "进行计划对齐分析时需要理解原始规划的执行框架，才能识别实现与计划的偏差是合理改进还是有问题的偏离"
+        }
+      ]
+    },
+    "compliance-auditor": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "他的核心哲學是實質重於形式，必須驗證控制措施在整個審計期間的有效運行而非只是紙面記錄"
+        },
+        {
+          "id": "writing-plans",
+          "why": "審計就緒評估、差距優先級排序、修復時間表預估都需要風險驅動的結構化計劃"
+        },
+        {
+          "id": "executing-plans",
+          "why": "需要管理從差距發現到修復驗證、審計師溝通、發現項關閉的整個多階段審計流程"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "編寫大量技術文檔（差距評估報告、控制措施文檔、審計就緒記分卡），需要專業清晰的表達"
+        }
+      ]
+    },
+    "corporate-training-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每个培训项目的需求分析、课程体系设计、教学方案构思都是创造性工作，需要先探索用户意图和设计思路"
+        },
+        {
+          "id": "writing-plans",
+          "why": "培训项目涉及多阶段规划（ADDIE 模型、学习路径、课程大纲、内训师培养计划），需要结构化的项目方案文档"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "PPT 和演示文稿是企业培训的核心交付物，中文美学规范直接影响课程表现力和学员体验"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "培训效果评估与持续优化是职责的关键部分，需要在课程上线前通过实际验证确认学习目标达成"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "学习资料、课程大纲、讲师手册等文档质量直接关系到培训效果和知识沉淀，需要专业的中文文档规范"
+        }
+      ]
+    },
+    "data-consolidation-agent": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "处理日期格式不一致、缺失字段、重复记录等复杂数据质量问题需要系统化的诊断和修复方法"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "达成率计算、异常值检测、除零处理等核心逻辑必须有严格的测试覆盖以确保准确性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "声称整合完成前必须验证数据一致性、计算准确性和数据新鲜度标注，不能有线上事故"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "完成大型整合任务后需要审查确保口徑一致性、性能指标和跨区域计算逻辑正确"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要清晰记录各区域数据上报规律、计算口徑变更、异常处理逻辑便于后续维护和故障排查"
+        }
+      ]
+    },
+    "design-brand-guardian": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "品牌战略和定义需要在实施前深入探索目的、愿景、价值观和个性，brainstorming 是创意思维的必经过程"
+        },
+        {
+          "id": "writing-plans",
+          "why": "品牌守护需要详细的战略规划文档——从品牌基础到执行路线图都需要有结构化的计划书"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "品牌守护者的核心工作包括视觉形象系统设计，中文简报美学规范直接指导品牌色彩、排版、留白等设计决策"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "品牌一致性维护的关键是验证——需要验证所有触点的品牌实施是否符合指南、色彩是否准确、消息是否一致"
+        }
+      ]
+    },
+    "design-inclusive-visuals-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計結構化 Prompt 架構和多層次對抗偏見的方法論，本質是創意問題求解"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "撰寫高質量的 Prompt 文檔、負向庫、審查清單和指南，需要專業排版和術語規範"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "診斷 AI 生成內容中的系統性偏見（克隆臉、亂碼文字、物理不真實等），逐層排查根源"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證生成素材是否真實消除了偏見、符合文化準確性和尊嚴標準，需要逐項檢查清單"
+        }
+      ]
+    },
+    "design-ui-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "在創建任何設計系統、組件或界面前，設計師必須先探索需求和設計方向，這是每個創意工作的前置步驟"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計系統規劃需要事先梳理架構、Token 系統和交付流程，避免設計債務和返工"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "設計師需要輸出設計規格、組件文檔和使用指南，確保開發者能準確實現設計願景"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "設計師必須驗證實現與設計規格的準確性，進行設計 QA 確保像素級細節和無障礙合規"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "設計師需要用簡報展示設計系統、設計方案和品牌視覺，確保排版、色彩、留白等美學完整"
+        }
+      ]
+    },
+    "design-ux-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "设计 CSS 系统、布局框架、信息架构前需充分的需求分析与创意思考，确保架构方向正确"
+        },
+        {
+          "id": "writing-plans",
+          "why": "核心工作流——制定详细的架构计划、技术规格、组件设计方案，为开发者提供清晰实现路线"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "将架构决策转化为规范清晰的技术文档，让开发者能直接理解与执行，减少歧义"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "交付前验证 CSS 系统完整性、布局框架可用性、规范可执行性，确保地基牢固"
+        }
+      ]
+    },
+    "design-ux-researcher": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "規劃多階段研究計劃和制定清晰的研究方法論是 UX 研究的基礎工作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證研究結論的有效性、統計可靠性和可信度是確保研究品質的關鍵"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計研究方法、確定研究問題和創造性解決用戶研究挑戰需要創意思考"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "撰寫專業的研究報告、用戶畫像和研究發現文檔需要規範的文檔結構"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "向決策者和利益相關者用簡報呈現研究發現和洞察需要專業的視覺表達"
+        }
+      ]
+    },
+    "design-visual-storyteller": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每次視覺敘事創作都需要先探索故事策略、角色塑造、敘事結構和情緒旅程"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "中文視覺美學規範（字型、色彩、留白、節奏）直接決定視覺故事的專業質量"
+        },
+        {
+          "id": "writing-plans",
+          "why": "在多媒體創作前需要規劃敘事策略、內容框架和跨平臺適配方案"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "完成視覺故事時需要驗證敘事效果、品牌一致性和跨平臺適配是否達標"
+        }
+      ]
+    },
+    "design-whimsy-injector": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "創意探索是趣味注入的基礎，每次要想新的俏皮文案、彩蛋或微交互時都需要系統化的需求分析和設計思考"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "趣味注入師的核心交付物是符合品牌調性的俏皮文案，包括 404 頁面、加載提示、按鈕文案等，需要專業的寫作規範來平衡個性和清晰度"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "趣味設計最終需要落地成 CSS、動畫和交互代碼，完成後需要 code review 確保實現品質和沒有迴歸問題"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "趣味元素必須驗證無障礙友好和性能合格，符合 agent 的核心規則『在趣味和可用性之間找平衡』"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "趣味注入師經常需要向其他 agents 展示品牌個性框架和設計方案，用專業美學呈現能讓方案本身也體現趣味"
+        }
+      ]
+    },
+    "engineering-ai-data-remediation-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "需要系统化诊断异常根本原因，识别大规模错误中的语义模式聚类而非逐行处理"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "SLM 生成修复逻辑前必须先定义测试，确保 lambda/SQL 表达式的安全性和确定性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "强制执行零数据丢失保证的核心——修复后必须验证 Source_Rows == Success_Rows + Quarantine_Rows"
+        },
+        {
+          "id": "executing-plans",
+          "why": "需要执行含多个审查检查点的复杂修复计划，从异常检测到聚类分析再到修复验证"
+        }
+      ]
+    },
+    "engineering-ai-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "AI 工程師強調沒有 baseline 的實驗不做、訓練代碼必須可復現，TDD 直接保障模型實驗的嚴謹性和可重複性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "日常工作包括訓練跑飛、線上性能詭異下降、推理延遲超標等問題，系統化 debug 是解決這類模型服務故障的核心能力"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "模型上線前必須過 shadow mode 對比線上 baseline，驗證是交付可靠 AI 系統的非協商要求"
+        },
+        {
+          "id": "writing-plans",
+          "why": "數據管線→模型訓練→優化→部署→監控的全鏈路工程涉及複雜多步驟，需要預先規劃確保工程化有序進行"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "模型服務涉及大量代碼改動和降級策略實現，上線前代碼審查是保證系統可靠性和可維護性的必要關卡"
+        }
+      ]
+    },
+    "engineering-autonomous-optimization-architect": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "需要設計複雜多層的優化架構方案（路由、護欄、成本模型、降級策略），實現前必須規劃清楚"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "影子測試的核心在於建立數學化的評估標準，先定義評分指標再執行 A/B 實驗"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "決策直接影響生產環境（自動流量切換），提升任何模型前必須有明確的驗證證據和成本對比"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "異常激增、熔斷器觸發、成本超限等故障場景需要系統化的診斷和恢復流程"
+        }
+      ]
+    },
+    "engineering-backend-architect": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "後端架構師的核心工作是制定複雜多步驟的系統架構計劃（服務分解、數據模型設計、API 合約等），每個決定都需要周密的規劃"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "設計可靠、高性能的系統必須從可測試性開始，TDD 幫助驗證每個架構層級的正確性和性能特性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "後端系統在生產環境會遇到性能、一致性、高負載問題，需要系統化調試找到根本原因並優化架構"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "架構設計必須被驗證：性能基準達成、安全標準符合、可擴展性可行，不能靠假設，需要實證"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計系統時需要充分探索需求和權衡（Monolith vs Microservices、SQL vs NoSQL 等），brainstorming 確保架構決策基於全面分析而非直覺"
+        }
+      ]
+    },
+    "engineering-cms-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "CMS 插件和主题开发需要单元测试、集成测试和兼容性测试来确保代码质量和可维护性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "CMS 交付物必须验证功能正确性、WCAG 无障碍标准合规、性能和安全性，这是代码优先实现的核心"
+        },
+        {
+          "id": "brainstorming",
+          "why": "内容模型设计、插件架构规划、主题结构需要充分的需求分析和创意探讨，这是 CMS 项目的基础"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "CMS 生态复杂（插件冲突、主题兼容性、hook 覆盖等），需要系统化的问题诊断和修复方法"
+        },
+        {
+          "id": "writing-plans",
+          "why": "CMS 项目的架构规划、内容模型设计、功能流程需要详细的书面实现计划来确保质量"
+        }
+      ]
+    },
+    "engineering-code-reviewer": {
+      "skills": [
+        {
+          "id": "chinese-code-review",
+          "why": "核心职责就是提供中文代码审查，这个 skill 直接规范审查方式和反馈效果"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "深入理解代码缺陷的根源，比仅表面发现问题更能提出有教育意义的改进建议"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "在完成审查前验证反馈的质量、清晰度和可操作性，确保每条意见都有根据"
+        },
+        {
+          "id": "chinese-commit-conventions",
+          "why": "代码审查包括审查提交信息，确保 commit message 符合规范是重要职责"
+        }
+      ]
+    },
+    "engineering-codebase-onboarding-engineer": {
+      "skills": [
+        {
+          "id": "chinese-documentation",
+          "why": "Agent 的核心输出是「代碼庫導航地圖」、「架構走查」等结构化文档，需要规范清晰的中文技术文档写作能力"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "通过代码库中的测试用例能快速理解函数/模块意图和行为，这是加速新开发者入职理解的关键路径"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 的核心原则是「只陈述基于实际检查过的代码的事实」，需要系统化验证确保所有陈述的准确性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "追踪执行路径本质上是追踪数据流和调用栈的过程，系统化调试方法论帮助 Agent 清晰地诊断系统行为"
+        }
+      ]
+    },
+    "engineering-data-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "數據管線的冪等性、schema 約束、數據質量檢查必須在設計階段就有完整測試覆蓋，避免生產中的靜默故障"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "上線前必須驗證數據量、schema、新鮮度、完整性和冪等性——聲稱管線完成不能只靠代碼審查"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "靜默數據損壞、schema 漂移、CDC 延遲等問題隱蔽複雜，需要血緣追蹤和增量日誌的系統化除錯方法"
+        },
+        {
+          "id": "writing-plans",
+          "why": "Medallion 架構分層、PB 級遷移、schema 演化策略都需要提前規劃清楚，避免上線後返工"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "數據契約、schema、血緣、SLA 都依賴完整文檔——文檔先行是數據質量的基礎"
+        }
+      ]
+    },
+    "engineering-database-optimizer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "數據庫優化必須基於可測量的驗證（EXPLAIN、性能基準），寫查詢前先寫執行計畫和性能測試是核心實踐"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "DB 變更風險高，聲稱優化完成前必須用 EXPLAIN ANALYZE、query profiling、load testing 驗證效果，沒有證據不能交付"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "慢查詢、死鎖、性能下降都需要系統化診斷（日誌、監控、執行計畫），不能亂改必須先查根因"
+        },
+        {
+          "id": "writing-plans",
+          "why": "重大 Schema 變更、零停機遷移、索引優化計劃都是多步驟高風險操作，需要提前設計和回滾方案"
+        }
+      ]
+    },
+    "engineering-devops-automator": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "DevOps 開發任何 CI/CD 流水線、自動化腳本或基礎設施代碼時，應該先寫測試確保系統可靠性和可復現性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "部署和自動化系統上線前必須驗證流水線正確運行、監控告警生效、無故障，這是 DevOps 的核心職責"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "CI/CD 失敗、自動化出故障時需要系統化的除錯方法快速定位根因並修復"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "完成 IaC 代碼、流水線配置或自動化腳本後需要讓團隊審查，確保設計和安全性符合標準"
+        },
+        {
+          "id": "executing-plans",
+          "why": "大規模基礎設施改革、部署策略升級等多步驟計畫需要結構化執行和審查檢查點"
+        }
+      ]
+    },
+    "engineering-dingtalk-integration-developer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "钉钉集成涉及复杂的企业流程设计、审批流程自动化、多系统协调，需要事前充分探索需求和架构设计"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "钉钉 API 集成涉及异步回调、Stream 模式连接管理、签名验证、token 过期等复杂问题，需要系统化调试能力"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "钉钉审批流、消息推送、权限管理涉及关键企业业务流程，必须用 TDD 保证集成的可靠性和稳定性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "钉钉集成涉及生产环境和企业关键流程，任何代码上线前都必须完整验证功能、权限、回调稳定性"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大型钉钉集成项目涉及多个模块（机器人、审批流、连接器、小程序）和阿里云生态协同，需要事前规划和架构设计"
+        }
+      ]
+    },
+    "engineering-email-intelligence-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "郵件線程重建、引用檢測、多提供商支援涉及複雜邊界情況，TDD 是確保管線可靠性的基石"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "真實郵件數據結構混亂（引用風格多變、線程折疊、多語言混用等），需要系統性診斷和修復失敗模式"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "管線品質直接影響下游 AI 推理，必須驗證引用精確率、線程拓撲完整性、參與者識別準確度等指標"
+        },
+        {
+          "id": "writing-plans",
+          "why": "郵件管線涉及 MIME 解析、線程重建、去重、PII 脫敏等多步驟系統，需要在編碼前規劃架構"
+        },
+        {
+          "id": "mcp-builder",
+          "why": "核心職責是為 LangChain、CrewAI 等智能體框架暴露郵件智能能力，系統化構建生產級工具接口"
+        }
+      ]
+    },
+    "engineering-embedded-firmware-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "嵌入式固件對正確性要求極高（棧溢出、優先級反轉致命），硬件約束驗證（棧大小、記憶體、時序）必須透過測試確認，硬件迭代成本高決定了 TDD 必不可少"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "固件 bug 常見於未定義行為、棧污染、時序競爭，RTOS 死鎖和優先級反轉難以追蹤，需要結構化調試方法"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "固件部署後修復成本極高，返回值檢查、棧驗證、無限阻塞檢測、ISR 精簡等規則都必須嚴格驗證才能提交"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "跨平台代碼（ESP-IDF/STM32/Nordic）審查涉及 HAL 選擇、時序關鍵代碼、外設配置等硬件細節，需要判斷審查反饋的合理性"
+        }
+      ]
+    },
+    "engineering-embedded-linux-driver-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "驅動開發最容易出現 race condition、memory leak、deadlock 等低階 bug，需要系統化調試方法"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "設備樹、驅動邏輯、硬件交互必須經過 TDD 驗證才能確保量產穩定性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驅動提交前必須通過 checkpatch、sparse、編譯檢查等內核規範驗證"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "驅動代碼需經過內核社區或內部嚴格審查，確保符合編碼規範和併發安全"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜驅動設計涉及設備樹、中斷、DMA、pinctrl 等多子系統，需先行規劃避免返工"
+        }
+      ]
+    },
+    "engineering-feishu-integration-developer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "飞书集成充满隐性坑（token 过期、签名验证、多租户权限、消息卡片渲染差异），需要系统化调试复杂的集成问题"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "飞书 API 涉及复杂认证、事件订阅、权限验证，TDD 对确保安全性和可靠性至关重要"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必须严格验证 token 正确性、签名验证、权限模型、多租户隔离等安全关键点，不能有遗漏"
+        },
+        {
+          "id": "writing-plans",
+          "why": "飞书集成涉及多层面设计决策（token 管理、事件订阅架构、权限模型），需要周密的实现计划"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "企业级飞书集成需要为客户提供清晰、专业的技术文档，中文文档规范确保一致性和易用性"
+        }
+      ]
+    },
+    "engineering-filament-optimization-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每個 Filament 優化都始於創意設計，需要先探索用戶需求、數據模型和結構方案，而非直接編碼"
+        },
+        {
+          "id": "writing-plans",
+          "why": "結構優化涉及多步驟的複雜改造（標籤頁分離、並排區塊、輸入替換等），需要事前計畫確保邏輯清晰"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "確保優化在充分測試下進行，防止破壞現有功能；驗證結構改動確實改善用戶體驗而非表面調整"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "優化完成後必須驗證改動確實滿足品質標準，證實結構改造產生可衡量的效率提升"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "Filament 優化是高影響力的改造，需要代碼審查確保符合最佳實踐、不違反核心禁止事項"
+        }
+      ]
+    },
+    "engineering-fpga-digital-design-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "RTL 規範明確要求每個模塊有 testbench，應先寫驗證代碼再實現，確保設計滿足邊界條件和異常路徑覆蓋。"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "時序失敗、CDC 問題、仿真異常是常見狀況，需要系統化診斷 timing report、波形、邏輯狀態，找出根本原因。"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "完成定義就是通過驗證：timing 清零、覆蓋率 >95%、gate-level 仿真通過，聲稱完成前必須有驗證證據。"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "RTL 設計完成後必須同行評審，驗證時序邏輯、CDC 實現、testbench 覆蓋率，把控設計質量。"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "收到評審反饋後（時序問題、規範缺陷、驗證不足），需要技術嚴謹地理解問題、修正設計，反覆迭代收斂。"
+        }
+      ]
+    },
+    "engineering-frontend-developer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "前端開發者持續進行 UI 組件、交互設計和功能方案的創造性工作，每次實現新功能前都應先探索需求和設計"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "人格中明確要求『編寫高覆蓋率的全面單元測試和集成測試』，TDD 是確保代碼品質的核心"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "性能優化、跨瀏覽器兼容性、UI 渲染問題是日常工作，系統化除錯能有效診斷和修復這些問題"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "在提交前需驗證 Lighthouse 分數、WCAG 2.1 AA 無障礙合規、核心性能指標，嚴格確保交付品質"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "前端實現涉及 UI 正確性、性能、無障礙等多個維度，代碼審查是確保品質的關鍵把關環節"
+        }
+      ]
+    },
+    "engineering-git-workflow-master": {
+      "skills": [
+        {
+          "id": "chinese-commit-conventions",
+          "why": "agent 強調約定式提交和「提交信息寫為什麼」，這個 skill 直接強化中文環境中的提交規範執行能力"
+        },
+        {
+          "id": "chinese-git-workflow",
+          "why": "直接對應 agent 的核心職責，為分支策略和版本控制提供本地化的工作流指導"
+        },
+        {
+          "id": "using-git-worktrees",
+          "why": "agent persona 明確提到工作樹是高級技巧，這個 skill 讓 agent 能更好地指導並行開發"
+        },
+        {
+          "id": "finishing-a-development-branch",
+          "why": "agent 經常指導合併和 rebase 決策，這個 skill 提供結構化的開發完成流程引導"
+        }
+      ]
+    },
+    "engineering-incident-response-commander": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "故障排查本質是系統化調試,用結構化方法識別根因"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "故障響應需並行協調IC、溝通負責人、技術負責人、記錄員等多角色"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必須驗證故障確實解決、修復補丁有效、事後行動項完成"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "維護runbook、故障知識庫、架構圖是持續改進和知識積累的基礎"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "Runbook需定期測試、Game Day和混沌工程本質是驗證故障就緒能力"
+        }
+      ]
+    },
+    "engineering-iot-solution-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "IoT 方案架構設計涉及協議選型、分層架構、成本與功耗平衡等創造性決策，需要多維度權衡"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "複雜 IoT 系統必須驗證可擴展性、安全體系、成本評估、異常場景（離線/中斷）才能聲稱設計完成"
+        },
+        {
+          "id": "writing-plans",
+          "why": "方案設計完成後，需要制定各層技術實現計劃（設備端、邊緣、雲、安全）和交付里程碑"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "IoT 系統涉及協議棧、設備管理、安全模塊等大量代碼實現，TDD 保證異常場景（回滾、離線同步等）的品質"
+        }
+      ]
+    },
+    "engineering-minimal-change-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "TDD 红绿循环天然约束最小变更——只写让测试通过的代码"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "bug 修复需系统调试找根源,避免过度或错位修复"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "逐行自证变更必要性,完美对应 agent 的提交前审查原则"
+        },
+        {
+          "id": "writing-plans",
+          "why": "编码前定计划明确边界,防止范围蔓延和『顺便』改动"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "review 反馈时判断是否超范围,坚守最小变更不被拉扯"
+        }
+      ]
+    },
+    "engineering-mobile-app-builder": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "移動應用涉及複雜邏輯和多平臺適配，TDD 確保代碼質量和可靠性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "移動應用跨平臺問題複雜，需要系統化調試方法找出根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "移動應用需在各平臺/設備上驗證，才能確保流暢體驗和性能指標"
+        },
+        {
+          "id": "brainstorming",
+          "why": "應用架構、UI/UX 和平臺特性選擇需要在實現前深入探討設計方案"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "功能完成後需審查確保符合平臺規範、性能要求和代碼質量"
+        }
+      ]
+    },
+    "engineering-rapid-prototyper": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "快速迭代需要測試保障品質並加速反饋循環，TDD 確保原型穩定可工作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "Agent 強調先建立清晰成功標準和驗證方案，規劃先於實現是快速原型的基石"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "核心使命是『通過可工作軟體驗證想法』，必須確保原型真正可工作才能聲稱完成"
+        },
+        {
+          "id": "brainstorming",
+          "why": "MVP 創建前需充分探索用戶意圖和需求設計，避免無用功和方向錯誤"
+        },
+        {
+          "id": "executing-plans",
+          "why": "從概念到可交付原型需要有條不紊的執行，計劃再好也需高效落地"
+        }
+      ]
+    },
+    "engineering-security-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "漏洞根本原因分析和事件響應的核心工作，需要系統化的調查方法論"
+        },
+        {
+          "id": "chinese-code-review",
+          "why": "安全代碼審查是 agent 的核心職責，需要有結構的審查規範和有效反饋方式"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "每個安全發現必須驗證可利用性，修復方案必須確認有效，無法通過回報就完成"
+        },
+        {
+          "id": "brainstorming",
+          "why": "威脅建模和安全架構設計需要創意性探索攻擊面和防禦方案"
+        }
+      ]
+    },
+    "engineering-senior-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "高端交互、動畫、微效應必須通過測試保證品質，是工匠精神的實踐基礎"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "性能驗證（60fps、1.5秒加載）、多設備響應式驗證是他質量保證流程的核心"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "CSS 微妙問題、Three.js 集成、動畫卡頓都需要系統化調試方法論"
+        },
+        {
+          "id": "brainstorming",
+          "why": "決定高端設計如何實現、何時集成 Three.js、佈局如何有質感等創意決策需要結構化探索"
+        }
+      ]
+    },
+    "engineering-software-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "架构设计前必须明确需求、权衡技术方案、探索可行性，是架构师每个决策的前置工作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "架构师需要把系统设计转化为可执行的实现计划和里程碑，供开发团队follow和追踪"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "记录ADR、架构决策、领域模型、限界上下文是架构师的核心交付物，确保团队理解和长期可维护"
+        },
+        {
+          "id": "chinese-code-review",
+          "why": "评审代码是否遵循架构决策、维持模块边界和领域完整性、防止架构漂移的关键环节"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "架构师需要向团队和管理层清晰传达设计方案和技术决策的理由，好的沟通直接影响架构执行效果"
+        }
+      ]
+    },
+    "engineering-solidity-smart-contract-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "合約安全漏洞排查是核心——面對重入攻擊、邏輯錯誤等問題時必須系統化診斷，Agent 記得每一次重大漏洞的教訓正是這個 skill 的價值所在"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "「一個 bug 就是幾百萬美元損失」決定了必須先寫測試再實現——TDD 是安全優先開發的基石，邊界情況測試和 Gas 驗證都依賴它"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "聲稱代碼完成前必須運行審計檢查、Gas 分析、全套測試——沒有後悔藥可吃意味著部署前驗證是非協商的強制要求"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "從審計反饋中學習安全教訓、理解複雜的優化建議——Agent 讀過大量審計報告，需要用 skill 框架把評審意見轉化為代碼改進"
+        }
+      ]
+    },
+    "engineering-sre": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "SRE 日常主要工作就是故障排查——定位性能问题、可靠性缺陷、系统瓶颈，需要数据驱动的根因分析"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "SRE 无法凭直觉判断——必须用指标数据证明故障已修复、SLO 已恢复、自动化正常运作，否则无法安心发布"
+        },
+        {
+          "id": "writing-plans",
+          "why": "可靠性升级、自动化项目、大型故障恢复方案都是复杂多步骤任务，需要前期规划确保可执行性"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "SRE 需要编写自动化脚本、告警规则、监控系统，不能凭感觉——必须先定义成功标准再实现"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "Runbook、SLO 定义、故障演练文档是 SRE 的核心输出物，直接影响团队应急能力和知识传承"
+        }
+      ]
+    },
+    "engineering-technical-writer": {
+      "skills": [
+        {
+          "id": "chinese-documentation",
+          "why": "中文技术文档的排版、术语、结构规范直接支撑这个 agent 的核心工作——写清晰、准确的开发者文档"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent persona 强调'代码示例必须能跑'和'准确性第一'，这个 skill 确保发布前对文档和示例进行完整验证"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大型文档架构、版本管理、遗留文档迁移指南等复杂项目需要事前规划和需求分析"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "文档中的代码示例、脚本和文档构建工具需要代码审查来确保质量和最佳实践"
+        }
+      ]
+    },
+    "engineering-threat-detection-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "威胁检测工程师强调「绝不在没有真实日志数据测试的情况下部署规则」，每条检测必须基于实际数据验证"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "部署前必须通过 atomic red team 或紫队演练验证检测能否真正触发，确保检测质量可信"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "调优误报率、诊断规则失效、分析告警准确度需要结构化调试方法，是降低噪声的核心"
+        },
+        {
+          "id": "writing-plans",
+          "why": "规划 MITRE ATT&CK 覆盖度缺口、制定威胁狩猎假设、构建检测路线图都需要结构化计划"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "SIEM 规则即代码（在 Git 中管理），多人协作规则开发时需要代码审查确保质量和一致性"
+        }
+      ]
+    },
+    "engineering-voice-ai-integration-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "語音處理充滿邊界情況（重疊說話人、多口音、長音頻溢出），必須在實現前寫測試來驗證音頻預處理邏輯、轉錄精度和時間戳同步"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "轉錄質量問題往往隱性且難追蹤（採樣率錯誤、編解碼器偽影、缺失的 ffmpeg 標誌），需要系統化的根因分析而非盲目嘗試"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "轉錄輸出的正確性至關重要，必須在聲稱完成前驗證時間戳完整性、說話人歸屬、文本規範化和下游集成就緒狀態"
+        },
+        {
+          "id": "writing-plans",
+          "why": "端到端流水線涉及採集→預處理→分塊→轉錄→後處理→下游集成多個階段，需要事先規劃架構決策（本地vs.雲端、隱私策略、數據隔離）"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "語音系統實現涉及 PII 脫敏、音頻驗證、分塊邏輯等複雜決策，完成後需要驗證實現是否符合流水線規範和隱私要求"
+        }
+      ]
+    },
+    "engineering-wechat-mini-program-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "支付、登录、权限等核心功能需要在实现前设计测试用例，确保微信生态集成的质量"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "上线前必须验证审核规范、性能指标（包体积、setData 限制）、多尺寸兼容性，缺一不可"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "小程序开发频繁遇到渲染 bug、性能问题、兼容性陷阱，需要系统化的调试方法论"
+        },
+        {
+          "id": "brainstorming",
+          "why": "每个功能需求前需要设计架构方案（云开发 vs 自建后端、分包策略、性能优化方案）"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "支付回调、权限验证、数据库规则等敏感代码完成后需要专业审查以防安全漏洞"
+        }
+      ]
+    },
+    "finance-bookkeeper-controller": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "對賬和驗證是簿記工作的 DNA，每個月末都要確保所有科目平衡、無未對平差異、交易正確"
+        },
+        {
+          "id": "writing-plans",
+          "why": "月末結賬日曆管理、任務依賴關係排序、截止日期追蹤是結賬流程的基礎"
+        },
+        {
+          "id": "executing-plans",
+          "why": "執行複雜的月末結賬流程，涵蓋對賬、日記賬、計提、財務報表等多個有序步驟和控制點"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "內部控制的基石是完整文檔，每筆分錄都需要描述和支持文件，審計就緒需要可查詢的記錄"
+        }
+      ]
+    },
+    "finance-financial-analyst": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "财务分析需要制定详细的分析计划，明确数据需求、模型结构、关键驱动因素和验证范围"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "财务模型应先定义敏感性测试标准和验证条件，再进行建模，确保模型稳健性和可信度"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "财务分析的核心是发现表面下的问题，需要系统化调试模型逻辑、验证数据质量、检查假设合理性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "在呈现财务发现前必须完整验证：模型逻辑、敏感性分析、关键假设，确保建议足够稳健"
+        },
+        {
+          "id": "brainstorming",
+          "why": "建模前需系统探索分析目标、隐含假设、场景驱动因素，确保模型对应真实的业务问题"
+        }
+      ]
+    },
+    "finance-financial-forecaster": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "財務預測師經常需要為複雜決策（新產品線、融資策略、場景建模）製定多步驟的分析計劃和財務推演路線圖"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "財務預測的核心要求是「預測與實際偏差超過15%必須覆盤」、「數據必須經得起盡職調查」，驗證完整性和準確性是基本工作流"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "製作融資材料、投資人報告、財務指標包都需要專業視覺呈現，簡報美學直接影響融資溝通效果"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計新的收入預測模型、場景假設體系、財務策略方案時需要創意探索和需求分析"
+        }
+      ]
+    },
+    "finance-fpa-analyst": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "FP&A 需要设计预算框架、规划财务分析方法、创意性地解决复杂的规划问题"
+        },
+        {
+          "id": "writing-plans",
+          "why": "年度预算编制、滚动预测、多维度财务规划都是典型的多步骤任务，需要详细的计划和结构化流程"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "向董事会和 C-suite 汇报财务分析是 FP&A 核心职责，演示稿的专业度直接影响决策质量"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "调试财务数据异常、预测偏差、找出预算执行偏离的根本原因是日常工作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "财务分析的准确性和逻辑严谨性是最基本的要求，任何预测或预算提交前都需要验证"
+        }
+      ]
+    },
+    "finance-fraud-detector": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "風控模型和規則的誤報/漏報問題需要系統化分析根本原因，這是日常工作的常態，不能盲目調參"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "任何風控決策上線前必須驗證效果（誤報率、漏報率、業務影響），反洗錢報告更要確保準確無誤，涉及資金安全和合規底線"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "風控規則和模型涉及合規紅線和資金安全，上線前需要經過嚴格審查確保經得起監管審視，不只是技術品質"
+        },
+        {
+          "id": "writing-plans",
+          "why": "應對新型詐騙手法、建立風控體系、優化策略都是多步驟工作，需要先規劃再實行，反洗錢等合規工作更有嚴格流程要求"
+        }
+      ]
+    },
+    "finance-investment-researcher": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "投资研究的核心规则是'可证伪的论点'——先定义假设和测试条件，再通过分析验证；完全符合 TDD 的逻辑。"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "投资决策涉及真实资金，必须在提交结论前严格验证论点、一手数据、计算逻辑和风险假设的完整性。"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "分析过程中不可避免地发现矛盾或假设失效，需要系统化方法快速定位问题根源（数据质量/逻辑缺陷/信息遗漏）。"
+        },
+        {
+          "id": "writing-plans",
+          "why": "复杂投资研究需要前期规划——定义分析框架、关键问题清单、数据来源、验证标准、时间表和触发条件。"
+        }
+      ]
+    },
+    "finance-invoice-manager": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "發票工作涉及稅務合規和零誤差要求，任何一個錯誤都可能導致稅務風險；完成前驗證是防控稅務異常的必要環節"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要文檔化複雜的發票管理流程、稅務規範和內控制度，讓不同層級的員工能理解和執行"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "經常需要向管理層報告發票合規狀況和稅務風險、向團隊培訓發票開具認證流程，需要清晰有效地傳達複雜稅務知識"
+        },
+        {
+          "id": "brainstorming",
+          "why": "企業發票管理的數字化改造、報銷流程重設、電子發票推行等工作都需要先做需求分析和設計方案"
+        }
+      ]
+    },
+    "finance-tax-strategist": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "複雜的多維度稅務規劃（實體架構、轉讓定價、多地區合規）必須有清晰的多步驟計劃書，在執行前明確規格和步驟"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "稅務工作零容忍，完成前必須逐項驗證合規性、風險評估、文檔完整，聲稱方案前必須確認無誤"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "Persona明確強調『文檔不是官僚主義——它是你的防線』，稅務工作本質文檔密集，需要高品質的結構化文檔規範"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計稅務結構和優化方案需要系統性的創意探索，在著手設計實體架構或跨境策略前評估多個可行方向"
+        }
+      ]
+    },
+    "game-audio-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "音頻系統的 bug 往往複雜難追（混音削波、FMOD 事件卡頓、參數同步失敗等），需要系統化方法論才能定位根因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "音頻工程有具體的驗收指標（發聲數預算、內存限額、自適應過渡品質、空間音頻遮擋效果等），必須實測驗證才能確認達標"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "他的核心交付物是音頻規範文檔——事件命名規範、集成流程、預算約束、最佳實踐，需要寫得清晰讓整個團隊遵循"
+        },
+        {
+          "id": "brainstorming",
+          "why": "在設計自適應音樂系統、空間音頻方案、音頻預算架構時，需要先探索需求和設計方向，而不是直接跳到實現"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "音頻功能（自適應過渡、發聲數控制、遮擋計算）需要先寫測試驗證邏輯，再實現中間件和引擎集成"
+        }
+      ]
+    },
+    "game-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "遊戲設計的起點——需要在實現前探索創意空間、玩家需求和機制假設"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "GDD 是核心輸出，需要清晰結構化地記錄機制、經濟變數和玩家體驗目標"
+        },
+        {
+          "id": "writing-plans",
+          "why": "把創意願景轉化為可實現的文檔化設計方案，確保工程師和美術無歧義執行"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "先定義驗收標準再設計（[待測試] 標記、失敗標準清單），符合紙面原型驗證流程"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "完成設計前驗證方案是否達成目標，確保玩家體驗假設有數據支撐"
+        }
+      ]
+    },
+    "gaokao-college-advisor": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "探索考生多维度需求（分数、兴趣、地域、家庭期望），设计冲稳保多角度方案的前提"
+        },
+        {
+          "id": "writing-plans",
+          "why": "将考生规格（分数位次、选科限制、目标）转化为结构化的多步骤志愿填报方案"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "最终建议前必须验证投档逻辑、专业选科要求符合性、历年数据准确性"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "将复杂的位次分析、方案对比结果清晰文档化，便于考生家长理解和决策"
+        }
+      ]
+    },
+    "godot-gameplay-scripter": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "Godot 遊戲系統的信號連接、類型安全、組件交互複雜度高，TDD 能在編碼前提早發現架構和類型問題"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "信號掉線、類型推斷失敗、Autoload 狀態污染等 Godot 特有的隱蔽 bug 需要系統化追蹤和根因分析"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的遊戲系統架構設計（信號流、組件分層、Autoload 策略）需要提前規劃，避免後期重構成本"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "遊戲代碼完成度難以自我驗證，需要明確檢查信號真的連接了、組件確實可組合、類型安全真的達成"
+        }
+      ]
+    },
+    "godot-multiplayer-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "多人遊戲網絡 bug（同步錯誤、RPC 混淆、生成順序問題）難以追蹤，需要系統化方法診斷根本原因"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "多人邏輯複雜易出錯，TDD 確保權威模型正確、RPC 安全、同步行為符合規則"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "多人系統完成後需要專業審查確保遵守權威模型、RPC 安全最佳實踐和架構約束"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "多人邏輯宣稱完成前必須驗證所有客戶端同步行為、RPC 調用順序和權威狀態一致性"
+        }
+      ]
+    },
+    "godot-shader-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "Shader 開發強調性能可控與精度至上，需要寫測試驗證視覺表現、渲染器兼容性和性能指標"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "Shader 視覺 bug 涉及內置變量行為差異、渲染器特性、紋理採樣問題，需要系統化排查"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "完成 shader 前必須驗證在 Forward+/Mobile/Compatibility 渲染器和多設備上的表現"
+        },
+        {
+          "id": "brainstorming",
+          "why": "視覺效果設計涉及技術方案選擇（VisualShader vs 代碼、著色器類型、性能策略），前期需要探索"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "Shader 代碼完成後需要 review 確保性能最優、Godot 慣用法正確、跨渲染器兼容性"
+        }
+      ]
+    },
+    "government-digital-presales-consultant": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "政务招标需求分析、投标策略制定、方案设计都是创意密集型工作，需要在前期充分探索市场机会和解决方案方向"
+        },
+        {
+          "id": "writing-plans",
+          "why": "项目实施计划、投标策略规划、商务推进计划等是核心交付物，需要系统化的多步骤计划编写能力"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "标书、方案文档编写对政务项目至关重要，文档结构和专业用语直接影响评审评分和中标概率"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "述标答辩 PPT 和方案演示是投标成败的决定性环节，需要在文案、排版、视觉上达到专业水准，提升中标竞争力"
+        }
+      ]
+    },
+    "healthcare-customer-service": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "深度理解患者真实需求（情感焦虑vs实际问题），在提方案前充分分析，确保共情优先而非机械流程"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "患者问题多涉及多因素交织（账单+保险+预约），需逐步诊断根因而非片面处理"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "\"记录每一个承诺\"是核心规则，完成对话前必须验证所有回电、跟进、转接都被正确安排和记录"
+        },
+        {
+          "id": "writing-plans",
+          "why": "复杂患者情况涉及多部门转接、多问题综合处理时，需规划清晰的多步骤解决方案和升级流程"
+        }
+      ]
+    },
+    "healthcare-marketing-compliance": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "醫療合規涉及法律責任與處罰風險，合規評審結論在發出前必須經過嚴格驗證確保無誤"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜合規工作涉及多步驟流程（診斷→風險分析→方案制定→監督執行），需要清晰的計劃與路線圖"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "合規指南、審查意見、風險提示需要精準嚴謹的中文表達，文檔規範直接影響指導效果與法律效力"
+        },
+        {
+          "id": "brainstorming",
+          "why": "在法規框架的約束下尋找創意解決方案，平衡合規底線與營銷效果的核心工作模式"
+        }
+      ]
+    },
+    "hospitality-guest-services": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "投訴處理、特殊要求、房間準備等每個接觸點都需驗證完成度，這是防止服務失誤和挽救差評的關鍵"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計卓越賓客體驗、創意服務補救、規劃特殊場景（週年紀念、VIP 接待）和改進忠誠度計劃都需要創意思維"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜場景規劃是核心職責——活動協調、VIP 接待計劃、超售危機應對、團體預訂執行等都需要詳細規劃"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "內部團隊培訓簡報、客人活動提案、場地介紹等簡報直接影響專業形象和客人滿意度"
+        }
+      ]
+    },
+    "hr-onboarding": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "入職涵蓋多個階段（預入職、第一天、第一週、30-60-90 天），每個階段都需要清晰的多步驟計劃和里程碑追蹤"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "合規不可妥協，每個入職步驟（I-9、稅表、福利登記、系統權限）都需要驗證完成，確保沒有遺漏"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計無縫且個性化的入職體驗需要創意思考，處理特殊需求和優化流程都需要需求分析和創意方案"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要創建和維護高品質的入職文檔、政策確認信、溝通模板，確保每個接觸點都專業且清晰"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "完整入職需要協調 IT 系統權限、經理簽到、福利設置等多個並行任務，需要有效的任務分派和協調"
+        }
+      ]
+    },
+    "hr-performance-reviewer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "績效體系設計需要為不同企業情景選擇最適配的工具（OKR/KPI/雙軌制）和周期，是創意工作中最常被觸發的"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "績效方案需向管理層和全員演示匯報，簡報品質和視覺表達直接影響體系採納率和員工認同度"
+        },
+        {
+          "id": "writing-plans",
+          "why": "績效體系設計、360度反饋流程、PIP改進計劃等都是複雜的多步驟任務，需要詳細的計劃文檔確保落地"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "績效體系推行中最常遇到問題診斷：員工抵觸、評分不客觀、強制分佈傷士氣，需要系統化分析根因並給出解決方案"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "績效評估的公正性和數據準確性是核心生命線，發布結果前必須驗證評估程序合規、數據無誤、無遺漏"
+        }
+      ]
+    },
+    "hr-recruiter": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "与用人部门深度对齐复杂岗位需求、设计招聘策略时，需要充分的需求探索和多维分析"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "同时管理多个岗位、多个候选人的不同推进阶段，是招聘日常的高频并行任务场景"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "招聘过程中遇到效率瓶颈、候选人流失、面试延期等问题时，需要系统性地诊断根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "背调、合同签署、入职交接等关键节点必须严格验证确认，确保招聘闭环质量和合规性"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "定期向业务部门汇报招聘数据和进度分析，需要专业高效的演示表达能力"
+        }
+      ]
+    },
+    "identity-graph-operator": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "身份解析的核心是匹配算法和置信度评分,这是高风险业务逻辑,必须用完整的测试覆盖来确保确定性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当身份解析出错(假阳性合并或假阴性拆分),需要系统化追踪数据质量、算法阈值、权重配置等根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "每个合并/拆分决策都是高风险操作,必须先验证置信度分数、审计追踪完整性,确保不违反确定性约束和租户隔离"
+        },
+        {
+          "id": "executing-plans",
+          "why": "身份解析的完整工作流是多步骤执行计划(摄入→预处理→匹配→评分→置信度判断→决策→执行→记录),需要结构化的执行框架"
+        }
+      ]
+    },
+    "language-translator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "处理模糊或多义的翻译请求时，需要通过 brainstorming 确认用户真实意图、语境、正式程度和地区方言偏好，避免语气或含义不匹配"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "每次翻译完成后必须验证准确性、文化适当性、方言正确性和形式程度，确保翻译真正传达了预期含义而非仅字面替换"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当翻译出现问题或用户反馈有误时，需要系统诊断根源——是文化误解、方言选择错误、语境理解不当，还是正式程度不合适"
+        }
+      ]
+    },
+    "legal-billing-time-tracking": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "計費涉及金錢和道德合規,發票、計費敘述、催收方案都必須驗證正確性、計算精度和合規合規性"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "計費敘述、發票說明、信託賬戶文檔、計費報告的品質直接影響客戶信任和專業形象,清晰的文檔寫作不可或缺"
+        },
+        {
+          "id": "brainstorming",
+          "why": "面對複雜計費案例、計費爭議解決、流程優化時,需要創意思考探索最佳做法和策略"
+        },
+        {
+          "id": "writing-plans",
+          "why": "新客戶計費結構設計、計費流程改進、信託賬戶管理體系構建都需要先規劃完整的方案框架"
+        }
+      ]
+    },
+    "legal-client-intake": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "接案必須在特定檢查點驗證完成（資質審核、衝突篩查、信息充分、訴訟時效識別）才能安排諮詢，防止法律風險和簽約後的災難性問題"
+        },
+        {
+          "id": "writing-plans",
+          "why": "每位潛在客戶的接案是多步驟流程（初次評估→資質判斷→衝突篩查→信息收集→安排諮詢），需要規劃清晰的接案路徑確保不遺漏環節"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "接案本質是診斷潛在客戶的具體法律需求、識別衝突風險、釐清事實時間線，需要系統化提問和邏輯推導而非直覺判斷"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "律所同時接待多個獨立的潛在客戶案件，各案件的資質審核、衝突篩查、信息收集可並行處理，提升接案吞吐量和效率"
+        }
+      ]
+    },
+    "legal-contract-reviewer": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "合同审查的核心就是严格验证每一条条款、每一个法律论点的正确性，确保最终意见有确凿的法律和逻辑依据"
+        },
+        {
+          "id": "writing-plans",
+          "why": "复杂的合同审查涉及多步骤分析（理解商业背景→识别风险点→逐条分析→设计保护机制→组织最终建议），需要清晰计划确保逻辑完整"
+        },
+        {
+          "id": "brainstorming",
+          "why": "高价值的合同审查不仅是找风险，更是创意设计保护机制和条款安排，找到既保护己方权益又商业可行的解决方案"
+        }
+      ]
+    },
+    "legal-document-review": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "確保審查完整性、驗證沒有遺漏任何風險條款——完全符合『寧可多標不可漏標』的核心原則"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "系統化地發現和標記文件中隱藏的問題、可疑條款，確保全面準確的初審輸出"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜審查前制定清晰計畫：確定司法管轄區、各方身份、風險容忍度、優先關注條款"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "處理律師對初審結果的反饋和調整建議，完善審查品質——對應『所有發現必須經律師審核』的需求"
+        }
+      ]
+    },
+    "legal-policy-writer": {
+      "skills": [
+        {
+          "id": "chinese-documentation",
+          "why": "制度文件本質是法律文檔，需要術語精準、結構清晰、排版規範——這個 skill 直接提升文書的專業度和可執行性"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的合規制度體系需要在動筆前系統規劃（法律要求分析→制度結構設計→執行流程），確保邏輯完整和業務可行性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "法律文件必須嚴密驗證——檢查是否符合三法、條款是否完整自洽、企業是否能落地執行，不容有誤"
+        },
+        {
+          "id": "receiving-code-review",
+          "why": "制度文件經常需要 CFO/CTO/法務等多方審閱，需要智慧地判斷反饋性質（技術衝突 vs 法律要求），做出合理決策"
+        }
+      ]
+    },
+    "level-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計關卡前必須先探索玩家幻想、節奏弧線、新機制的空間教學方式——把模糊需求轉化為可設計的具體意圖"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "關卡設計本質是體驗驅動：先定義玩家應感受什麼（緊張→釋放→升級），再反推空間架構和遭遇戰佈局來驗證"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "白盒測試是設計師的核心工作——在敢聲稱完成前必須親自檢驗流線清晰度、遭遇戰平衡、敘事傳達是否成立"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "分析玩家在測試中的困惑/卡點——診斷是視覺導航失敗、還是遭遇戰不公平、還是敘事信號被誤讀，精準迭代根因"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "文檔化白盒規格、流線圖、遭遇戰表格、敘事節拍，確保美術/程式能據此準確製作而不偏離設計意圖"
+        }
+      ]
+    },
+    "loan-officer-assistant": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "信贷流程每个阶段完成前都必须验证文件完整性、合规性、条件清除，确保不出现后期返工和合规风险。"
+        },
+        {
+          "id": "writing-plans",
+          "why": "每笔贷款都需要清晰的流程计划，包括里程碑、截止日期、文件清单和合规检查点，确保按时过户。"
+        },
+        {
+          "id": "executing-plans",
+          "why": "贷款流程涉及多个有序步骤，从接待到过户需要带检查点的有序执行和关键阶段验证。"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当出现承保条件问题、文件缺失或合规障碍时，需要系统化的根因分析而不是仓促决策。"
+        }
+      ]
+    },
+    "lsp-index-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "LSP 協議合規、圖譜一致性、性能契約都是硬指標，編碼前先寫測試是必需的"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "他有明確的性能 SLA（100ms 返回、20ms 查找、50ms 延遲）和一致性要求，完成前必須驗證"
+        },
+        {
+          "id": "mcp-builder",
+          "why": "他的核心任務就是構建 graphd LSP 聚合 MCP 服務器，需要系統化的生產級 MCP 工程方法"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "LSP 協議實現和圖譜一致性維護容易出現複雜的邊界情況和競態條件，需要系統化調試"
+        },
+        {
+          "id": "brainstorming",
+          "why": "多語言 LSP 聚合器涉及複雜的系統架構決策（緩存策略、增量更新、性能折衷等），實現前需要設計"
+        }
+      ]
+    },
+    "macos-spatial-metal-engineer": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "Metal 性能指標非常硬（25k 節點 90fps、GPU 利用 80%、內存 1GB）必須量化驗證，每次優化都需要 Metal System Trace 和 Instruments 確認"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "Metal 渲染瓶頸診斷、Vision Pro 手勢識別失效、GPU 資源洩漏等問題需要系統化調試方法論找根本原因"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "性能基準測試（GPU 著色器、實例化繪製、立體渲染深度排序）和空間交互功能測試是工作基礎，必須先寫測試"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計新的渲染管線、空間佈局算法、LOD 策略和 Vision Pro 交互創新時需要創意探索階段"
+        }
+      ]
+    },
+    "marketing-agentic-search-optimizer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "審計任務完成率必須先測試基線,實施後再驗證改進,完全是 TDD 工作流"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "任務完成必須通過真實智能體驗證,不能靠自我評估——完成前必須有證據"
+        },
+        {
+          "id": "brainstorming",
+          "why": "每次審計前需要理解客戶的任務流程、摩擦點和期望,這是設計思維工作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "審計發現必須配對具體的聲明式/命令式 WebMCP 實施方案和步驟計劃"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "智能體摩擦點映射和任務失敗根本原因分析需要系統化調試方法"
+        }
+      ]
+    },
+    "marketing-ai-citation-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "策略規劃階段必用：為品牌設計內容優化方向、探索不同平臺的針對性策略和創意定位"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "品質保證關鍵：審計結論和推薦前必須充分驗證引文數據準確性，確保建議有實據支撑"
+        },
+        {
+          "id": "writing-plans",
+          "why": "方案轉化必用：將審計洞察和優化機會轉化為具體的、可執行的內容改進實現計畫"
+        },
+        {
+          "id": "mcp-builder",
+          "why": "工具化規模化：構建多平臺自動審計工具，規模化監控 ChatGPT/Claude/Gemini/Perplexity 的引文模式變化"
+        }
+      ]
+    },
+    "marketing-app-store-optimizer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "應用商店策略制定、視覺素材設計、轉化優化方案前都需要創意探索和需求分析"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 的核心原則是數據驅動，所有 ASO 決策、A/B 測試結果都需要實測驗證和性能指標確認才能聲稱優化成功"
+        },
+        {
+          "id": "writing-plans",
+          "why": "關鍵詞研究、元數據優化、視覺優化、性能監控的完整 ASO 流程是多步驟複雜任務，需要結構化實現計畫"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "應用圖標、截圖序列、預覽視頻的美學設計和排版優化直接影響應用商店轉化率"
+        }
+      ]
+    },
+    "marketing-baidu-seo-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "SEO策略、关键词矩阵、内容规划的创意分析和需求探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定多阶段SEO审计、优化、监测等复杂项目计划文档"
+        },
+        {
+          "id": "executing-plans",
+          "why": "长期执行SEO优化的多阶段计划（技术优化→内容→生态布局→效果验证）"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "诊断排名下降、收录问题、流量波动等SEO性能问题"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "通过排名跟踪、收录验证、流量数据等指标验证优化效果"
+        }
+      ]
+    },
+    "marketing-bilibili-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "内容选题、系列化设计、热点结合都是创意工作，需要在策划前充分探索用户意图和内容框架"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定长期运营计划、内容规划、商业化策略需要系统化的计划文档，而非零散的想法"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "脚本完成前需检验内容价值主张、弹幕互动设计、商业合规性，确保质量达标"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "视频脚本的叙事节奏、文案密度、结构节奏等美学原则与演示设计相通，能优化表达效果"
+        }
+      ]
+    },
+    "marketing-book-co-author": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "將語音筆記和碎片化想法轉化為結構化章節正是創意設計工作，需要先探索敘事架構、論證框架和作者定位"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "核心輸出是中文商業書籍內容，排版、術語、結構和避免通用文風的要求與此 skill 的規範完全對應"
+        },
+        {
+          "id": "writing-plans",
+          "why": "Agent 的工作流程（檢驗簡報→定義章節意圖→撰寫→修訂→交付）需要明確的框架和藍圖，先規劃再寫作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 要求『編輯缺口必須可見』、『版本管理』、『論據追溯來源』，這些都是內容交付前的驗證和品質保證"
+        }
+      ]
+    },
+    "marketing-carousel-growth-engine": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "病毒式輪播圖需要深入理解目標業務類型、客戶痛點和心理學鉤子,brainstorming 是調研-生成前的必要創意需求分析"
+        },
+        {
+          "id": "writing-plans",
+          "why": "多步驟流水線(調研→生成→驗證→發佈→學習)結構複雜,需要提前規劃各環節邏輯和協調點,確保自主執行時不出岔子"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "Playwright 爬蟲、Gemini 圖生圖、Upload-Post API、數據分析等多個子系統需要 TDD 保證每個環節的可靠性和自動化邏輯正確"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "圖片生成失敗、API 發佈出錯、數據分析異常時需要系統化排查,快速修復反饋閉環中的問題"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "『零確認模式』下發佈是不可逆操作,必須驗證圖片品質達標、視覺一致性通過、API 連接正常後才能上線"
+        }
+      ]
+    },
+    "marketing-china-ecommerce-operator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "大促活动玩法、营销策略、直播话术框架、店铺形象等核心创意工作前必需"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大促需要 45-60 天提前筹备，流量预估、预算分配、库存规划、客服扩容等涉及多步骤的详细计划"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "多平台运营报告、大促复盘 PPT、数据汇报是核心输出，用专业简报展现成果说服管理层"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "淘宝、拼多多、京东、抖音等多平台同时运营，需要协调多个平台团队的并行工作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "电商运营数据驱动，每个大促和营销活动必须验证转化率、ROI、GMV 等核心指标和复盘效果"
+        }
+      ]
+    },
+    "marketing-china-market-localization-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "趋势信号捕捉、市场机会提取、跨平台策略设计都是创意分析工作，需要用 MECE 结构化和反直觉思考来挖掘洞察"
+        },
+        {
+          "id": "writing-plans",
+          "why": "需要输出结构化的 GTM 计划、P0-P5 阶段门控计划、6-9 个月生命周期规划，每条建议都要标注优先级、工时、成功指标"
+        },
+        {
+          "id": "executing-plans",
+          "why": "多阶段市场上市策略需要系统性的执行管理，从信号验证 → 种子内容 → 全面推广，跨越6-9个月的时间线"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "强调数据驱动和可执行性，每个建议需要用趋势数据、竞争分析、成功指标来验证策略的可行性，而非模糊建议"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "需要同时在抖音、小红书、微信、B站、微博、知乎等多个平台监测趋势、执行策略，这些是互相独立的并行任务"
+        }
+      ]
+    },
+    "marketing-content-creator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "选题策划、标题创意、内容框架需要系统的创意工作流指导"
+        },
+        {
+          "id": "writing-plans",
+          "why": "内容日历、多平台矩阵规划、发布节奏都需要结构化计划"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "内容发布前需要多维度验证，确保标题、数据、格式质量"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "短视频、信息图、配图的视觉美学直接决定内容的点击率和转化"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "多平台同步运营需要与编辑、设计、分析等角色高效协作"
+        }
+      ]
+    },
+    "marketing-cross-border-ecommerce": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "複雜的跨境出海決策和多平臺運營方案設計需要先做需求分析和創意方案探索，而非直接給答案"
+        },
+        {
+          "id": "writing-plans",
+          "why": "跨境運營的本質是制定多步驟、多市場、多角色協作的執行計劃（大促備貨、品牌出海、合規改造等）"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "合規檢查、物流成本、平臺規則等關鍵建議必須在給出前驗證——錯誤建議會導致大額損失或法律問題"
+        },
+        {
+          "id": "executing-plans",
+          "why": "大型項目（品牌出海、季度大促、新市場進入）涉及多階段同步執行和進度檢查點管理"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "跨境運營涉及多個獨立但需協調的領域：平臺運營、物流優化、稅務合規、內容本地化同步進行"
+        }
+      ]
+    },
+    "marketing-douyin-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "视频脚本构思、爆款内容设计、直播选品创意都是创造性工作，需要系统化的需求分析"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定内容日历、直播计划、投放策略、运营方案是执行前必须的多步骤规划"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "发布视频前验证完播率优化、直播前测试设备和话术、投放前验证合规是降低失败风险的关键"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "先小流量测试脚本效果、A/B测试选品、试播验证话术，用数据验证再扩大投放"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "视频美学、直播间视觉设计、字幕排版、卡点节奏都需符合中文审美规范以提升完播率"
+        }
+      ]
+    },
+    "marketing-ecommerce-operator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "電商運營的核心是策略創新——大促主題、活動策劃、選品邏輯都需要創意工作前的需求探索與設計"
+        },
+        {
+          "id": "writing-plans",
+          "why": "運營執行始於計劃——大促計劃、選品計劃、直播計劃、供應鏈協調都是日常高頻的多步驟工作"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "數據驅動運營的基礎——A/B 測試商品標題、主圖、價格、詳情頁邏輯直接決定轉化率，符合『數據敏銳』的核心要求"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證運營成效的必備——確認大促目標達成、推廣 ROI 達標、新策略有效性，務必有數據證支撐"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "多平臺協調管理——淘寶/拼多多/京東同時運營、直播協調、庫存與物流同步，多個並行任務的日常狀態"
+        }
+      ]
+    },
+    "marketing-growth-hacker": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "A/B 測試和實驗驅動是增長黑客的核心方法論，完全對應 TDD 的「先定義預期、再驗證」思維"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "增長黑客信條是「沒有數據支撐的動作不做」，所有增長決策都必須通過統計顯著性驗證才能上線"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計增長實驗需要明確的假設、指標、流量分配和成功標準，規劃能力直接決定實驗品質"
+        },
+        {
+          "id": "brainstorming",
+          "why": "創意設計新的獲客渠道、裂變機制、落地頁優化都是創造性工作，需要在實施前充分探索想法"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當轉化率下降、實驗失敗或留存拐點出現時，需要系統化方法找根因而非盲目優化"
+        }
+      ]
+    },
+    "marketing-instagram-curator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "內容創意、視覺策略和品牌方向定位都需要創意探索，是內容策劃的必經步驟"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "視覺設計規範（排版、色彩、留白、視覺層級）直接服務審美潔癖個性和品牌美學體系建設"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "品牌美學指南、內容框架、標籤策略等技術交付物需要結構清晰、術語準確的專業文檔"
+        },
+        {
+          "id": "writing-plans",
+          "why": "內容日曆規劃、標籤策略制定、多週期內容布局都需要系統化規劃和目標導向"
+        }
+      ]
+    },
+    "marketing-knowledge-commerce-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "知識付費產品設計、平臺策略、定價模式都是創意決策，需要在設計前深入探索用戶需求、市場痛點和商業模式"
+        },
+        {
+          "id": "writing-plans",
+          "why": "知識付費是典型的多步驟全鏈路工作（平臺選擇→產品設計→定價→用戶獲取→運營→數據分析），需要結構化地把需求轉化為可執行的規劃文檔"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "這位 agent 的核心價值在於為客戶呈現產品方案，B2B 顧問變現需要通過專業、美觀的 PPT 和文檔展現策略的說服力"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "產品設計文檔、運營手冊、用戶梯度方案等輸出物需要規範化，確保術語準確、結構清晰，降低執行方的理解成本"
+        }
+      ]
+    },
+    "marketing-kuaishou-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "快手策略师每次面对新的账号定位、选题规划、人设打造、直播方案时，都需要先从用户需求出发做创意探索和需求分析，确保策略方向清晰后再输出方案"
+        },
+        {
+          "id": "writing-plans",
+          "why": "快手运营涉及内容日历、直播排期、选品清单、社区互动计划等多步骤任务，需要系统化地将策略转化为可执行的具体计划文档"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "快手策略师输出的运营方案、内容规划、直播脚本需要视觉美观、排版专业，才能让品牌和创作者理解和采纳，这是影响方案被执行效果的关键"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "快手有明确的平台规则（不虚假宣传、不刷量、不诱导未成年人等），策略师需要在输出前验证方案的合规性和可行性，避免给用户挖坑"
+        }
+      ]
+    },
+    "marketing-linkedin-content-creator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每篇帖子的 hook 設計、內容支柱建立、30 天日曆規劃都需要創意思維和需求探索"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "LinkedIn 帖子的排版、措辭密度、文案結構決定停留時長，直接對標文案寫作規範"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "製作輪播圖時需要字型、留白、色彩、文案密度和結構節奏的專業把控"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計內容日曆和長期內容戰略是多步驟規劃，需要系統化的計劃方法論"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "發佈前驗證 hook 有力度、排版清晰、符合 LinkedIn 最佳實踐是品質把關的關鍵"
+        }
+      ]
+    },
+    "marketing-livestream-commerce-coach": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計創新的話術框架、選品策略、流量運營方案和主播人設都需要創意思考"
+        },
+        {
+          "id": "writing-plans",
+          "why": "為主播制定分階段成長計畫（初級→中級→高級）、直播間優化計畫、千川投放策略計畫"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "編寫話術手冊、培訓教材、直播間SOP、選品指南、數據分析報告等系統化文檔"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "數據覆盤演講、培訓內容視覺化、優化建議的專業呈現對主播說服力關鍵"
+        },
+        {
+          "id": "executing-plans",
+          "why": "執行制定的主播分階段孵化計畫、直播間優化計畫等多步驟、有審查節點的長期培養過程"
+        }
+      ]
+    },
+    "marketing-podcast-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "播客策略師的核心工作是節目定位、選題創意、內容框架設計——每一次都是創造性工作，需要在實施前深入探索需求和設計"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定內容日曆、嘉賓邀約策略、選題框架、平臺運營計劃等都是多步驟任務，需要結構化的規格和計劃"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "節目上線前、運營計劃推進前必須驗證——通過社群投票驗證選題、檢查音質和製作流程、確認平臺運營策略的實際效果"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "節目簡介撰寫、運營手冊、選題模板、嘉賓邀約話術等文檔都需要高質量的中文表達，直接影響內容品牌呈現和平臺轉化"
+        }
+      ]
+    },
+    "marketing-private-domain-operator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "设计企微SCRM体系、社群分层策略、用户激励机制等核心运营方案时，需要先探索需求和设计思路"
+        },
+        {
+          "id": "writing-plans",
+          "why": "企微搭建、用户生命周期管理、全链路转化漏斗优化都是多步骤复杂任务，需要在执行前制定详细计划"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要产出大量专业运营文档：企微配置方案、社群SOP、用户运营手册、合规指南等"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "制作运营方案PPT、数据展示、汇报材料时需要专业的中文演示规范"
+        }
+      ]
+    },
+    "marketing-reddit-community-builder": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "社區策略、內容日曆和 AMA 規劃前需要充分探索社區洞察、受眾痛點和可行方案"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定子版塊調研計劃、內容日曆、口碑監控策略和 AMA 計劃是核心交付物"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "用社區 Karma、點贊率、評論質量和版塊認可度驗證策略有效性，靠數據而非直覺判斷"
+        },
+        {
+          "id": "executing-plans",
+          "why": "執行調研→融入→策略→信譽→價值創造的長期多階段社區運營計劃"
+        }
+      ]
+    },
+    "marketing-seo-specialist": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "SEO工作完全基於數據度量，排名改進、流量增長等任何聲稱都必須用Search Console和分析數據驗證"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "排名下降、流量異常或Core Web Vitals失敗時，需要系統化的根本原因診斷來隔離算法因素、技術問題或內容缺陷"
+        },
+        {
+          "id": "writing-plans",
+          "why": "SEO項目涉及競爭分析→關鍵詞研究→內容策略→技術實施→監測的多步驟路線圖，需要清晰的實施計劃"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "技術SEO建議涉及robots.txt、schema標記、重定向鏈和規範URL等代碼級優化，需要代碼審查確保正確性"
+        }
+      ]
+    },
+    "marketing-short-video-editing-coach": {
+      "skills": [
+        {
+          "id": "chinese-presentation-style",
+          "why": "短視頻本質是視覺敘事+節奏設計，美學規範（字型、留白、色彩、文案密度、結構節奏）直接適用於構圖、調色、字幕排版等核心教學內容"
+        },
+        {
+          "id": "brainstorming",
+          "why": "接到每個短視頻項目或教學任務都需要先分析需求、設計視覺方案，是創造性工作的起點"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "將調色參數背後的光學原理、轉場情緒含義、操作指南等技術知識體系化文檔，是有效傳授8年經驗的必要條件"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "教學生時經常需要診斷'為什麼這幀卡頓'、'色彩不對出在哪'、'音畫不同步的根因'，系統化排查方法直接提升教學效率"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "短視頻導出前必須驗證調色準確度、音畫同步、字幕排版、多平台兼容性等質量指標，符合'對瑕疵零容忍'的執教標準"
+        }
+      ]
+    },
+    "marketing-social-media-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "社交媒体策略涉及大量创意工作——内容创意、活动设计、平台策略创新都需要前期头脑风暴和需求分析"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定内容日历、活动规划、跨平台整合策略是这个 agent 的核心职责，系统化规划能保证多平台协调有序执行"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "跨平台策略时 LinkedIn、Twitter 等多渠道的内容发布和互动管理是独立且可并行的任务，需要统一协调"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "发布社交内容和活动前需要验证：各平台内容是否符合特性、文案链接有效性、数据追踪设置完整性"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "社交媒体内容的视觉排版和中文表达质量直接影响传播效果和品牌形象，需要专业排版规范"
+        }
+      ]
+    },
+    "marketing-tiktok-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "TikTok 內容創意和策略規劃的核心，每個爆款內容系列、趨勢融合方案、達人合作創意都需要頭腦風暴。"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要產出內容策略文檔、趨勢分析報告、達人合作方案、廣告投放計畫等多種策略性文檔。"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "視覺媒體領域的策略師特別需要美觀的簡報和案例展示，用設計感強的呈現說服品牌方和創意團隊。"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "TikTok 運營涉及內容創作、達人合作、廣告投放、社區管理等多個並行的獨立任務，需要協調不同團隊。"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "內容發佈和廣告投放前必須驗證完播率、互動率、投產比等數據指標，數據驅動的決策核心。"
+        }
+      ]
+    },
+    "marketing-twitter-engager": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "内容创意、Twitter 策略设计和危机应对方案都需要前期头脑风暴"
+        },
+        {
+          "id": "writing-plans",
+          "why": "内容日历、社区运营计划、危机预案等多维度规划是核心工作"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "Twitter Thread 本质上是信息视觉化呈现，需要排版、文案密度、节奏的精准把控"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "同时协调趋势监控、内容创作、社区互动、数据覆盖等多个独立任务的并行执行"
+        }
+      ]
+    },
+    "marketing-video-optimization-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "視頻優化涉及大量創意設計（開頭鉤子、標題變種方案、封面概念），需要系統化探索不同策略空間，避免草率方案"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "視頻封面和內容設計直接對應視覺美學——字型選擇、色彩對比、留白、文案密度、節奏節拍，此 skill 是視頻設計的核心規範"
+        },
+        {
+          "id": "writing-plans",
+          "why": "視頻優化是多步驟流程（關鍵詞研究→標題設計→封面設計→發布→數據監測→迭代），需要完整的規劃框架確保步驟不漏"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "視頻優化成果完全數據驅動（留存率、點擊率、搜索排名、觀眾互動），必須驗證指標改善後才能聲稱優化成功"
+        }
+      ]
+    },
+    "marketing-wechat-official-account": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "公众号运营的核心是制定内容策略、编辑日历、菜单架构等规划文档，这些计划文档是所有工作的基础"
+        },
+        {
+          "id": "brainstorming",
+          "why": "需要持续创意规划内容主题、格式、互动方式，对标用户需求和商业目标做策略创新"
+        },
+        {
+          "id": "executing-plans",
+          "why": "按照编辑日历和内容策略执行创作、排版、发布、自动化等多步骤工作流，推进计划落地"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "对内容质量（排版、链接、文案）和效果数据（打开率、转化率）严格把关，确保运营目标达成"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "公众号内容的排版、字体、配图、版面设计直接影响打开率和用户体验，agent 的内容洁癖需要美学规范支撑"
+        }
+      ]
+    },
+    "marketing-wechat-operator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "内容策略、裂变创意、社群话题规划都需要结构化的创意设计和需求分析"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "海报美学、公众号排版、图文设计直接影响阅读率和转化效果"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "发文、上线活动前需要检查标题、排版、链接、合规性和转化路径"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定内容日历、社群运营SOP、年度规划需要体系化的计划编制能力"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "诊断打开率低、裂变转化差、被限流等运营问题的根因分析"
+        }
+      ]
+    },
+    "marketing-weibo-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "策划热搜话题、设计内容创意、规划运营方案时必需的设计前置步骤"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定内容日历、运营计划、热搜策略等多步骤任务的系统规划"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "验证内容效果、数据指标、粉丝互动率等运营成果的关键衡量"
+        },
+        {
+          "id": "executing-plans",
+          "why": "执行日常内容发布、话题运营、活动推进等计划落地"
+        }
+      ]
+    },
+    "marketing-weixin-channels-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "内容策划、社交推荐机制设计、生态联动路径规划、直播场景搭建都是核心创造性工作，必须在执行前做需求分析和设计探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "运营策略涉及从内容→社交推荐→生态联动→私域转化的多步骤规划，需要将策略规格转化为可执行的运营计划和行动清单"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "视频号本质是视觉媒介，视频呈现风格、直播间美感、朋友圈分享排版、文案节奏等视觉美学要素直接影响社交推荐效果"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "运营策略师需要撰写内容指南、直播SOP、生态联动文档等，清晰的中文文档对团队协作和策略传达至关重要"
+        }
+      ]
+    },
+    "marketing-xiaohongshu-operator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "内容选题、笔记角度、活动创意都是创意决策，需要在制定前充分探索用户需求和设计方向"
+        },
+        {
+          "id": "writing-plans",
+          "why": "运营核心工作包括制定内容日历、投放排期表、品牌话题策略等多维度计划"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "笔记发布、达人投放前需验证合规性、文案质量、效果预测，发布后需追踪数据指标"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当笔记表现差、投放ROI低时，需要系统分析原因（算法、内容、时机、定位等）持续优化"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "小红书运营经常涉及多个达人同步合作、多条内容线程并行、多阶段投放节奏协调"
+        }
+      ]
+    },
+    "marketing-xiaohongshu-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "品牌定位、內容策略、趨勢分析等創意工作都需要先探索需求和設計"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "小紅書內容的審美框架、視覺統一和調色規範是核心競爭力"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要產出高質量的品牌定位文檔、審美指南、30天內容日曆等戰略交付物"
+        },
+        {
+          "id": "writing-plans",
+          "why": "內容日曆、社區管理框架、品牌叙事都是多步驟規劃工作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "內容發佈後必須驗證互動率、分享率等數據指標是否達到目標"
+        }
+      ]
+    },
+    "marketing-zhihu-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "规划内容策略、确定选题方向、设计品牌差异化定位都需要系统的创意思维探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定知乎运营计划、专栏发展规划、高价值问题选题框架和大V合作策略是核心战略输出"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "发布回答前必须验证点赞数、可见度、互动率和线索转化达标，确保内容满足权威构建目标"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "优化回答的文案组织、排版结构和表述规范直接影响知乎社区的公信力和专业感受"
+        }
+      ]
+    },
+    "narrative-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "敘事設計充滿創造性決策（故事概念、分支結構、角色聲音、世界觀），每個新功能都需要先探索設計意圖"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的故事架構、分支邏輯、世界觀層次都是多步驟系統，需要在寫對話前先規劃框架和結構"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "敘事系統必須驗證：對話流程邏輯、分支是否自然匯合、世界觀一致性、玩家能否感知後果——這是品質的生命線"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "敘事文檔化（對話格式、分支圖、世界聖經）是核心交付物，需要清楚傳達設計意圖給工程師和美術"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "故事大綱、分支圖、設定資料的視覺呈現能幫助利益相關者快速理解設計，提升協作效率"
+        }
+      ]
+    },
+    "paid-media-auditor": {
+      "skills": [
+        {
+          "id": "executing-plans",
+          "why": "審計的核心流程就是執行一份有 200+ 檢查點的系統化計劃，逐項評估並標註嚴重程度"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "審計發現問題後需要變更歷史取證、排查根因、定位效果下滑的起始時間——本質上是系統化的故障診斷"
+        },
+        {
+          "id": "writing-plans",
+          "why": "開始審計前需要規劃評估框架、建立影響評估方法論、確定檢查順序和優先級"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "輸出可執行的審計報告，需要將技術發現清晰轉譯成業務語言，結構化呈現致命/高/中/低級發現"
+        }
+      ]
+    },
+    "paid-media-creative-strategist": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "廣告創意的本質是假設驗證，每條文案、每個素材組合都是待測試的方案，TDD 是核心工作循環"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "輸出任何廣告方案前必須驗證語義連貫性、廣告強度、測試有效性，驗證是品質保障"
+        },
+        {
+          "id": "brainstorming",
+          "why": "每份創意方案前需要完整的需求分析、背景調研、競品分析、目標定位，創意設計先於文案輸出"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當廣告效果不達預期時，需要系統化診斷根因（文案角度、創意疲勞、定向偏差），而非靠直覺修改"
+        }
+      ]
+    },
+    "paid-media-paid-social-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "社交廣告策略、創意定位、全鏈路方案設計都需要創意工作前的深度思考和多維度探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "廣告投放計畫、預算分配計畫、平臺策略文檔是廣告策略師的核心交付物"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "需要用視覺精良的 PPT 向客戶和內部團隊呈現廣告方案，提升策略方案的說服力和專業度"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "廣告投放後必須驗證 ROI、ROAS、CPA 等核心 KPI，以數據決定優化方向和預算調整"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "廣告表現不如預期時需要系統化診斷根本原因（受眾定向、創意疲勞、頻次過載、預算分配失衡），而非盲目調整"
+        }
+      ]
+    },
+    "paid-media-ppc-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "账户架构、出价框架、预算分配模型等策略设计都需要创意和系统化思考"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定分层广告系列计划、优化路线图、增量测试方案是 PPC 策略师的核心输出"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "数据驱动决策，优化方案上线前必须验证假设和增量效果来确保 ROI"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "面对转化率下降、展示份额异常等问题时需要系统化诊断账户状态和根本原因"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "向客户展示账户数据分析、投放成果、优化建议时需要专业的数据可视化能力"
+        }
+      ]
+    },
+    "paid-media-programmatic-buyer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每個新的投放計劃都涉及創意工作——從零構建版位列表、設計 ABM 精準策略、優化受眾分群、多平臺組合設計，都需要先探索需求再實施"
+        },
+        {
+          "id": "writing-plans",
+          "why": "程序化投放策略複雜涉及多平臺多受眾協調，需要將業務目標轉化為清晰的投放計劃文檔（GDN/DV360/ABM 等渠道架構、預算分配、版位策略）"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "品牌安全零容忍、可見度和無效流量監控是核心職責，投放前需驗證配置合規，投放後需驗證 CPM/CTR/可見度等關鍵指標"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要將複雜的程序化廣告指標翻譯成業務影響語言的定製報告，制定跨平臺投放方案文檔讓非技術業務方理解，提升清晰度"
+        }
+      ]
+    },
+    "paid-media-search-query-analyst": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計搜索詞分析框架、否定詞架構和意圖分類方案需要創意思維和策略設計"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "搜索詞異常檢測、浪費根因分析和意圖漂移監控本質上是系統性診斷過程"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "分析結果準確性和優化建議的可行性驗證是交付報告前的必要關卡"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "搜索詞分析報告和簡報的視覺化呈現直接影響建議的被接納程度和客戶信任度"
+        },
+        {
+          "id": "writing-plans",
+          "why": "將分析洞見轉化為可執行的優化計劃、部署方案和否定詞清單需要結構化文案"
+        }
+      ]
+    },
+    "paid-media-tracking-specialist": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "追蹤專家對數據準確性有極致追求、不容忍'差不多'，驗證是確保每一個轉化都被正確計數的核心原則"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "追蹤失效場景常見（轉化未計數、CAPI 重複、跨域缺失等），系統性診斷是解決這些問題的必備能力"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "GTM 觸發器、服務端代碼必須經過測試驗證，確保追蹤邏輯正確才能部署上線"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜追蹤實施（架構遷移、CAPI 部署、服務端容器搭建）需要詳細的分階段實現計劃和風險評估"
+        }
+      ]
+    },
+    "product-behavioral-nudge-engine": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計任何助推機制前需深度探索用戶心理、倫理邊界、行為觸發點——這是助推引擎的創意設計核心"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "最關鍵的品質把關——必須驗證助推未進入暗模式，用戶始終有真實退出選項，倫理紅線未被越過"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "行為助推需科學驗證——先定義成功指標（完成率、疲勞度等）再實現，確保心理學應用的有效性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當用戶行為異常（疲勞、流失）時需根本診斷——識別是否觸發認知負荷、遊戲化失效，驅動迭代優化"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "慶祝文案、提示詞、進度條視覺等助推呈現需符合中文美學習慣，提升體驗品質和可信度"
+        }
+      ]
+    },
+    "product-feedback-synthesizer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "反馈分析的本质就是根因分析，需要从用户的表面抱怨挖掘真实痛点，systematic-debugging 的问题诊断方法论直接适用"
+        },
+        {
+          "id": "writing-plans",
+          "why": "反馈分析项目需要规划多渠道收集策略、设计分类体系、确定分析框架，writing-plans 能帮助系统化组织这些多步骤的规划工作"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "反馈报告、洞察输出、产品建议都是高质量文档交付物，需要清晰的结构、专业的术语和有效的表达"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "数据准确性和分析逻辑的验证对反馈分析至关重要，不能因为一条反馈就改排期，必须验证样本量和置信度"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "反馈分析常涉及数据处理脚本和自动化工具开发，完成后需要代码审查确保分析工具的质量"
+        }
+      ]
+    },
+    "product-manager": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "产品战略、需求分析、功能设计的起点，先找问题而非跳到方案"
+        },
+        {
+          "id": "writing-plans",
+          "why": "将产品路线图转化为有明确负责人、成功指标和时间范围的执行计划"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "功能完成后验证工程团队是否正确理解和实现了产品需求"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "上线前验证所有成功指标达成，避免向干系人传递意外"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "协调设计、工程、市场等多个角色的并行工作，确保团队对齐"
+        }
+      ]
+    },
+    "product-sprint-prioritizer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "需求评估和优先级决策时需要全面分析用户意图、业务价值和实现方案，不能凭拍脑袋"
+        },
+        {
+          "id": "writing-plans",
+          "why": "Sprint 计划、RICE 评分表、需求规格说明是产品规划的核心输出物"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "向利益方清晰展示优先级、Sprint 目标和交付成果，是有效沟通和达成共识的关键"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "Sprint 中需要将 Epic 拆分成多个独立 Story，协调多个团队的并行执行"
+        }
+      ]
+    },
+    "product-trend-researcher": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "趨勢研究的核心紀律——多數據源交叉驗證、區分事實和觀點、承認不確定性，每次發布發現前都需驗證"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜多步驟的研究流程（信息源管理→信號識別→生命週期判斷→影響分析→建議行動）需事先規劃"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "趨勢分析的關鍵是溝通，PPT、數據圖表視覺化是核心交付物，規範風格提升呈現力"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "趨勢分析報告品質直接影響團隊對發現的信任度，標準化文檔寫作規範提升專業性"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "市場規模分析、技術成熟度評估、競品對比、威脅評估等多個研究維度可獨立並行進行"
+        }
+      ]
+    },
+    "project-management-experiment-tracker": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "實驗假設提出和產品方向分析，需要深度創意和需求探索才能設計出有意義的實驗"
+        },
+        {
+          "id": "writing-plans",
+          "why": "實驗設計計劃和執行方案文檔是核心交付物，需要清晰的規格說明和多步驟任務規劃"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "實驗完成前必須驗證統計顯著性、樣本量充分性和數據質量，這是'別猜，測'核心原則的保障"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "實驗結果文檔和經驗教訓沉澱是重要輸出，需要規範的技術文檔寫作讓團隊能重複利用實驗洞察"
+        }
+      ]
+    },
+    "project-management-jira-workflow-steward": {
+      "skills": [
+        {
+          "id": "chinese-commit-conventions",
+          "why": "Agent 核心職責是執行 Jira 關聯的提交規範，每個提交都必須遵循 `<gitmoji> JIRA-ID: 簡短描述` 格式"
+        },
+        {
+          "id": "chinese-git-workflow",
+          "why": "Agent 需要指導分支策略（feature/bugfix/hotfix）、develop/main 關係、發佈路徑，這是 Git 工作流的核心"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "Agent 職責包括保護 PR 結構規範、評審質量、確保變更可讀且範圍聚焦，這是 PR 發佈前的驗收守門"
+        },
+        {
+          "id": "finishing-a-development-branch",
+          "why": "Agent 需要指導從開發分支完成到合併到 develop/main 的整合決策，確保分支策略安全可控"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 的使命是確保「如果一個變更不能從 Jira 追溯到分支、提交、PR、發佈，流程就是不完整的」，這個 skill 正是驗證完整性的工具"
+        }
+      ]
+    },
+    "project-management-project-shepherd": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "项目牧羊人的核心工作是制定项目章程、工作结构（WBS）和时间线，这是多步骤项目规划的直接体现"
+        },
+        {
+          "id": "executing-plans",
+          "why": "需要执行项目计划并通过定期检查点（进度评审、里程碑验收）进行监控和纠偏"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "跨部门项目协调的核心就是调度多个独立进行的团队任务，优化资源分配和依赖管理"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "需要设置质量关卡和验收标准，确保交付物符合要求后才能宣称项目完成"
+        }
+      ]
+    },
+    "project-management-studio-operations": {
+      "skills": [
+        {
+          "id": "chinese-documentation",
+          "why": "SOP、流程文檔、培訓材料是運營的核心交付物，文檔品質直接影響團隊執行一致性"
+        },
+        {
+          "id": "writing-plans",
+          "why": "流程優化和運營項目需要清晰的多步驟計劃，計劃質量決定推進成功率"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "協調多個團隊、資源、任務的並行進行是日常運營的核心，需要系統化分派"
+        },
+        {
+          "id": "executing-plans",
+          "why": "需要落地流程優化和資源協調計劃，執行階段的檢查點管理確保品質"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "品質控制和流程驗證是運營底線，95% 效率目標需要嚴格的驗證機制"
+        }
+      ]
+    },
+    "project-management-studio-producer": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "核心工作——制定多步骤的战略规划、项目组合规划和资源分配计划是制片人的日常"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "项目组合管理——同时协调多个并行项目和团队，是他最常触发的场景"
+        },
+        {
+          "id": "subagent-driven-development",
+          "why": "团队协调——管理多个独立的创意/技术团队并行推进，需要明确分工和进度追踪"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "高管沟通——定期向利益方汇报战略和项目组合，需要专业的视觉表达和结构节奏"
+        }
+      ]
+    },
+    "project-manager-senior": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "PM的核心职责就是把规格说明书拆解成多步骤、可执行的任务计划"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "PM需要分析任务间的依赖关系，识别可以并行执行的任务，合理分配给多个developer agents"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "PM创建的规格分析、任务清单、需求文档必须清晰专业，避免开发者理解歧义导致返工"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "PM需要验证任务清单的完整性、验收标准的清晰性、任务粒度的合理性，确保开发者可执行"
+        },
+        {
+          "id": "subagent-driven-development",
+          "why": "PM在执行计划时需要协调多个developer agents处理有依赖关系的任务，需要驱动和监督整个过程"
+        }
+      ]
+    },
+    "prompt-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "提示詞設計的核心方法論就是定義評測指標→測試效果→迭代改進，完全符合 TDD 流程"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "提示詞優化完成前必須驗證其效果、格式合規性、幻覺抑制和跨模型兼容性"
+        },
+        {
+          "id": "brainstorming",
+          "why": "提示詞設計本質上是創造性工作，優化前需要探索不同架構策略和思維鏈方向"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "提示詞輸出不符預期時需要系統化分析根因（模型行為、約束衝突、示例不足）並迭代"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的多模型提示詞項目涉及版本管理、AB 測試對比、跨模型相容性測試等多步驟規劃"
+        }
+      ]
+    },
+    "real-estate-buyer-seller": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "房產交易是明確的多步驟流程（需求→搜索→看房→報價→談判→檢驗→過戶），Agent 需要為每位客戶規劃交易時程表和關鍵里程碑"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "過戶前必須驗證所有條件已滿足（貸款批准、檢驗完成、定金妥善存放、合同簽署），任何遺漏可導致交易失敗"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "房地產交易涉及大量專業文檔——市場分析報告、定價建議、合同摘要、披露文件，需要清晰專業的呈現"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "交易常遇突發問題（貸款延遲、檢驗缺陷、產權問題、合同爭議），需要系統診斷根因和解決方案"
+        },
+        {
+          "id": "brainstorming",
+          "why": "複雜決策場景（報價策略、房源定價、談判方式、營銷計畫）需要探索多個選項和權衡利弊"
+        }
+      ]
+    },
+    "recruitment-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "招聘策略、職位包裝、僱主品牌建設都是創意規劃工作，每個項目開始前必須先做需求分析和方案設計"
+        },
+        {
+          "id": "writing-plans",
+          "why": "招聘項目涉及多階段計劃（籌備→投放→篩選→面試→錄用），需要明確的目標、時間表和 KPI"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "多渠道招聘（BOSS直聘、拉勾、獵聘等）可獨立並行優化，需要協調多個無相互依賴的招聘任務"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "投放前驗證職位文案質量和法規符合性，完成招聘任務前驗證投放數據和 KPI 達成情況"
+        }
+      ]
+    },
+    "report-distribution-agent": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "區域路由、重試邏輯、時區轉換、故障降級等關鍵流程若測試不足會導致數據洩露或報告丟失，報告分發不容許隱性缺陷"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 人設是『不允許任何一份報告消失在黑洞裡』，分發前必須驗證收件人接收狀態、日誌完整性、重試結果，才能聲稱分發成功"
+        },
+        {
+          "id": "writing-plans",
+          "why": "定時調度、區域路由、重試策略、郵件大小控制、審計記錄等流程複雜，編碼前需要規格先行來釐清邊界條件和降級策略"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "SMTP 延遲、時區轉換、收件人退信、連接超時等郵件系統問題難以復現，需要系統化的日誌分析和假說驗證而非蒙眼編碼"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "郵件投遞涉及收件人數據安全、區域隔離、權限控制，代碼審查是確保不發錯地方、不洩露數據的最後防線"
+        }
+      ]
+    },
+    "retail-customer-returns": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "关键规则强调「绝不在检查商品前退款」，每笔退货的资格、商品状况、防欺诈检查都需完整验证后才能推进"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "面对欺诈怀疑、政策边界情况、复杂客户历史时需要系统性根因分析，而非快速直觉判断"
+        },
+        {
+          "id": "writing-plans",
+          "why": "复杂退货案例、供应商索赔、升级处理等需要多步骤的结构化解决方案和行动计划"
+        },
+        {
+          "id": "brainstorming",
+          "why": "面对新政策问题、流程优化或边界情况时，需要探索创意的解决思路和需求分析"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "编写清晰的政策和流程文档确保团队一致执行，减少政策歧义和客户疑虑"
+        }
+      ]
+    },
+    "roblox-avatar-creator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每个虚拟形象物品都是创意设计，需要在实现前探索技术约束（4000三角面、UV标准、掛載規則）与商业可行性"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "虚拟形象物品必須在R15/Rthro多體型上驗證相容性，且網格规格有硬性限制，需要先定義測試再實作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Creator Marketplace 審核嚴格，物品必須通過自動/人工審核才算完成，驗證是發佈前的關鍵步驟"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "虛擬形象物品常見穿透身體、體型不兼容、紋理滲色等問題，需要系統化診斷和修復這些規格違規"
+        }
+      ]
+    },
+    "roblox-experience-designer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計參與循環、變現機制、新手引導前需要充分探索設計空間和玩家心理"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "DataStore 進度系統和變現邏輯涉及複雜狀態，玩家進度丟失是致命問題，必須先寫測試確保正確性"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "玩家進度安全和變現系統涉及真實金錢，上線前必須徹底驗證所有邏輯和邊界情況"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "Roblox 開發經常遇到難以追蹤的 DataStore 同步問題、API 邊界條件和跨服務器狀態不一致"
+        }
+      ]
+    },
+    "roblox-systems-scripter": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "Roblox 系統涉及安全關鍵的客戶端-服務端通信和 DataStore 操作，TDD 確保邏輯正確性和安全邊界明確"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "客戶端-服務端交互、竞态條件、DataStore 失敗和速率限制是 Roblox 特定的複雜問題，需要系統化診斷"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "安全關鍵代碼（RemoteEvent 驗證、DataStore pcall 包裹）必須驗證，一次疏漏可能導致數據丟失或被攻擊"
+        },
+        {
+          "id": "writing-plans",
+          "why": "架構設計、模塊組織、DataStore 遷移策略等複雜系統需要提前規劃，避免後期返工或安全漏洞"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "服務端權威模型和客戶端驗證邏輯容易出現微妙的安全漏洞，需要同行審查確保設計正確"
+        }
+      ]
+    },
+    "sales-account-strategist": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "制定擴展計劃、QBR 會議議程、多線程干係人策略時的核心工具，每個機會都需要結構化規劃"
+        },
+        {
+          "id": "brainstorming",
+          "why": "探索新的擴展路徑、設計創新的 Playbook、識別隱性干係人影響力時的創意引擎"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "制作 QBR ROI 演示文件、Champion 賦能工具包、管理層摘要時，專業簡報直接影響說服力"
+        },
+        {
+          "id": "executing-plans",
+          "why": "複雜的 Land-and-Expand 執行涉及多個檢查點和干係人對齊，需要結構化執行框架"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證擴展成功（合同簽訂、功能採用）和 NRR 改善是否達成，用量化證據支撐策略調整"
+        }
+      ]
+    },
+    "sales-coach": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "銷售教練的核心工作是制定個性化輔導計劃、能力發展路徑（30/90/180/360天）和 Pipeline 分析策略，需要結構化的多步驟規劃"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必須驗證輔導是否真正改變銷售的實際行為（通話技巧、下一步承諾獲取）和績效指標（贏單率、準確度），而非僅停留在指導層面"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "診斷銷售績效問題的根本原因，區分技能差距（不會做）和意願差距（會做但不執行），用蘇格拉底式提問逼深層思考而非表面症狀"
+        },
+        {
+          "id": "executing-plans",
+          "why": "執行多階段的能力成長計劃，管理檢查點和里程碑，確保輔導的長期持續性和結構化推進，而非一次性的建議"
+        }
+      ]
+    },
+    "sales-data-extraction-agent": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "數據提取的精度執念決定了所有實現都必須由測試驅動，確保列名模糊匹配、編碼兼容、去重等邏輯正確"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "精度驅動的 agent 不能容許任何數據錯誤，必須在聲稱完成前充分驗證提取結果和審計追溯鏈"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "處理各種 Excel 格式、GBK/UTF-8/Shift_JIS 編碼、貨幣符號、合計行識別等複雜邊界情況，系統化調試是必需"
+        },
+        {
+          "id": "writing-plans",
+          "why": "涉及文件監控→解析→驗證→持久化→審計的多步驟管道，需要清晰的實現計畫來協調各環節"
+        }
+      ]
+    },
+    "sales-deal-strategist": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "核心职责是为每笔单子制定清晰的赢单规划、里程碑和执行计划"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "确保赢单策略和 Forecast 经得起审验，让每个评分和决定都有据可查"
+        },
+        {
+          "id": "executing-plans",
+          "why": "制定的赢单计划需要在后续会话和阶段跟进执行、评估效果和动态调整"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "通常同时管理多笔单子和多个并行的销售活动，需要高效协调"
+        }
+      ]
+    },
+    "sales-discovery-coach": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "诊断销售通话中的 discovery 缺陷——问题深度不足、缺少影响力分析、框架应用偏差——这是教练的核心工作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "设计多阶段的 discovery 培训路线图和销售学习计划，从基础提问到高阶框架融合的学习路径"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "通过通话评估和实战验证确保销售真正掌握了 discovery 技巧、问题设计和差距诊断能力"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "创建清晰美观的 discovery 框架展示、SPIN 通话结构可视化和教学 slide，提升销售理解效果"
+        },
+        {
+          "id": "brainstorming",
+          "why": "设计针对特定行业/客户类型的定制化 discovery 问题框架和新的教学方法论"
+        }
+      ]
+    },
+    "sales-engineer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "Demo 定製化設計、結構化 Discovery、競爭定位都需要充分的創意需求探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "POC 範圍管理、評估流程規劃、成功標準定義的基礎工具"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證 POC 成功標準達成、Demo 啊哈時刻達到、技術異議根因解決"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "提升 Demo 工藝和客戶呈現的視覺專業度與信任度"
+        }
+      ]
+    },
+    "sales-outbound-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "設計多渠道觸達序列、定義 ICP 維度、探索信號類型和 message 角度——Outbound 策略核心都是創意架構工作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "把策略想法轉化為可執行的 ICP 定義表、信號路由規則、序列邏輯文檔——策略師的輸出就是結構化計劃"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Outbound 講數據：ICP 定義必須可證偽、信號分類必須有根據、轉化邏輯必須經得起查驗——在推薦策略前驗證"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "ICP 文檔、信號規則、序列邏輯會被銷售、運營多部門執行——清晰規範的中文文檔決定策略落地效果"
+        }
+      ]
+    },
+    "sales-pipeline-analyst": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "Pipeline 診斷的本質就是系統化地找出問題——Pipeline 速度、覆蓋率、單子健康評分、階段轉化率，每一步都是在發現和隔離根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Agent persona 強調『只信數學』——在聲稱發現問題、提出改進方案之前，必須用數據驗證，去除噪音和憑感覺的判斷"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "Pipeline 分析的最終輸出是報告、簡報和儀表板，必須讓管理層和銷售團隊在視覺上一眼看出關鍵風險和數據趨勢"
+        },
+        {
+          "id": "writing-plans",
+          "why": "診斷之後要制定數據驅動的整改計劃——從發現單子停滯、轉化率下降，到提出具體的輔導方向和 Pipeline 改善行動"
+        }
+      ]
+    },
+    "sales-proposal-strategist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "投標策略師的核心是創意工作——從 RFP 中提煉銳利的贏標主題、架構競爭敘事、設計三幕式方案結構，這些都需要在實現前做設計規劃"
+        },
+        {
+          "id": "writing-plans",
+          "why": "需要制定方案框架、內容計畫、章節安排，確保贏標主題貫穿整份文件；執行摘要、合規回答、競爭定位的寫作順序都需要提前規劃"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "方案文檔、執行摘要、競爭定位是純文檔工作，這個 skill 確保在排版、術語、結構上達到專業規範，提升說服力和可信度"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "投標方案必須在交付前驗證完整性：是否完整回答 RFP、是否貫徹贏標主題、邏輯是否一致、競爭定位是否清晰，確保交付質量"
+        }
+      ]
+    },
+    "specialized-ai-policy-writer": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "法規解讀和合規建議必須 100% 準確，企業的決策和落地完全依賴其正確性，驗證機制是確保政策方案無誤的防線"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "政策方案、治理指南、備案指引等文檔是核心交付物，中文寫作規範直接決定政策方案的專業性和可執行性"
+        },
+        {
+          "id": "writing-plans",
+          "why": "將複雜的法規要求轉化為企業 AI 治理框架需要多步驟的系統規劃，writing-plans 幫助從監管需求推導出可落地的實施方案"
+        },
+        {
+          "id": "brainstorming",
+          "why": "政策解讀往往存在灰色地帶，需要在合規紅線內創意性地設計最優方案，平衡企業發展與監管要求"
+        }
+      ]
+    },
+    "specialized-chief-of-staff": {
+      "skills": [
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "幕僚長需要協調多個獨立但相互影響的任務，將老闆的決策路由到不同職能團隊並行執行，這是'掌控流程、掌控接縫'的具體操作"
+        },
+        {
+          "id": "executing-plans",
+          "why": "幕僚長將戰略意圖轉化為可執行的多步驟計畫，並在檢查點上驗證進度，確保組織一致推進老闆的目標"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "流程所有權的核心執行工具——在交付任何產出前必須驗證符合既定標準，這正是'執行格式規範、對所有產出執行標準'的具體實踐"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "幕僚長是品質把關者，對老闆關鍵工作成果的審查和驗收，確保產出符合預期並符合組織標準"
+        }
+      ]
+    },
+    "specialized-civil-engineer": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "工程領域安全至上，每個設計提交前必須通過規範檢查、計算驗證和設計審核"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "工程圖紙、技術規格書、計算書、施工方案等技術文件是核心輸出物，需要準確規範的文檔寫作"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜國際工程項目需要多階段規劃協調——設計策略、多標準選擇、施工方案都須預先規劃"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當設計驗算失敗、規範檢查異常或地基計算超標時，需要系統地診斷和排查根本問題"
+        }
+      ]
+    },
+    "specialized-cultural-intelligence-strategist": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "核心工作方式是量化影響、以證據支撐斷言，產出審計報告前必須驗證每個隱性排斥發現的真實性"
+        },
+        {
+          "id": "brainstorming",
+          "why": "需要創意探索隱性排斥點、想出多文化替代方案，而非僅羅列問題，特別是在審視複雜 UI 流程時"
+        },
+        {
+          "id": "writing-plans",
+          "why": "核心交付物是結構化的包容性檢查清單、審計計劃、文化背景簡報，需要系統性地規劃多層次的檢查流程"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "與工程師協作產出可執行改進方案後，需要驗證實施是否真正達成文化智能目標而非表演式多元化"
+        }
+      ]
+    },
+    "specialized-developer-advocate": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "內容創意設計、社區活動規劃、DX 改進方案都需要創意探索和需求分析"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "教程、部落格、文檔是技術內容創作的核心輸出，直接影響開發者體驗"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "大會演講幻燈片、內容呈現品質決定開發者的第一印象和傳播力"
+        },
+        {
+          "id": "writing-plans",
+          "why": "DX 審計、大會演講、內容日曆、社區計劃等複雜多步驟項目需要詳細規劃"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "教程示例代碼必須無需修改即可運行，內容準確性驗證是社區信任的基礎"
+        }
+      ]
+    },
+    "specialized-document-generator": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "文档生成输出是二进制文件，难以直观验证——这个 skill 确保生成的 PDF/XLSX/PPTX 格式正确、内容无误、样式符合预期后才声称完成"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "文档生成逻辑复杂且输出难以目视检查，TDD 通过自动化测试确保格式化、数据可视化、模板生成的正确性"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "生成 PPTX 时需要遵循中文简报的字体、留白、色彩、文案密度规范——这个 skill 直接提升生成演示文稿的专业度和品牌一致性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "文档生成常见各类问题（字体嵌入失败、编码乱码、渲染错位、内存溢出），系统化调试能快速定位和修复这些隐蔽的 bug"
+        },
+        {
+          "id": "brainstorming",
+          "why": "复杂文档的格式化策略、数据可视化方案、品牌一致性设计需要创意思考——这个 skill 帮助在实现前探索最佳的格式和布局方案"
+        }
+      ]
+    },
+    "specialized-french-consulting-market": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "自由職業者常面臨複雜的職業決策（CDI vs 自由、選擇平台、評估 ESN offer），需要系統地探索意圖、權衡和最優策略"
+        },
+        {
+          "id": "writing-plans",
+          "why": "核心工作是幫用戶制定多步驟計畫——職業轉換計畫、費率談判計畫、平台遷移計畫，需要結構化規劃"
+        },
+        {
+          "id": "executing-plans",
+          "why": "當用戶確定計畫後，需要監督執行過程、設置檢查點、根據市場反饋調整策略（如談判失敗時的備選方案）"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "自由職業者常同時對比多個 ESN 報價或平台機會，需要並行評估，最後綜合分析選出最優方案"
+        }
+      ]
+    },
+    "specialized-korean-business-navigator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "探索複雜的韓國商務情境時必須使用 — 分析不同的關係策略、溝通戰術、決策路徑，幫助客戶找到最符合韓國文化語境的方案"
+        },
+        {
+          "id": "writing-plans",
+          "why": "為客戶制定結構化的商務策略和關係導航計畫時核心技能 — 從初次接觸到信任建立，每個階段都需要明確的計畫框架"
+        },
+        {
+          "id": "executing-plans",
+          "why": "商務策略必須有檢查點和驗證 — 確保提供的韓國文化指導在實際執行中有適當的進度追蹤和調整機制"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "文化諮詢必須經過實戰驗證才能宣佈成功 — 用實際商務互動結果確認眼神接觸、說話時機、關係信號等建議是否確實有效"
+        }
+      ]
+    },
+    "specialized-mcp-builder": {
+      "skills": [
+        {
+          "id": "mcp-builder",
+          "why": "系统化 MCP 构建方法论与工具设计最佳实践框架，确保工具命名、参数、文档的规范性"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "通过 TDD 保证工具单元测试和集成测试覆盖，防止'看起来对但让智能体困惑'的工具设计缺陷"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "诊断工具集成问题、错误信息不清晰、参数解析错误等实际运行故障，避免智能体陷入无限重试"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "验证工具在真实智能体任务中的实际可用性，体现'一个工具好不好用是智能体说了算'的核心哲学"
+        }
+      ]
+    },
+    "specialized-meeting-assistant": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "會議議程設計、流程優化方案和會議文化改革都需要創意思考和方案探索"
+        },
+        {
+          "id": "writing-plans",
+          "why": "議程規劃、決策流程設計和行動項的 SMART 定義都需要結構化的計劃能力"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "行動項追蹤和閉環驗收是會議效率專家的核心職責，需要驗證每項決定是否真正落地"
+        },
+        {
+          "id": "executing-plans",
+          "why": "監督會議決策的實際執行進度，確保行動項從紙面變為現實行動"
+        }
+      ]
+    },
+    "specialized-model-qa": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "他的核心工作就是在聲稱模型健全前進行全面驗證，必須運行復現腳本、統計測試、校準檢驗等"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "他設計並執行校準測試、性能監控、可解釋性驗證等系列測試來審計模型健全性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "遇到復現不一致、異常表現或指標偏差時，需要系統化調試根本原因"
+        },
+        {
+          "id": "chinese-code-review",
+          "why": "審查建模代碼實現、特徵轉換邏輯、訓練管道、數據提取等程式碼是否符合文檔"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "撰寫基於證據的審計報告、復現分析、性能發現，需要清晰專業的技術文檔"
+        }
+      ]
+    },
+    "specialized-pricing-optimizer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "策略制定需先深入探索商家成本结构、竞品格局、消费者心理，在设计定价方案前充分论证可行性"
+        },
+        {
+          "id": "writing-plans",
+          "why": "需要制定详细的成本加成定价计划、大促节奏执行计划、竞品监控清单等结构化方案文档"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "遇到销量/利润目标未达时，需要系统诊断价格设置失误、平台规则变化、竞品异动等根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "给出定价建议前必须验证成本核算、价格竞争力、平台规则合规性，确保策略实际可执行且有效"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "需向商家演示成本分析表、竞品对比、大促价格曲线等复杂数据，用视觉化和排版让方案易被理解"
+        }
+      ]
+    },
+    "specialized-risk-assessor": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "風控體系建設涉及複雜多步驟規劃，從框架設計到實施方案需要系統化計畫"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "風控方案必須在交付前驗證合規性和有效性，這是企業風險管理的生命線"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "風險評估報告和董事會風險匯報簡報需要高品質中文簡報設計以提升說服力"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "風控體系文檔、政策手冊、評估報告的專業中文撰寫直接影響體系執行力"
+        },
+        {
+          "id": "brainstorming",
+          "why": "複雜風險場景分析和新型風控框架設計前需要深入的需求和約束探索"
+        }
+      ]
+    },
+    "specialized-salesforce-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "架構師需要在多雲、集成模式、數據模型等複雜設計空間中探索方案，設計多個技術路徑並評估權衡"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Governor Limits、批量化處理、加密、集成失敗處理等 7 條關鍵規則是強制性的，必須驗證每個設計決策是否符合"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "架構師完成設計和實現後，需要驗證代碼是否遵守架構決策、批量化模式、Trigger 委託等強制規則"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "企業級 Salesforce 問題（Governor Limits 觸發、集成失敗、數據模型缺陷）複雜難診斷，需要系統化方法找根因"
+        }
+      ]
+    },
+    "specialized-workflow-architect": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "核心職責是將工作流發現轉化為結構化規格說明，這正是此技能的用途"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必須在宣布規格完成前驗證所有路徑已映射、故障模式已覆蓋，此技能確保規格真正完整"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當工作流設計中發現矛盾、缺失的恢復路徑或現實不符時，需要系統地診斷並修復設計缺陷"
+        },
+        {
+          "id": "brainstorming",
+          "why": "在結構化工作流規格前，先探索隱含在代碼中的工作流，理解現實需求和設計空間"
+        }
+      ]
+    },
+    "study-abroad-advisor": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "在为每个学生制定个性化留学方案前，需要深入探索学生背景、目标、预算和约束，这是咨询的必经阶段"
+        },
+        {
+          "id": "writing-plans",
+          "why": "留学规划涉及评估→背景提升→选校→文书→申请的多阶段协调，需要制定清晰的多步骤长期规划方案"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要撰写专业的留学分析报告、选校方案说明、申请策略文档等中文材料，排版和术语的规范直接影响学生理解和信任度"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "在给出最终建议前必须验证选校梯队的现实性、文书敍事的说服力、申请时间线的可执行性，这对学生成功至关重要"
+        }
+      ]
+    },
+    "supply-chain-inventory-forecaster": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "库存预测的核心就是制定多步骤规划(大促倒排计划、补货周期优化、多仓协同策略),需要系统化地编排预测 → 安全库存 → 补货决策的全链路"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "预测结果必须附带置信区间并通过历史回测验证,库存策略需要核实有效性,防止预测偏差导致断货或积压,这是库存管理的底线"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "当预测精度下降时需要系统化诊断问题根源(数据异常、模型漂移、遗漏外部变量),进行数据清洗和模型调整,这是日常工作的常见需求"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "库存预测报告需要专业的文档规范和清晰的数据呈现,确保采购/仓储/财务部门能准确理解预测逻辑和库存建议"
+        }
+      ]
+    },
+    "supply-chain-route-optimizer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "物流方案設計涉及多變量約束（時效、成本、地理、商品特性）的創意問題，每個客戶案例都需要重新思考整體倉網、快遞、冷鏈架構"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "物流成本高、時效延誤、冷鏈斷裂、大促爆倉都需要系統化根因分析，從快遞選擇、倉網布局、退貨率、末端配送層層診斷"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "物流方案的成敗取決於實際執行效果而非紙上計劃，必須驗證成本達成、時效保證、斷鏈風險控制的真實結果"
+        },
+        {
+          "id": "writing-plans",
+          "why": "物流優化涉及複雜的多步驟實施計劃，從需求分析、方案設計、分地域分波次執行到成本評估和風險管理都需要詳細規劃"
+        }
+      ]
+    },
+    "supply-chain-vendor-evaluator": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "设计供应商筛选标准、评分模型、验厂流程等供应商管理体系前需要充分探索企业需求和痛点"
+        },
+        {
+          "id": "writing-plans",
+          "why": "供应商评估从筛选→评分→验厂→分级→管理涉及多个阶段，需要为客户制定完整的实施方案和流程计划"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "验厂报告、供应商评分表、评估汇总报告等正式文档需要符合中文商务文档规范确保专业度和规范性"
+        },
+        {
+          "id": "executing-plans",
+          "why": "供应商评估流程需要按已定计划逐步执行，确保评估的系统性、严谨性和可追溯性"
+        }
+      ]
+    },
+    "support-analytics-reporter": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "所有分析報告提交前必須驗證數據質量、統計顯著性和結論準確性，確保分析卓越性"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "儀表盤、圖表和報告的視覺設計直接影響洞察傳達效果，是數據轉化為業務決策的關鍵載體"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當儀表盤數據異常、指標不符預期或統計模型失敗時，需要系統化排查數據源、轉換邏輯和計算過程"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計新儀表盤、構建分析框架、創建預測模型時需要先進行需求分析和創意探索，而非直接編碼"
+        }
+      ]
+    },
+    "support-executive-summary-generator": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "高管摘要中的每个数据点和洞察都必须经过验证，才能确保决策基于准确事实"
+        },
+        {
+          "id": "writing-plans",
+          "why": "摘要中的建议和下一步本质上是行动计划，需要明确时间线、负责人和预期结果来驱动执行"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "优化文案密度、排版和结构节奏，让高管在3分钟内快速消化复杂信息"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "提升摘要的写作规范和术语准确性，增强专业表达和信息可信度"
+        }
+      ]
+    },
+    "support-finance-tracker": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "財務準確性第一，所有分析和決策前後都必須驗證數據來源、計算方法和結論"
+        },
+        {
+          "id": "brainstorming",
+          "why": "設計預算框架、成本管理方案、財務風險體系等需要戰略規劃和創意方案設計"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "追蹤財務異常、診斷數據問題、驗證計算正確性是財務管控的核心工作"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "為高管輸出財務簡報和 KPI 看板是重要交付物，需要專業展示和信息清晰度"
+        },
+        {
+          "id": "writing-plans",
+          "why": "規劃預算體系、財務改革方案、審計準備流程等複雜財務計劃需要周密設計"
+        }
+      ]
+    },
+    "support-infrastructure-maintainer": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "運維強調完成前驗證安全和合規，所有基礎設施變更都必須經過驗證和測試才能部署上線"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "故障排查和問題診斷是運維的日常工作，系統化調試方法論幫助快速定位和解決生產問題"
+        },
+        {
+          "id": "writing-plans",
+          "why": "運維涉及大量規劃工作——架構規劃、容量規劃、災難恢復計畫、事件響應計畫都需要結構化的規劃能力"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "基礎設施代碼(IaC)和自動化腳本部署前必須經過審查，確保質量和安全合規"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "Persona 明確要求所有基礎設施變更都要有完整文檔含回滾步驟，規範的文檔規範是必須的"
+        }
+      ]
+    },
+    "support-legal-compliance-checker": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "政策制定和合规框架設計時需要前期探索多個法律方案和權衡，並非直接編碼"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定多步驟的合規計劃、風險緩解策略和審計程序需要規格說明"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "生成法律文件、隱私政策、合規報告等需要專業的技術文檔寫作規範"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "宣稱合規完成、法律文件準備就緒前必須驗證並建立審計追蹤文檔"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "向管理層、員工展示合規政策和風險評估、建立合規文化時需要專業簡報設計"
+        }
+      ]
+    },
+    "support-recruitment-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "招聘策略、JD 优化、人才评估体系设计等都需要在实施前充分探索意图需求，避免盲目执行"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "多渠道运营、多职位招聘、多轮面试同步进行，需要高效管理多个独立并行的招聘任务"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "招聘工作的核心价值在验证：需要确认简历筛选准确性、面试评分一致性、人才实际胜任力，否则整个流程失效"
+        },
+        {
+          "id": "writing-plans",
+          "why": "招聘计划、渠道策略、面试流程设计都是多步骤复杂方案，需要完整规划后才能系统执行"
+        }
+      ]
+    },
+    "support-supply-chain-strategist": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "制定採購策略、供應商管理計畫、質量改進計畫等需要結構化的規劃與方案設計"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "撰寫採購合同、供應商准入檔案、AQL檢驗標準、CAPA報告等關鍵業務文檔"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證採購成果（品質、成本、交期）、供應商資質達成、物料檢驗達標情況"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "製作供應鏈優化報告、採購成本節省案例、供應商績效評估等管理層匯報"
+        },
+        {
+          "id": "brainstorming",
+          "why": "應對複雜採購問題、供應鏈風險、渠道優化時需要跨領域創意思考與多方案評估"
+        }
+      ]
+    },
+    "support-support-responder": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "創建支持框架、客戶生命週期設計、知識管理系統和培訓計劃都是創意性工作，需要先探索需求和設計方向"
+        },
+        {
+          "id": "writing-plans",
+          "why": "制定支持策略、團隊培訓計劃、危機管理程序和質量保證框架都需要系統的規劃和逐步實施"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "建立知識庫、自助資源、支持 SOP 和質量標準文檔是客服體系的核心，需要清晰易懂的文檔結構"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "支持流程改進、質量保證框架和客戶滿意度衡量都需要驗證和測試，確保實際效果符合目標"
+        }
+      ]
+    },
+    "technical-artist": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "技術美術需要診斷 GPU/CPU 瓶頸、shader 編譯問題和資源導入錯誤，這是日常性能優化的核心"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "寫 shader、優化資源管線都需要性能基準和視覺品質測試來驗證預算是否達標"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "核心規則是「引擎內審查後才能籤核」、「性能預算驗證後才能上線」——驗證優於假設"
+        },
+        {
+          "id": "mcp-builder",
+          "why": "技術美術需要創建工具和自動化流程讓美術團隊在技術約束內工作——工具就是提升管線效率的關鍵"
+        }
+      ]
+    },
+    "technical-translator-agent": {
+      "skills": [
+        {
+          "id": "chinese-documentation",
+          "why": "核心工作就是生產中文技術文檔，需要掌握文檔排版、術語結構、行業慣例來提升翻譯品質"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "技術翻譯追求準確性第一，翻譯完成前必須驗證術語、技術概念、術語一致性，確保無誤"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "複雜技術文檔翻譯完成後應請技術專家審查，驗證術語準確、技術概念傳達正確"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大型翻譯項目需要前置規劃：定義術語庫、翻譯風格策略、優先級排序，避免中途返工"
+        }
+      ]
+    },
+    "terminal-integration-specialist": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "終端模擬涉及大量邊界情況（emoji 寬度、零寬字符、轉義序列交界），必須先寫測試保證正確性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "終端集成的 bug 往往隱蔽複雜（光標位移、屏幕恢復、性能瓶頸），需要系統化調試方法論"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "字符寬度、轉義序列解析、渲染幀率都必須驗證後才能認為完成，性能和協議合規性缺一不可"
+        },
+        {
+          "id": "brainstorming",
+          "why": "新終端功能的設計會影響協議、性能、無障礙，必須設計先於編碼"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "終端代碼對協議紀律和性能紀律要求極高，關鍵實現需要同行審查確保符合 ECMA-48/VT100 標準"
+        }
+      ]
+    },
+    "testing-accessibility-auditor": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "無障礙審核的核心就是驗證——必須用輔助技術實測、提供確鑿的缺陷證據，而不是猜測"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "系統化診斷無障礙問題的根本原因（ARIA 誤用 vs 焦點管理 vs 閱讀順序），區分表現症狀和深層缺陷"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "驗證開發者對審核建議的實施是否真的改善了無障礙，確認修復後的界面是否通過實際測試"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "推動無障礙測試先行，在設計和實現階段就內嵌無障礙驗證，而不是事後審核補救"
+        }
+      ]
+    },
+    "testing-api-tester": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "編寫和維護全面 API 測試套件是核心職責，必須先設計測試再驗證實現"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "測試通過是唯一驗證 API 質量的標準，宣稱完成前必須確認所有驗證通過"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "測試失敗時需要診斷根本原因，找出 API 的性能、安全或功能缺陷"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的測試框架需要先規劃策略、覆蓋率和性能基準，再動手實施"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "測試代碼同樣需要審查，確保測試策略的完整性和自動化框架的可靠性"
+        }
+      ]
+    },
+    "testing-embedded-qa-engineer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "測試失敗是家常便飯，他需要系統化追蹤根因（硬件、固件、環境、測試邏輯）"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計測試分層、HIL 環境、故障注入方案、量產測試都需要提前規劃和結構化分解"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "TDD 思想直接指導他的測試框架設計、用例覆蓋率規劃和測試代碼實現"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "驗證是 QA 的信條——測試覆蓋率、迴歸檢查、故障恢復都必須有明確的驗證證據"
+        }
+      ]
+    },
+    "testing-evidence-collector": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "核心使命就是确保每个结论有充分证据支撑，「始终用证据支撑断言」正是该 agent 的存在意义"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "系统化收集日志、截图、环境数据、网络请求来追踪问题根源，这正是证据收集的本质工作方式"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "需要撰写格式严谨、结构清晰的 Bug 报告、质量评估、覆盖度分析等专业文档，这些报告是交付物"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "理解 TDD 思想与测试优先理念，能帮助设计更有效的测试证据收集策略和质量验收标准"
+        }
+      ]
+    },
+    "testing-performance-benchmarker": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "性能測試的核心就是驗證——聲稱優化有效果前必須用 P50/P95/P99 等數據證明，這是他工作的本質"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "性能異常或測試結果異常時需要系統化調試——瓶頸定位、火焰圖分析、資源利用率診斷都需要這套方法"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "性能優化的標準流程是先建立基準測試、再改代碼、再驗證效果，完全符合 TDD 的思路"
+        },
+        {
+          "id": "writing-plans",
+          "why": "複雜的測試計畫需要設計——階梯式負載、預熱冷卻、容量規劃的多個場景都需要完整的規劃文檔"
+        }
+      ]
+    },
+    "testing-reality-checker": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "Agent 的核心使命——每次評估前必須運行驗證命令，用視覺和數據證據支撐所有斷言，正是 skill 的直接應用"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "當 QA 發現問題或截圖分析發現異常時，系統化地確認是真實缺陷還是虛假警告，避免幻想式評估"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "協調多個並行驗證任務（多設備截圖、自動化檢查點），提升集成驗證效率和證據收集的完整性"
+        },
+        {
+          "id": "subagent-driven-development",
+          "why": "與 QA、測試等 agents 協作進行聯合驗證，確保跨 agent 的證據交叉引用和結論一致"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計多步驟的集成驗證計畫，確保現實檢驗流程系統化、無遺漏、可重現"
+        }
+      ]
+    },
+    "testing-test-results-analyzer": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "測試分析的核心就是系統化地識別失敗模式、追蹤缺陷根因、分析質量趨勢，完全依賴除錯的方法論"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "他的職責是在發佈前評估質量狀態並給出 Go/No-Go 建議，每個質量判斷都必須用數據驗證"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "他需要產出多種格式的質量報告（儀表板、技術報告、告警），清晰的文檔規範對跨角色溝通至關重要"
+        },
+        {
+          "id": "chinese-presentation-style",
+          "why": "質量數據的說服力取決於視覺化和簡報設計，好的美學能讓統計分析更易被理解和接納"
+        }
+      ]
+    },
+    "testing-tool-evaluator": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "工具评估的核心就是「基於證據的評估流程」，必须用实际数据和定量指标说话，完全匹配此 skill 的「用证据支撑断言、运行验证后才声称成功」理念"
+        },
+        {
+          "id": "writing-plans",
+          "why": "每次工具评估都是多步骤的复杂任务，需要规划评估框架、测试方案、分析维度、决策流程，这正是此 skill 适用的场景"
+        },
+        {
+          "id": "subagent-driven-development",
+          "why": "工具评估涉及多个并行独立的维度（功能测试、性能基准、安全评估、成本分析、用户体验测试），可分配给多个 sub-agents 并行执行后整合"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "评估的核心产出是高质量的对比分析、TCO 报告、评估方法论文档，需要专业规范的文档写作确保可信度和清晰度"
+        }
+      ]
+    },
+    "testing-workflow-optimizer": {
+      "skills": [
+        {
+          "id": "workflow-runner",
+          "why": "核心工具——直接運行、編排和優化工作流，這是工作流優化師的主要操作場景"
+        },
+        {
+          "id": "writing-plans",
+          "why": "規劃優化方案的必需——工作流優化涉及多步驟分析、設計和落地，需要結構化規劃"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "識別並行化機會——流程優化的核心是找出可並行的任務，提升整體效率"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "數據驗證改進效果——契合「改之前先量，用統計方法驗證改進效果」的核心原則"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "編寫 SOP 和培訓材料——優化後必須文檔化新流程，確保團隊培訓和標準執行"
+        }
+      ]
+    },
+    "unity-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "架構設計前置化：任何系統重構或新模塊設計都需先探索可擴展性約束、解耦策略，而非直接編碼"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "TDD 強制單一職責與鬆耦合：先寫測試會自然引導他設計出更易注入、更模塊化的組件"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "架構驗證不能跳過：重構完成後必須驗證 SRP、無硬引用、SO 覆蓋率，不能只靠代碼審查"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大型重構需要里程碑規劃：從臃腫到解耦的架構轉變涉及多步驟、跨組件的協調"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "架構決策必須 peer review：模式選擇、反模式判斷、可擴展性預估需要獨立驗證"
+        }
+      ]
+    },
+    "unity-editor-tool-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "EditorWindow、PropertyDrawer、AssetPostprocessor 的複雜交互邏輯需要先寫測試保證品質和可維護性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "編輯器工具的 bug（資產損毀、管線中斷、狀態丟失）直接影響整個團隊工作流，需要系統化除錯方法"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "AssetPostprocessor 的冪等性、撤銷功能、域重載等複雜邏輯必須嚴格驗證，不能無形中破壞資產"
+        },
+        {
+          "id": "writing-plans",
+          "why": "多模塊編輯器工具架構（EditorWindow、PropertyDrawer、管線自動化）需要事先規劃流程設計和自動化邏輯"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "編輯器工具涉及複雜邏輯和系統級影響，peer review 確保最佳實踐和團隊一致性"
+        }
+      ]
+    },
+    "unity-multiplayer-engineer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "多人遊戲同步複雜，必須測試先行確保邏輯正確"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "客戶端/服務端/網絡跨域的 bug 複雜，需要系統化定位"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必須驗證實際網絡行為、狀態同步和反作弊機制"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "網絡邏輯和權威驗證複雜，代碼審查是品質守門人"
+        }
+      ]
+    },
+    "unity-shader-graph-artist": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "Shader 性能问题诊断、GPU profiling 和意外降级排查是核心工作,需要系统化调试方法论"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "性能标准验证(ALU 指令数、纹理采样数)和 Frame Debugger/GPU Profiler 分析是出货前的强制要求"
+        },
+        {
+          "id": "brainstorming",
+          "why": "新 Shader 效果设计和架构决策需要提前探索美术需求和技术方案,平衡画质与性能的关键环节"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "维护 Shader 库文档、参数命名规范和 Blackboard tooltip 是明确职责,知识共享对美术团队协作至关重要"
+        }
+      ]
+    },
+    "unreal-multiplayer-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "每次新多人系統功能（複製策略、RPC 設計、權威模型架構）都需先設計方案——設計決策直接影響後續實現品質和網絡效率"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "多人遊戲的失同步、相關性 bug、RPC 亂序最難調——需要系統方法在複雜網絡場景下定位根因，persona 特別強調調試經驗"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "網絡代碼是高風險代碼（權限檢查、複製邏輯、RPC 驗證）——TDD 確保每個 Server RPC 都實現 WithValidation，每個複製都通過測試"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "完成複製系統、GameState 架構、RPC 邏輯等重要功能後必須評審——抓住權限檢查遺漏、複製邏輯錯誤等安全漏洞（persona 強調『作弊偏執』）"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "多人系統必須驗證複製同步、網絡延遲下的表現才能確信完成——宣稱完成前需實際測試而非視覺檢查，符合『延遲敏感』的特性"
+        }
+      ]
+    },
+    "unreal-systems-engineer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "系统架构和 C++/Blueprint 边界决策前，需要探索设计选项和权衡"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "性能和系统稳定性是 AAA 级项目核心要求，TDD 确保功能和性能同时满足"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "Unreal 引擎的隐式行为和性能坑多，需要系统化方法找到根本原因"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "声称性能指标、功能完成前必须用数据验证，不能靠假设"
+        }
+      ]
+    },
+    "unreal-technical-artist": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "必須驗證視覺系統的幀預算、GPU/CPU 預算和 Shader 排列數達到出貨級標準——這是 Unreal 技術美術最高頻的驗收門檻"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "遇到 Shader 排列爆炸、GPU 瓶頸、Niagara 性能問題時，需要用 Unreal Insights 和 GPU Profiler 系統化分析根源——日常工作的核心"
+        },
+        {
+          "id": "writing-plans",
+          "why": "從需求「構建開放世界材質系統」到 Material Function 設計、Niagara 系統構建、性能優化，複雜視覺系統需要清晰的分階段實現計劃"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "完成 Material Function 庫、Niagara 模塊或 PCG 圖後，需要審查者驗證可複用性、性能約束和配置規範是否遵循標準"
+        }
+      ]
+    },
+    "unreal-world-builder": {
+      "skills": [
+        {
+          "id": "systematic-debugging",
+          "why": "日常工作中诊断流式卡顿、HLOD 瑕疵、性能瓶颈等复杂技术问题的核心工具"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "必须通过 Unreal Insights 性能分析和目视检查验证后才能声称世界构建完成"
+        },
+        {
+          "id": "writing-plans",
+          "why": "大规模开放世界构建前需要制定 World Partition 网格规划、流式策略、分层设计等详细技术规划"
+        },
+        {
+          "id": "requesting-code-review",
+          "why": "完成关键系统（HLOD 配置、PCG 图表、Landscape 材质）后需要同行评审以确保最佳实践"
+        },
+        {
+          "id": "brainstorming",
+          "why": "设计世界架构和评估多种技术方案（如网格大小选择、植被系统策略）需要创意探索"
+        }
+      ]
+    },
+    "visionos-spatial-engineer": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "空間 UI 設計和體積式組件都是創造性工作，需在實現前探索設計空間、交互模式和空間放置策略"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "90fps 性能要求和複雜的空間計算邏輯決定了必須測試先行，性能陷阱和邊界條件必須從設計階段就控制"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "visionOS 涉及 WindowGroup 生命週期衝突、RealityView 非同步陷阱、Entity 數量限制等隱藏邊界條件，需要系統化方法排查"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "GPU 內存、Entity 數量、幀率等硬性能紅線必須通過驗證命令確認達標，不能只靠代碼檢查或模擬"
+        },
+        {
+          "id": "chinese-code-review",
+          "why": "persona 追求原生體驗、對非標實現零容忍，複雜的平台決策和 API 邊界需要嚴謹的設計品味把關"
+        }
+      ]
+    },
+    "xr-cockpit-interaction-specialist": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "座艙交互系統涉及控件佈局、人體工學設計、交互模式決策，本質上是高創意性設計工作，需要在實現前充分探索需求和設計方案"
+        },
+        {
+          "id": "test-driven-development",
+          "why": "XR座艙系統對性能（72/90fps）、延遲（<20ms）、人因工程審查有嚴格要求，需要在實現前建立測試框架確保每個控件反饋和物理仿真符合規範"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "座艙物理仿真（彈簧、阻尼）、交互延遲、晕動症控制等涉及複雜的毫米級調試，需要系統化方法找出反饋不跟手、控件誤觸等細微問題根源"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "座艙系統的人因工程審查、性能指標驗證（幀率、延遲）、人體工學檢測都是硬性要求，必須通過可觀測證據驗證才能宣告完成"
+        },
+        {
+          "id": "writing-plans",
+          "why": "座艙系統涉及多步驟實現（幾何設計→控件構建→輸入集成→性能優化），複雜度高需要清晰的分階段規劃"
+        }
+      ]
+    },
+    "xr-immersive-developer": {
+      "skills": [
+        {
+          "id": "test-driven-development",
+          "why": "性能和兼容性问题复杂，手部追踪、输入系统、渲染优化都需要 TDD 确保正确性和可靠性"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "多设备多浏览器环境中踩过许多坑（API 版本变化、内存限制、设备差异），需要系统化调试方法"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "性能指标（72fps、1.5GB 内存预算）和跨设备兼容性验证必须严格把关，确保交付物达标"
+        },
+        {
+          "id": "writing-plans",
+          "why": "渲染管线优化、输入架构、兼容性降级等复杂设计需要先规划架构后再编码实现"
+        }
+      ]
+    },
+    "xr-interface-architect": {
+      "skills": [
+        {
+          "id": "brainstorming",
+          "why": "XR UI 設計本質是創造性工作，每個新的空間交互問題都需要先做創意探索和需求分析，才能進入設計實現"
+        },
+        {
+          "id": "writing-plans",
+          "why": "設計前需要規劃設計方案（輸入模式策略、信息架構層級、舒適度約束等），避免邊做邊改"
+        },
+        {
+          "id": "chinese-documentation",
+          "why": "核心交付物是設計規範、舒適度設計規範、空間 UI 佈局系統文檔等，需要專業的技術文檔寫作"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "工作流程中「紙面原型→灰盒→交互原型，每步都要用戶測試，通過率<70% 不進入下一步」正是驗證的核心，記錄首次注視路徑來判斷層級設計是否正確"
+        }
+      ]
+    },
+    "zk-steward": {
+      "skills": [
+        {
+          "id": "writing-plans",
+          "why": "複雜任務分解和多步驟執行是 ZK 管家的核心工作——每次知識組織都需要先規劃結構和步驟"
+        },
+        {
+          "id": "verification-before-completion",
+          "why": "Luhmann 四原則驗證（原子性、連接性、有機增長、持續對話）是收尾時的必檢項，完全吻合此 skill 的驗證關卡"
+        },
+        {
+          "id": "executing-plans",
+          "why": "Agent 明確要求『理解意圖 → 規劃步驟 → 逐步執行 → 驗證』的紀律，這正是此 skill 的使用場景"
+        },
+        {
+          "id": "systematic-debugging",
+          "why": "跨領域決策支持需要根因分析——當笔記連接不清晰或任務難以分解時，需要系統性診斷根本問題"
+        },
+        {
+          "id": "dispatching-parallel-agents",
+          "why": "知識庫中的多個獨立任務（如多個索引檢查、並行鏈接驗證、多領域專家應用）可以並行處理提升效率"
+        }
+      ]
+    }
+  }
+}

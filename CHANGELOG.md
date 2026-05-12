@@ -19,6 +19,38 @@
 
 ---
 
+## [0.19.0] — 2026-05-12
+
+🎯 Skill priming + skill audit。213 agent 全部預先配上「最該善用的 3-5 個 skill」,
+啟動對話時自動點名,顯著提升 skill 觸發率。
+
+### 新增
+- **🎯 `agent-skill-map.json`(repo 根目錄)** — 212 個 agent 對應 3-5 個 priming skill 的單一真相源
+  - 用 Haiku 4.5 一次性蒸餾,~84 分鐘跑完,總成本 ~$0.45 USD
+  - 99.5% 成功率(209 ok / 1 failed,可後續用 `--agent <id>` 補)
+- **`server/src/skillPriming.ts`** — 啟動 session 時讀 map,把「你應該特別善用這些 skill」prepend 到 system prompt
+  - 自動 cache + mtime 偵測,改 map 不用重啟 server
+  - Agent 仍可用全部 21 個 skill,priming 只是提高關鍵 skill 觸發率
+- **`scripts/build-agent-skill-map.mjs`** — 重建 map 的腳本
+  - `--resume` 斷點續跑(只處理沒 mapped 的)
+  - `--agent <id>` 單獨重跑某個
+  - `--limit N` 試跑前 N 個估成本
+  - 每 5 個自動 checkpoint 進 JSON,中斷不會丟資料
+- **`scripts/skill-audit.mjs`** — 反向統計報告
+  - 終端彩色 + bar chart
+  - `--out FILE` 輸出 markdown 報告
+  - 識別:明星 skill(≥50%)、罕用 skill(<5)、零採用 skill
+- **npm scripts**:`build:skill-map`、`audit:skills`
+- **`docs/skill-audit-v0.19.0.md`** — 本次 priming 結果的 markdown 報告(commit 進 repo,給其他使用者參考)
+- **README 新章節「🎯 Skill Priming」** — 機制說明 + 重建指令 + audit 用法
+
+### Audit 重點發現
+- ⭐ 4 個明星 skill 被 ≥50% agent 採用:`verification-before-completion`(93%)、`writing-plans`(74%)、`brainstorming`(63%)、`systematic-debugging`(54%)
+- ⚠️ `using-superpowers`(meta skill,有意 skip)+ `writing-skills`(寫 skill 用,大多 agent 不需要)= 零採用
+- ⚠️ Git / commit / worktree 等 dev 專用 skill 只被少數 engineer agent 推 — 符合預期
+
+---
+
 ## [0.18.0] — 2026-05-09
 
 🌐 Agent 接管已登入瀏覽器 + 多項使用體驗修復。

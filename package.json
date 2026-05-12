@@ -11,6 +11,8 @@
     "check": "node scripts/check-env.mjs",
     "doctor": "node scripts/doctor.mjs",
     "setup:full": "node scripts/setup-full.mjs",
+    "build:skill-map": "node scripts/build-agent-skill-map.mjs",
+    "audit:skills": "node scripts/skill-audit.mjs",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
     "setup": "npm run install:all && npm run check",

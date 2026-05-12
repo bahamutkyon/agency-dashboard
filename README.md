@@ -30,6 +30,7 @@
 - 📱 **手機 / 遠端存取(可選)** — 透過 Tailscale 或 Cloudflare Tunnel 從手機 / 平板用 dashboard,內建 PWA(可加到主畫面),預設關閉不影響本機使用
 - 👥 **同事感工作流** — 點 sidebar agent 跳「會議室」列出所有過往會議 + 「+ 開新會議」(可命名主題);Tab 顯示「Agent · 主題」永遠看得出在跟誰聊;歷史對話可按專家分組
 - 🧠 **三層記憶架構** — 工作區備忘錄(共用) → Agent×Workspace 同事記憶(個人理解) → 對話歷史(當前 context),每位 agent 在每個工作區有獨立的「對你的理解」,可手動編輯或叫 TA 從對話蒸餾
+- 🎯 **Skill priming** — 全 213 agent 都被預先分析「他最該善用哪 3-5 個 skill」,啟動時自動點名,大幅提升該觸發 skill 時的觸發率(0.19+)
 - 🌐 **Agent 接管已登入瀏覽器** — 透過 playwright MCP + 獨立 Chrome profile,讓 agent 直接在你登入的 Threads / YouTube / LinkedIn 改個人簡介、發內容、回留言,跟你日常 Chrome 完全隔離
 - 🛠️ **內建 workflow 範本庫** — 一鍵跑「AI 編程工具諮詢 → 配置檔產出」「品牌定位 → 內容生產 → 多平台分發」等多步驟協作模板
 
@@ -248,6 +249,53 @@ dashboard 把 agent 設計成**你的同事**,不是「一次性問答機器」:
 
 如果你**沒給主題**,系統會在第一輪對話後用 Haiku 自動命名:`👨‍💼 專案經理 · 三週衝刺規劃`(永遠帶 agent 名稱前綴,不會把 agent 改名換成主題)。
 你**有給主題**就完全不動,autoTitler 退讓。
+
+---
+
+## 🎯 Skill Priming(0.19+)
+
+### 為什麼需要
+
+Claude Code 預設把 `~/.claude/skills/` 下所有 21 個 skill 列在每個 agent 的 system prompt 中,讓 agent「知道有哪些工具可用」。**但 agent 不一定會主動觸發** — 比如「品牌守護者」寫品牌守則時可能該用 `chinese-presentation-style`,但常常會忘。
+
+Skill priming 解這個問題:**為每個 agent 預先標記他最該善用的 3-5 個 skill**,在 system prompt 開頭明確點名:
+
+```
+# 你應該特別善用的 Skills(從全域 21 個 skill 中精選)
+- chinese-presentation-style — 你做品牌簡報 / 視覺規範時必用此規範
+- brainstorming — 收到新需求請先 brainstorm 再展開
+- chinese-documentation — 寫文案 / 文檔時的中文排版規範
+```
+
+Agent 仍可用全部 21 個 skill,只是被「priming」過的這幾個觸發率顯著提升。
+
+### 怎麼運作
+
+1. **一次性建 map**(已 commit 進 repo): `agent-skill-map.json` 用 Haiku 4.5 分析 213 個 agent 的人設,各自配 3-5 個最相關 skill + 為什麼
+2. **啟動 session 時自動注入**: `server/src/skillPriming.ts` 讀 map,把 priming block prepend 到 system prompt(在 workspace 備忘錄前面)
+3. **零維護**: agent / skill 沒變就一直用同一份 map
+
+### 重建 map(只在新增 agent / 新增 skill 時需要)
+
+```bash
+npm run build:skill-map              # 跑全部 213 agent(~75 分鐘,Haiku ~$0.5)
+npm run build:skill-map -- --resume  # 斷點續跑(只處理沒 mapped 的)
+npm run build:skill-map -- --agent agents-orchestrator   # 只重跑某個
+npm run build:skill-map -- --limit 10                    # 試跑 10 個
+```
+
+### 看哪些 skill 真的有用(audit)
+
+```bash
+npm run audit:skills                          # 終端輸出彩色報告
+npm run audit:skills -- --out audit.md        # 輸出 markdown 檔
+```
+
+報告會列出:
+- 每個 skill 被多少 agent 推 + 百分比 + bar chart
+- ⚠️ 零採用 skill(可考慮移除)
+- ⭐ 明星 skill(≥50% agent 都推)
+- 範例 reasoning(讓你看 Haiku 為什麼這樣配)
 
 ---
 
