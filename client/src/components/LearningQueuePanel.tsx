@@ -23,6 +23,8 @@ export function LearningQueuePanel({ agents }: { agents: AgentMeta[] }) {
       if (action === "approve") await api.approveLearning(p.id);
       else await api.rejectLearning(p.id);
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (e: any) {
+      alert(`操作失敗：${e?.message || e}`);
     } finally {
       setBusy(null);
     }
