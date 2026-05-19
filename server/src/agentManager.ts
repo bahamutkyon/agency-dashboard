@@ -114,6 +114,7 @@ export class AgentManager {
     // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
     // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
     const skillPrimingBlock = buildSkillPrimingBlock(agentId);
+    // 手藝記憶是 agent-global(跨工作區),所以只用 agentId、不帶 wsId
     const craftBlock = buildCraftMemoryBlock(getCraftMemory(agentId));
 
     const learningCapability = `
@@ -123,7 +124,7 @@ export class AgentManager {
 如果在對話中你發現了**跨對話有長期價值**的東西，可在回答**最末尾**輸出學習標記，系統會收進「學習審核佇列」等使用者批准：
 
 \`\`\`
-=== LEARN kind=craft ===
+=== LEARN kind=<下方四選一> ===
 一行描述（< 200 字）
 === END LEARN ===
 \`\`\`
@@ -274,14 +275,18 @@ kind 四選一：
         if (wsId) {
           const drafts = parseLearnMarkers(String(evt.payload.content));
           for (const d of drafts) {
-            createProposal({
-              agentId: s.agentId,
-              workspaceId: wsId,
-              kind: d.kind,
-              scope: d.scope,
-              content: d.content,
-              source: `conversation:${s.id}`,
-            });
+            try {
+              createProposal({
+                agentId: s.agentId,
+                workspaceId: wsId,
+                kind: d.kind,
+                scope: d.scope,
+                content: d.content,
+                source: `conversation:${s.id}`,
+              });
+            } catch (e: any) {
+              console.warn(`[agentManager] createProposal failed:`, e?.message || e);
+            }
           }
         }
         buffer = "";
