@@ -999,13 +999,19 @@ app.post("/api/learning/proposals/:id/approve", (req, res) => {
   const p = getProposal(req.params.id);
   if (!p) return res.status(404).json({ error: "找不到提案" });
   if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
-  if (p.scope === "agent-global") {
-    appendCraftMemory(p.agentId, p.content);
-  } else {
-    appendWorkspaceMemory(p.workspaceId, p.content);
+  // 先以 CAS 搶占標記,確保並發 / 重送下只有一個請求會執行副作用
+  const claimed = setProposalStatus(p.id, "approved");
+  if (!claimed) return res.status(409).json({ error: "提案已處理過" });
+  try {
+    if (p.scope === "agent-global") {
+      appendCraftMemory(p.agentId, p.content);
+    } else {
+      appendWorkspaceMemory(p.workspaceId, p.content);
+    }
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
   }
-  setProposalStatus(p.id, "approved");
-  res.json({ ok: true });
 });
 
 app.post("/api/learning/proposals/:id/reject", (req, res) => {

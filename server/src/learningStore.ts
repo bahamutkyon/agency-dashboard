@@ -77,8 +77,10 @@ export function listPendingProposals(workspaceId?: string): LearningProposal[] {
   return (rows as any[]).map(rowToProposal);
 }
 
+/** 把提案標記為 approved/rejected。CAS 語意:只會更新仍為 pending 的提案,
+ *  回傳是否真的更新成功(用於防止同一提案被重複處理)。 */
 export function setProposalStatus(id: string, status: "approved" | "rejected"): boolean {
-  const r = db.prepare("UPDATE learning_proposals SET status = ?, decided_at = ? WHERE id = ?")
+  const r = db.prepare("UPDATE learning_proposals SET status = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
     .run(status, Date.now(), id) as { changes: number | bigint };
   return Number(r.changes) > 0;
 }
