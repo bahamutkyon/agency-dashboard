@@ -12,6 +12,7 @@ import { RemoteAccessBadge } from "./components/RemoteAccessBadge";
 import { AgentMeetingRoom } from "./components/AgentMeetingRoom";
 import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
+import { LearningQueuePanel } from "./components/LearningQueuePanel";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
@@ -29,6 +30,7 @@ type View =
   | { kind: "settings" }
   | { kind: "batch" }
   | { kind: "notes" }
+  | { kind: "learning" }
   | { kind: "workflows" }
   | { kind: "meeting-room"; agentId: string };
 
@@ -184,6 +186,7 @@ export default function App() {
   const openSettings = () => setView({ kind: "settings" });
   const openBatch = () => setView({ kind: "batch" });
   const openNotes = () => setView({ kind: "notes" });
+  const openLearning = () => setView({ kind: "learning" });
   const openWorkflows = () => setView({ kind: "workflows" });
 
   const openOnboarding = (sessionId: string, draftWorkspaceId?: string) => {
@@ -307,6 +310,7 @@ ${message}
               onOpenSettings={() => { openSettings(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenBatch={() => { openBatch(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenNotes={() => { openNotes(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenLearning={() => { openLearning(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenWorkflows={() => { openWorkflows(); if (window.innerWidth < 768) toggleSidebar(); }}
               providersAvail={providersAvail}
             />
@@ -402,6 +406,7 @@ ${message}
           {isView("settings") && <SettingsPanel />}
           {isView("batch") && <BatchPanel key={`b-${reloadKey}`} agents={agents} />}
           {isView("notes") && <NotesPanel key={`n-${reloadKey}`} />}
+          {isView("learning") && <LearningQueuePanel key={`l-${reloadKey}`} agents={agents} />}
           {isView("workflows") && (
             <WorkflowsPanel
               key={`w-${reloadKey}`}

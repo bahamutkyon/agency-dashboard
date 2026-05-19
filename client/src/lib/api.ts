@@ -204,6 +204,11 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, workspaceId, workflow }),
     }).then(j<Workflow>),
+  learningProposals: () => fetch(withWorkspace("/api/learning/proposals")).then(j<LearningProposal[]>),
+  approveLearning: (id: string) =>
+    fetch(`/api/learning/proposals/${id}/approve`, { method: "POST" }).then(j),
+  rejectLearning: (id: string) =>
+    fetch(`/api/learning/proposals/${id}/reject`, { method: "POST" }).then(j),
 };
 
 export interface Workspace {
@@ -300,4 +305,17 @@ export interface WorkflowRun {
   error?: string;
   startedAt: number;
   endedAt?: number;
+}
+
+export interface LearningProposal {
+  id: string;
+  agentId: string;
+  workspaceId: string;
+  kind: "fact" | "craft" | "domain" | "calibration";
+  scope: "workspace" | "agent-global";
+  content: string;
+  source: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: number;
+  decidedAt: number | null;
 }

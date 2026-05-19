@@ -15,6 +15,7 @@ interface Props {
   onOpenSettings: () => void;
   onOpenBatch: () => void;
   onOpenNotes: () => void;
+  onOpenLearning: () => void;
   onOpenWorkflows: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
@@ -23,7 +24,7 @@ export function AgentSidebar({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenWorkflows,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenWorkflows,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -98,6 +99,14 @@ export function AgentSidebar({
             <span>筆記</span>
           </button>
           <button
+            onClick={onOpenLearning}
+            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
+            title="學習審核佇列"
+          >
+            <span>🧠</span>
+            <span>學習</span>
+          </button>
+          <button
             onClick={onOpenTemplates}
             className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
             title="常用 prompt 模板"
@@ -113,7 +122,6 @@ export function AgentSidebar({
             <span>⚙️</span>
             <span>設定</span>
           </button>
-          <div className="px-2 py-2"></div>
         </div>
       </div>
 
