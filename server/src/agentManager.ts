@@ -114,7 +114,10 @@ export class AgentManager {
     // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
     // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
     const skillPrimingBlock = buildSkillPrimingBlock(agentId);
-    // 手藝記憶是 agent-global(跨工作區),所以只用 agentId、不帶 wsId
+    // 手藝記憶是 agent-global(跨工作區),所以只用 agentId、不帶 wsId。
+    // 注意:craftBlock 與下方的 memoryBlock/agentMemoryBlock 都只在 start()
+    // (新開對話)注入。reattach() 喚醒既有對話時不會重建 system prompt,
+    // 因此批准後的學習成果只對「之後新開的對話」生效,進行中的舊對話需新開才看得到。
     const craftBlock = buildCraftMemoryBlock(getCraftMemory(agentId));
 
     const learningCapability = `
