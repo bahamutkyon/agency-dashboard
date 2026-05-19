@@ -24,7 +24,13 @@ import {
   listWorkflows, getWorkflow, upsertWorkflow, deleteWorkflow as removeWorkflow,
   listRuns, getRun,
   getAgentMemory, setAgentMemory, deleteAgentMemory,
+  appendWorkspaceMemory,
 } from "./store.js";
+
+import {
+  listPendingProposals, getProposal, setProposalStatus,
+  getCraftMemory, appendCraftMemory,
+} from "./learningStore.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -980,6 +986,40 @@ app.patch("/api/notes/:id", (req, res) => {
 app.delete("/api/notes/:id", (req, res) => {
   removeNote(req.params.id);
   res.json({ ok: true });
+});
+
+// ============ 學習系統 ============
+
+app.get("/api/learning/proposals", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  res.json(listPendingProposals(wsId));
+});
+
+app.post("/api/learning/proposals/:id/approve", (req, res) => {
+  const p = getProposal(req.params.id);
+  if (!p) return res.status(404).json({ error: "找不到提案" });
+  if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
+  if (p.scope === "agent-global") {
+    appendCraftMemory(p.agentId, p.content);
+  } else {
+    appendWorkspaceMemory(p.workspaceId, p.content);
+  }
+  setProposalStatus(p.id, "approved");
+  res.json({ ok: true });
+});
+
+app.post("/api/learning/proposals/:id/reject", (req, res) => {
+  const p = getProposal(req.params.id);
+  if (!p) return res.status(404).json({ error: "找不到提案" });
+  if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
+  setProposalStatus(p.id, "rejected");
+  res.json({ ok: true });
+});
+
+app.get("/api/learning/craft", (req, res) => {
+  const agentId = String(req.query.agentId || "");
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  res.json({ agentId, content: getCraftMemory(agentId) });
 });
 
 // --- HTTP server + Socket.IO ---
