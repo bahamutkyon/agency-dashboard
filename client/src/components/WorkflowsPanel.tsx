@@ -78,7 +78,7 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
   const runIt = async (w: Workflow) => {
     const initial = prompt(`為 workflow「${w.name}」提供起始輸入(可空,${"{{out}}"} 在第一步會被替換):`) ?? "";
     try {
-      const run = await api.runWorkflow(w.id, initial);
+      const run = await api.runWorkflow(w.id, { initialInput: initial });
       setActiveRun(run);
       api.workflowRuns(w.id).then((r) => setRuns((prev) => ({ ...prev, [w.id]: r })));
     } catch (e: any) {
