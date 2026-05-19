@@ -143,6 +143,27 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   ended_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_runs_workflow ON workflow_runs(workflow_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS learning_proposals (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  kind TEXT NOT NULL,          -- fact | craft | domain | calibration
+  scope TEXT NOT NULL,         -- workspace | agent-global
+  content TEXT NOT NULL,
+  source TEXT NOT NULL,        -- e.g. conversation:<sessionId>
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
+  created_at INTEGER NOT NULL,
+  decided_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_lp_status ON learning_proposals(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lp_agent ON learning_proposals(agent_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_craft_memory (
+  agent_id TEXT PRIMARY KEY,
+  content TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
 `;
 
 db.exec(SCHEMA);
