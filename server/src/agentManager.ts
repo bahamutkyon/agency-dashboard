@@ -2,9 +2,12 @@ import { AgentSession, type Provider } from "./agentSession.js";
 import {
   upsertSession, getSession, listSessions, deleteSession, appendMessage, setSessionClaudeId,
   setSessionCodexThread,
-  appendWorkspaceMemory, getWorkspace, getAgentMemory,
+  getWorkspace, getAgentMemory,
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
+import { parseLearnMarkers } from "./learningCapture.js";
+import { createProposal, getCraftMemory } from "./learningStore.js";
+import { buildCraftMemoryBlock } from "./learningInjector.js";
 import { readAgentDefinition } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
@@ -111,10 +114,30 @@ export class AgentManager {
     // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
     // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
     const skillPrimingBlock = buildSkillPrimingBlock(agentId);
+    const craftBlock = buildCraftMemoryBlock(getCraftMemory(agentId));
 
-    const memoryCapability = `\n\n# 累積記憶能力\n如果在對話中你發現使用者揭露了重要的、跨對話有價值的事實(偏好、決定、客戶背景、品牌規則等),你可以**在回答最末尾**輸出記憶標記讓系統累積:\n\n\`\`\`\n=== REMEMBER ===\n簡短描述(一行,< 80 字),例如:使用者偏好親切口語、不要長篇大論\n=== END REMEMBER ===\n\`\`\`\n\n規則:每次回答最多 1 條;只記跨對話有用的事實;不要記當下情境的瑣事。\n`;
+    const learningCapability = `
 
-    let combined = (extraSystemPrompt || "") + skillPrimingBlock + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + memoryCapability;
+# 學習能力（輸出學習標記）
+
+如果在對話中你發現了**跨對話有長期價值**的東西，可在回答**最末尾**輸出學習標記，系統會收進「學習審核佇列」等使用者批准：
+
+\`\`\`
+=== LEARN kind=craft ===
+一行描述（< 200 字）
+=== END LEARN ===
+\`\`\`
+
+kind 四選一：
+- \`fact\` — 關於使用者的事實（他是誰、專案背景、品牌規則）
+- \`craft\` — 你的工作手藝改進（下次該怎麼做更好）
+- \`domain\` — 你專業領域的最新動態 / 新知識
+- \`calibration\` — 使用者對你的回饋（讚 / 改 / 否定）轉成的行為準則
+
+規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
+`;
+
+    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.
@@ -246,13 +269,19 @@ export class AgentManager {
         if (s.claudeSessionId) setSessionClaudeId(s.id, s.claudeSessionId);
         if (s.codexThreadId) setSessionCodexThread(s.id, s.codexThreadId);
         assistantPersisted = true;
-        // Detect REMEMBER markers — append to workspace memory
+        // Detect LEARN markers — create proposals for user review
         const wsId = (s as any).workspaceId as string | undefined;
         if (wsId) {
-          const matches = String(evt.payload.content).matchAll(/===\s*REMEMBER\s*===\s*\n([\s\S]*?)\n===\s*END\s*REMEMBER\s*===/gi);
-          for (const m of matches) {
-            const entry = m[1].trim();
-            if (entry && entry.length < 200) appendWorkspaceMemory(wsId, entry);
+          const drafts = parseLearnMarkers(String(evt.payload.content));
+          for (const d of drafts) {
+            createProposal({
+              agentId: s.agentId,
+              workspaceId: wsId,
+              kind: d.kind,
+              scope: d.scope,
+              content: d.content,
+              source: `conversation:${s.id}`,
+            });
           }
         }
         buffer = "";
