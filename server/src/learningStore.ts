@@ -49,8 +49,10 @@ export function createProposal(input: {
 }): LearningProposal | null {
   const prior = db.prepare(`
     SELECT content FROM learning_proposals
-    WHERE agent_id = ? ORDER BY created_at DESC LIMIT 100
-  `).all(input.agentId) as any[];
+    WHERE agent_id = ?
+      AND (scope = 'agent-global' OR workspace_id = ?)
+    ORDER BY created_at DESC LIMIT 100
+  `).all(input.agentId, input.workspaceId) as any[];
   if (isDuplicate(input.content, prior.map((r) => r.content))) return null;
 
   const id = genId();
@@ -75,9 +77,10 @@ export function listPendingProposals(workspaceId?: string): LearningProposal[] {
   return (rows as any[]).map(rowToProposal);
 }
 
-export function setProposalStatus(id: string, status: "approved" | "rejected"): void {
-  db.prepare("UPDATE learning_proposals SET status = ?, decided_at = ? WHERE id = ?")
-    .run(status, Date.now(), id);
+export function setProposalStatus(id: string, status: "approved" | "rejected"): boolean {
+  const r = db.prepare("UPDATE learning_proposals SET status = ?, decided_at = ? WHERE id = ?")
+    .run(status, Date.now(), id) as { changes: number | bigint };
+  return Number(r.changes) > 0;
 }
 
 // --- Agent 手藝記憶（全域，跨工作區）---
