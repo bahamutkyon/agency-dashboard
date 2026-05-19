@@ -49,6 +49,20 @@ describe("parseLearnMarkers", () => {
   it("無標記時回傳空陣列", () => {
     expect(parseLearnMarkers("普通回答，沒有標記")).toEqual([]);
   });
+
+  it("正確解析 CRLF 行尾的標記", () => {
+    const text = "=== LEARN kind=craft ===\r\n手藝條目\r\n=== END LEARN ===";
+    const out = parseLearnMarkers(text);
+    expect(out).toHaveLength(1);
+    expect(out[0].content).toBe("手藝條目");
+  });
+
+  it("跳過 content 以 === 開頭的擷取（巢狀標記防禦）", () => {
+    const text = "=== LEARN kind=fact ===\n=== LEARN kind=craft ===\n真內容\n=== END LEARN ===\n=== END LEARN ===";
+    const out = parseLearnMarkers(text);
+    expect(out.every((d) => !d.content.startsWith("==="))).toBe(true);
+    expect(out.some((d) => d.content === "真內容")).toBe(true);
+  });
 });
 
 describe("similarity / isDuplicate", () => {
@@ -63,5 +77,9 @@ describe("similarity / isDuplicate", () => {
   });
   it("isDuplicate：不相關內容不算重複", () => {
     expect(isDuplicate("抖音新演算法上線", ["使用者是仲介業者"])).toBe(false);
+  });
+
+  it("isDuplicate：existing 為空陣列時回傳 false", () => {
+    expect(isDuplicate("任意內容", [])).toBe(false);
   });
 });

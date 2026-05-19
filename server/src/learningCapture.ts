@@ -25,28 +25,49 @@ export function deriveScope(kind: LearnKind): LearnScope {
  * 解析文字中所有 LEARN 與 REMEMBER 標記。
  *  - === LEARN kind=craft === ... === END LEARN ===
  *  - === REMEMBER === ... === END REMEMBER ===（視為 kind=fact）
- * 略過空內容與超過 200 字的內容；單次最多回傳 5 條。
+ * 略過空內容與超過 200 字的內容；單次最多回傳 5 條（LEARN + REMEMBER 合計）。
+ * LEARN 先解析、REMEMBER 後解析，超出上限時後者先被裁掉。
  */
 export function parseLearnMarkers(text: string): LearnDraft[] {
   const out: LearnDraft[] = [];
 
-  const learnRe = /===\s*LEARN\s+kind=(\w+)\s*===\s*\n([\s\S]*?)\n===\s*END\s*LEARN\s*===/gi;
-  for (const m of text.matchAll(learnRe)) {
+  const learnRe = /===\s*LEARN\s+kind=(\w+)\s*===[ \t]*\r?\n([\s\S]*?)\r?\n===\s*END\s*LEARN\s*===/gi;
+  let m: RegExpExecArray | null;
+  while ((m = learnRe.exec(text)) !== null) {
     const content = m[2].trim();
+    if (content.startsWith("===")) {
+      // Nested marker: reset lastIndex to just after the opening tag so
+      // the inner block can be discovered in the next iteration.
+      learnRe.lastIndex = m.index + m[0].indexOf("\n") + 1;
+      continue;
+    }
     if (!content || content.length > MAX_CONTENT_LEN) continue;
     const rawKind = m[1].toLowerCase();
     const kind = (VALID_KINDS as string[]).includes(rawKind) ? (rawKind as LearnKind) : "fact";
     out.push({ kind, scope: deriveScope(kind), content });
   }
 
-  const rememberRe = /===\s*REMEMBER\s*===\s*\n([\s\S]*?)\n===\s*END\s*REMEMBER\s*===/gi;
-  for (const m of text.matchAll(rememberRe)) {
-    const content = m[1].trim();
+  const rememberRe = /===\s*REMEMBER\s*===[ \t]*\r?\n([\s\S]*?)\r?\n===\s*END\s*REMEMBER\s*===/gi;
+  let r: RegExpExecArray | null;
+  while ((r = rememberRe.exec(text)) !== null) {
+    const content = r[1].trim();
+    if (content.startsWith("===")) {
+      rememberRe.lastIndex = r.index + r[0].indexOf("\n") + 1;
+      continue;
+    }
     if (!content || content.length > MAX_CONTENT_LEN) continue;
     out.push({ kind: "fact", scope: "workspace", content });
   }
 
   return out.slice(0, MAX_DRAFTS);
+}
+
+/** 從字串產生字元 bigram 集合；長度 1 時退回單字元集合。 */
+function bigrams(s: string): Set<string> {
+  const set = new Set<string>();
+  if (s.length === 1) { set.add(s); return set; }
+  for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+  return set;
 }
 
 /**
@@ -57,12 +78,6 @@ export function similarity(a: string, b: string): number {
   const A = norm(a), B = norm(b);
   if (A === B) return 1;
   if (!A || !B) return 0;
-  const bigrams = (s: string) => {
-    const set = new Set<string>();
-    if (s.length === 1) { set.add(s); return set; }
-    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
-    return set;
-  };
   const sa = bigrams(A), sb = bigrams(B);
   let inter = 0;
   for (const g of sa) if (sb.has(g)) inter++;
