@@ -28,7 +28,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       },
       {
         agentId: "design-brand-guardian",
-        prompt: "審以下文案,確認:(1)語氣符合品牌(2)沒有禁用詞(3)CTA 自然不硬推。給我具體修改建議或直接改寫。\n\n{{out}}"
+        prompt: "審以下文案。**必做兩件事**:\n1. 走 `creative-quality-gate` 的 anti-AI-slop 黑名單檢查(重點 B 類文案禁忌——「賦能/助力/打造」、「不僅...而且」、句末「~」「呢～」氾濫等)\n2. 跑五維自評審打分(Philosophy/Hierarchy/Detail/Function/Innovation),任一維 <3 必須回工\n\n最後給我具體修改建議或直接改寫。\n\n{{out}}"
       },
       {
         agentId: "design-image-prompt-engineer",
@@ -116,7 +116,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       },
       {
         agentId: "marketing-content-creator",
-        prompt: "為以下課程寫一段 600 字的銷售文案(痛點 → 解方 → 學員成果 → 加入 CTA)。\n\n{{out}}"
+        prompt: "為以下課程寫一段 600 字的銷售文案(痛點 → 解方 → 學員成果 → 加入 CTA)。\n\n**emit 前過 `creative-quality-gate` 兩道閘門**(anti-AI-slop B 類文案禁忌 + 五維自評審 ≥3)。\n\n{{out}}"
       }
     ]
   },
@@ -136,7 +136,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "threads_version", agentId: "marketing-content-creator", dependsOn: ["core_draft"],
         prompt: "把以下核心內容改編成 Threads 串文(3-5 則,每則 100 字內,口語):\n\n{{core_draft.out}}" },
       { id: "merge", agentId: "design-brand-guardian", dependsOn: ["ig_version", "rednote_version", "threads_version"],
-        prompt: "請審以下三平台稿件,確認語氣一致、品牌調性符合;若有衝突請給統一建議:\n\n## IG\n{{ig_version.out}}\n\n## 小紅書\n{{rednote_version.out}}\n\n## Threads\n{{threads_version.out}}" },
+        prompt: "請審以下三平台稿件:\n\n1. 確認語氣一致、品牌調性符合\n2. **每篇都跑 `creative-quality-gate`**(anti-AI-slop 黑名單 + 五維自評審)\n3. 衝突或不過閘門的給統一修改建議\n\n## IG\n{{ig_version.out}}\n\n## 小紅書\n{{rednote_version.out}}\n\n## Threads\n{{threads_version.out}}" },
     ],
   },
   {
@@ -198,9 +198,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "syllabus", agentId: "academic-study-planner", dependsOn: ["research"],
         prompt: "依以下市場研究,設計 8 週大綱(每週主題 + 學習成果 + 作業):\n\n{{research.out}}" },
       { id: "sales_page", agentId: "marketing-content-creator", dependsOn: ["syllabus"],
-        prompt: "為以下大綱寫一份 1500 字銷售頁文案(痛點 → 解方 → 學員成果 → 講師信任 → 加入 CTA):\n\n{{syllabus.out}}" },
+        prompt: "為以下大綱寫一份 1500 字銷售頁文案(痛點 → 解方 → 學員成果 → 講師信任 → 加入 CTA)。\n\n**做法**:\n1. 先用 `design-system-picker` 挑一個合適風格(課程類建議 notion / warm-editorial / claude)並讀其 DESIGN.md 作為視覺與語氣參考\n2. 寫完過 `creative-quality-gate` 兩道閘門\n\n{{syllabus.out}}" },
       { id: "email_seq", agentId: "marketing-content-creator", dependsOn: ["syllabus"],
-        prompt: "為以下大綱設計 5 封預售 email 序列(各 200 字內,主題行 + 內文):\n\n{{syllabus.out}}" },
+        prompt: "為以下大綱設計 5 封預售 email 序列(各 200 字內,主題行 + 內文)。\n\n**每封 emit 前過 `creative-quality-gate`**(特別注意 B 類文案禁忌:不要「在快節奏的當今...」開場、不要「賦能/打造」、不要句末「~」氾濫)。\n\n{{syllabus.out}}" },
       { id: "social_teaser", agentId: "Instagram 策展师", dependsOn: ["sales_page"],
         prompt: "從以下銷售頁提煉 3 篇 IG 預熱貼文(各 300 字內,鉤子 + 故事 + CTA):\n\n{{sales_page.out}}" },
     ],
@@ -244,7 +244,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "research", agentId: "sales-coach",
         prompt: "請整理以下客戶的公開資訊與痛點推測(行業、規模、近期動態、決策者風格):\n\n{{out}}" },
       { id: "deck", agentId: "marketing-content-creator", dependsOn: ["research"], pauseBefore: true,
-        prompt: "依以下客戶分析,擬一份 8 頁 pitch 大綱(問題 / 我們的視角 / 解法 / 案例 / 報價 / next step):\n\n{{research.out}}" },
+        prompt: "依以下客戶分析,擬一份 8 頁 pitch 大綱(問題 / 我們的視角 / 解法 / 案例 / 報價 / next step)。\n\n**做法**:\n1. 用 `design-system-picker` 挑風格(B2B 建議 linear-app / vercel / stripe;創意產業可考慮 framer / airbnb)\n2. 若要產出實際 .pptx,**走 `awesome-doc-pptx` 工作流**\n3. emit 前過 `creative-quality-gate`\n\n{{research.out}}" },
       { id: "qa", agentId: "sales-coach", dependsOn: ["deck"],
         prompt: "請列出客戶可能問的 10 個尖銳問題與建議回答:\n\n{{deck.out}}" },
     ],
@@ -264,7 +264,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "captions", agentId: "marketing-content-creator", dependsOn: ["script"],
         prompt: "為以下腳本產出緊湊字幕(每行 12-15 字,符合短影音閱讀節奏):\n\n{{script.out}}" },
       { id: "titles", agentId: "marketing-content-creator", dependsOn: ["script"],
-        prompt: "為以下腳本想 5 個影片標題(各 15 字內,SEO 友善 + 吸引點擊):\n\n{{script.out}}" },
+        prompt: "為以下腳本想 5 個影片標題(各 15 字內,SEO 友善 + 吸引點擊)。\n\n**每個標題都過 `creative-quality-gate` 的 anti-AI-slop B 類文案禁忌**(不要通用 emoji 堆、不要「不僅...而且」、不要假數字「快 10 倍」)。\n\n{{script.out}}" },
     ],
   },
 
@@ -279,7 +279,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "market", agentId: "strategy-business-strategist", dependsOn: ["intro"],
         prompt: "從市場角度分析:TAM、競爭強度、成長性、進入障礙。\n\n{{intro.out}}" },
       { id: "finance", agentId: "finance-financial-analyst", dependsOn: ["intro"],
-        prompt: "從財務角度估算:可能營收結構、毛利、現金流、估值區間。\n\n{{intro.out}}" },
+        prompt: "從財務角度估算:可能營收結構、毛利、現金流、估值區間。\n\n**輸出格式**:若要產出實際試算表,**走 `awesome-doc-xlsx` 工作流**(套用其公式、格式規範)。\n\n{{intro.out}}" },
       { id: "tech", agentId: "engineering-software-architect", dependsOn: ["intro"],
         prompt: "從技術 / 護城河角度分析:核心技術、可複製性、長期競爭優勢。\n\n{{intro.out}}" },
       { id: "risk", agentId: "legal-policy-writer", dependsOn: ["intro"],
@@ -313,7 +313,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "story", agentId: "marketing-content-creator",
         prompt: "為以下產品/服務發想 1 個有力的「為什麼是現在」開場故事(150 字內):\n\n{{out}}" },
       { id: "slides", agentId: "product-product-manager", dependsOn: ["story"],
-        prompt: "依以下開場故事,規劃 10 頁 pitch deck 標準大綱(每頁:標題 + 核心訊息一句話 + 視覺建議):\n\n問題 / 解方 / 市場 / 產品 / 商模 / 競爭 / 進度 / 團隊 / 募資需求 / Q&A\n\n{{story.out}}" },
+        prompt: "依以下開場故事,規劃 10 頁 pitch deck 標準大綱(每頁:標題 + 核心訊息一句話 + 視覺建議)。\n\n**視覺建議要做的事**:\n1. 用 `design-system-picker` 挑一個融資簡報合用的風格(建議 linear-app / vercel / stripe / apple,看產品調性)\n2. 視覺建議引用該系統的色彩 + 字型規範,不要自己編色碼\n3. 若要產出實際 .pptx,**走 `awesome-doc-pptx` 工作流**\n\n10 頁結構:問題 / 解方 / 市場 / 產品 / 商模 / 競爭 / 進度 / 團隊 / 募資需求 / Q&A\n\n{{story.out}}" },
       { id: "qa", agentId: "sales-coach", dependsOn: ["slides"],
         prompt: "列出 10 個投資人最可能尖銳問的問題與建議回答(各 100 字內):\n\n{{slides.out}}" },
     ],
@@ -345,7 +345,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "headline", agentId: "marketing-bilibili-strategist", dependsOn: ["topics"],
         prompt: "從以下選題挑 1 個最有爆款潛力,擬 3 種小紅書風格標題(各 20 字內,有 emoji):\n\n{{topics.out}}" },
       { id: "body", agentId: "marketing-content-creator", dependsOn: ["headline"],
-        prompt: "依以下標題,寫一篇 600 字內小紅書筆記(emoji + 條列 + 親切口吻 + 結尾 CTA):\n\n{{headline.out}}" },
+        prompt: "依以下標題,寫一篇 600 字內小紅書筆記(emoji + 條列 + 親切口吻 + 結尾 CTA)。\n\n**emit 前過 `creative-quality-gate`**:\n- B 類文案禁忌(別「賦能/助力」、別「總而言之」結尾、別句末「~」氾濫)\n- D 類結構禁忌(emoji 用得有節制,不要每行都 emoji)\n- 五維自評審 ≥3\n\n{{headline.out}}" },
       { id: "tags", agentId: "marketing-content-creator", dependsOn: ["body"],
         prompt: "為以下筆記想 8-10 個小紅書話題標籤(混搭大流量 + 小眾精準):\n\n{{body.out}}" },
     ],
@@ -415,7 +415,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "audience", agentId: "marketing-trend-researcher",
         prompt: "依以下產品 / 服務,描繪 3 個核心目標受眾畫像(年齡 / 場景 / 痛點 / 在哪 / 觸動點):\n\n{{out}}" },
       { id: "concept", agentId: "marketing-content-strategist", dependsOn: ["audience"],
-        prompt: "依以下受眾洞察,提出 1 個有記憶點的 campaign 主軸 + slogan + 視覺 mood:\n\n{{audience.out}}" },
+        prompt: "依以下受眾洞察,提出 1 個有記憶點的 campaign 主軸 + slogan + 視覺 mood。\n\n**視覺 mood 做法**:用 `design-system-picker` 挑對齊主軸的風格(年輕活力 → spotify/raycast;專業信賴 → linear-app/stripe;溫暖人本 → airbnb/claude/warm-editorial),引用該系統的色彩 + 氛圍描述作為 mood 依據。\n\n**slogan** 過 `creative-quality-gate` B 類文案禁忌篩選。\n\n{{audience.out}}" },
       { id: "ig_plan", agentId: "Instagram 策展师", dependsOn: ["concept"],
         prompt: "把以下主軸落地成 IG 排程(7 天 5 篇貼文 + 3 個 reels 主題):\n\n{{concept.out}}" },
       { id: "rednote_plan", agentId: "小红书专家", dependsOn: ["concept"],
@@ -455,7 +455,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { id: "fact", agentId: "engineering-code-reviewer",
         prompt: "請對以下內容做事實/數據查核(列出可疑陳述 + 建議查證來源),不修改原文:\n\n{{out}}" },
       { id: "brand", agentId: "design-brand-guardian",
-        prompt: "請對以下內容做品牌語氣審查(語氣是否一致 / 用字 / 禁用詞),具體標出問題段落:\n\n{{out}}" },
+        prompt: "請對以下內容做品牌語氣審查(語氣是否一致 / 用字 / 禁用詞),具體標出問題段落。\n\n**同時跑 `creative-quality-gate` 完整檢查**:\n- anti-AI-slop 黑名單四類(A 視覺/B 文案/C 數據/D 結構)逐條對照\n- 五維自評審打分(任一 <3 必須回工)\n\n{{out}}" },
       { id: "legal", agentId: "legal-contract-reviewer",
         prompt: "請對以下內容做法務 / 合規檢查(智財權 / 誇大宣稱 / 個資 / 廣告法),列出風險點:\n\n{{out}}" },
       { id: "seo", agentId: "marketing-content-strategist",
