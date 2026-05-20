@@ -1,0 +1,14 @@
+我用 linear-app 的設計系統做這份 dashboard：主色 #5E6AD2（Linear Indigo），字型 Inter 4-700，間距 8px grid。
+
+[... 設計實作 ...]
+
+## 自評
+- Philosophy: 4/5 — 主張清楚，但結尾可以更篤定
+- Hierarchy:  5/5 — 三層視覺權重明確
+- Detail:     3/5 — 第 4 頁字距偏鬆，已修正
+- Function:   4/5 — CTA 明確
+- Innovation: 3/5 — 配色保險，可再大膽
+
+最低分: 3 ≥ 3 ✅ 通過閘門
+
+也用 python-pptx 產出實際 .pptx 檔。
