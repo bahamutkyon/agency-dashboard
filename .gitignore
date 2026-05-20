@@ -21,3 +21,16 @@ server/*.jpg
 server/*.jpeg
 server/x*.json
 server/*-base64.json
+
+# Build 產物(每次 build 都會重生,進 repo 只會製造 diff 噪音)
+client/tsconfig.tsbuildinfo
+
+# Dev server 日誌
+server/dev-output.txt
+
+# 升級前自動產生的備份檔
+*.pre-awesome.bak
+
+# Awesome skills 整目錄(9.3MB,本機已裝於 ~/.claude/skills/)
+skills-awesome-zh/
+

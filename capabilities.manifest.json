@@ -18,6 +18,8 @@
       { "name": "chinese-documentation",          "from": "superpowers-zh" },
       { "name": "chinese-git-workflow",           "from": "superpowers-zh" },
       { "name": "chinese-presentation-style",     "from": "agency-dashboard", "protected": true, "bundled": "skills/chinese-presentation-style/" },
+      { "name": "creative-quality-gate",          "from": "agency-dashboard", "protected": true, "bundled": "skills/creative-quality-gate/" },
+      { "name": "design-system-picker",           "from": "agency-dashboard", "protected": true, "bundled": "skills/design-system-picker/" },
       { "name": "dispatching-parallel-agents",    "from": "superpowers-zh" },
       { "name": "executing-plans",                "from": "superpowers-zh" },
       { "name": "finishing-a-development-branch", "from": "superpowers-zh" },
