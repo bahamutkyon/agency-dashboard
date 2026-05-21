@@ -38,6 +38,44 @@
     ]
   },
 
+  "awesome_skills": {
+    "source": "https://github.com/ComposioHQ/awesome-claude-skills",
+    "target_dir": "~/.claude/skills/",
+    "prefix": "awesome-",
+    "install": {
+      "method": "git-clone-and-copy",
+      "note": "clone repo 後,把 list 內每個 src 目錄複製到 ~/.claude/skills/<name>/,並把 SKILL.md frontmatter 的 name 改成 <name>。既有目錄不覆寫。安裝:npm run install:awesome"
+    },
+    "description": "ComposioHQ awesome-claude-skills 精選 25 個,加 awesome- 前綴避免與 superpowers-zh 衝突(如 mcp-builder)。dashboard 的 workflow 模板與 agent priming 會用到。",
+    "list": [
+      { "name": "awesome-artifacts-builder",          "src": "artifacts-builder" },
+      { "name": "awesome-brand-guidelines",           "src": "brand-guidelines" },
+      { "name": "awesome-canvas-design",              "src": "canvas-design" },
+      { "name": "awesome-changelog-generator",        "src": "changelog-generator" },
+      { "name": "awesome-competitive-ads-extractor",  "src": "competitive-ads-extractor" },
+      { "name": "awesome-content-research-writer",    "src": "content-research-writer" },
+      { "name": "awesome-developer-growth-analysis",  "src": "developer-growth-analysis" },
+      { "name": "awesome-doc-docx",                   "src": "document-skills/docx" },
+      { "name": "awesome-doc-pdf",                    "src": "document-skills/pdf" },
+      { "name": "awesome-doc-pptx",                   "src": "document-skills/pptx" },
+      { "name": "awesome-doc-xlsx",                   "src": "document-skills/xlsx" },
+      { "name": "awesome-domain-name-brainstormer",   "src": "domain-name-brainstormer" },
+      { "name": "awesome-image-enhancer",             "src": "image-enhancer" },
+      { "name": "awesome-internal-comms",             "src": "internal-comms" },
+      { "name": "awesome-invoice-organizer",          "src": "invoice-organizer" },
+      { "name": "awesome-lead-research-assistant",    "src": "lead-research-assistant" },
+      { "name": "awesome-mcp-builder",                "src": "mcp-builder" },
+      { "name": "awesome-meeting-insights-analyzer",  "src": "meeting-insights-analyzer" },
+      { "name": "awesome-raffle-winner-picker",       "src": "raffle-winner-picker" },
+      { "name": "awesome-skill-creator",              "src": "skill-creator" },
+      { "name": "awesome-tailored-resume-generator",  "src": "tailored-resume-generator" },
+      { "name": "awesome-theme-factory",              "src": "theme-factory" },
+      { "name": "awesome-twitter-algorithm-optimizer","src": "twitter-algorithm-optimizer" },
+      { "name": "awesome-video-downloader",           "src": "video-downloader" },
+      { "name": "awesome-webapp-testing",             "src": "webapp-testing" }
+    ]
+  },
+
   "mcps": [
     {
       "name": "shellward",

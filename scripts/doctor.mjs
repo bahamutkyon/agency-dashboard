@@ -113,6 +113,25 @@ function main() {
   }
   console.log();
 
+  // ===== Awesome Skills(選配擴充) =====
+  if (manifest.awesome_skills?.list?.length) {
+    const awList = manifest.awesome_skills.list;
+    const awInstalled = awList.filter((s) => installedSkills.has(s.name)).length;
+    const awMissing = awList.filter((s) => !installedSkills.has(s.name));
+    console.log(bold(`🎨 Awesome Skills`) + dim(` (~/.claude/skills/)`));
+    if (awMissing.length === 0) {
+      console.log(`   ${ok("✅")} ${awInstalled}/${awList.length} 全部就位`);
+    } else {
+      console.log(`   ${warn("⚠️")} ${awInstalled}/${awList.length}  缺 ${awMissing.length} 個:`);
+      for (const s of awMissing) {
+        console.log(`      ${bad("✗")} ${s.name}`);
+      }
+      console.log(`   ${dim("修復:")} 執行 ${bold("npm run install:awesome")}`);
+      missingCount += awMissing.length;
+    }
+    console.log();
+  }
+
   // ===== MCPs =====
   const installedMcps = readClaudeMcps();
   console.log(bold(`🔌 MCPs`) + dim(` (~/.claude.json mcpServers)`));

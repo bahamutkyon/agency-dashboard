@@ -109,14 +109,14 @@ function copyDirSync(src, dest) {
 
 async function setupSkills(manifest) {
   console.log();
-  console.log(bold("📚 Step 1/4: Skills"));
+  console.log(bold("📚 Step 1/5: Skills"));
   console.log(dim(`   Skills 是 dashboard agent 的協作流程規範,影響每位 agent 的行為。`));
 
   const installed = listSkillsOnDisk();
   const missing = manifest.skills.expected.filter((s) => !installed.has(s.name));
 
   if (missing.length === 0) {
-    console.log(ok(`   ✅ 21 個 skill 全部就位,跳過`));
+    console.log(ok(`   ✅ ${manifest.skills.expected.length} 個 skill 全部就位,跳過`));
     return;
   }
 
@@ -179,11 +179,39 @@ async function setupSkills(manifest) {
   }
 }
 
-// ============== Step 2: Agents ==============
+// ============== Step 2: Awesome Skills ==============
+
+async function setupAwesomeSkills(manifest) {
+  console.log();
+  console.log(bold("🎨 Step 2/5: Awesome Skills"));
+  console.log(dim(`   ComposioHQ 精選 skill — dashboard 的 workflow 模板與 agent priming 會用到。`));
+
+  const cfg = manifest.awesome_skills;
+  if (!cfg?.list?.length) {
+    console.log(dim("   manifest 沒有 awesome_skills,跳過"));
+    return;
+  }
+
+  const installed = listSkillsOnDisk();
+  const missing = cfg.list.filter((s) => !installed.has(s.name));
+  if (missing.length === 0) {
+    console.log(ok(`   ✅ ${cfg.list.length} 個 awesome skill 全部就位,跳過`));
+    return;
+  }
+
+  console.log(`   ${warn(`缺 ${missing.length}/${cfg.list.length} 個`)}`);
+  if (!await yes("   要從 ComposioHQ 安裝嗎?")) {
+    console.log(dim("   跳過"));
+    return;
+  }
+  exec(`node "${path.join(__dirname, "install-awesome-skills.mjs")}"`);
+}
+
+// ============== Step 3: Agents ==============
 
 async function setupAgents(manifest) {
   console.log();
-  console.log(bold("👥 Step 2/4: Agents"));
+  console.log(bold("👥 Step 3/5: Agents"));
   console.log(dim(`   211 位中文 agent — 來自 agency-agents-zh,是 dashboard 的核心。`));
 
   const expected = manifest.agents.expected_count;
@@ -223,11 +251,11 @@ async function setupAgents(manifest) {
   exec(`bash scripts/install.sh --tool claude-code`, { cwd: target });
 }
 
-// ============== Step 3: MCPs ==============
+// ============== Step 4: MCPs ==============
 
 async function setupMcps(manifest) {
   console.log();
-  console.log(bold("🔌 Step 3/4: MCP Servers"));
+  console.log(bold("🔌 Step 4/5: MCP Servers"));
   console.log(dim(`   MCPs 是 dashboard agent 能呼叫的外部工具(瀏覽器 / Office / 安全防護等)`));
 
   const cfg = readClaudeConfig();
@@ -316,11 +344,11 @@ async function setupMcps(manifest) {
   }
 }
 
-// ============== Step 4: CLI ==============
+// ============== Step 5: CLI ==============
 
 async function setupCli(manifest) {
   console.log();
-  console.log(bold("⌨️  Step 4/4: CLI Tools"));
+  console.log(bold("⌨️  Step 5/5: CLI Tools"));
   console.log(dim(`   底層 LLM provider — Claude 必裝,Codex / Gemini 是備胎。`));
 
   for (const t of manifest.cli_tools) {
@@ -366,6 +394,7 @@ async function main() {
   }
 
   await setupSkills(manifest);
+  await setupAwesomeSkills(manifest);
   await setupAgents(manifest);
   await setupMcps(manifest);
   await setupCli(manifest);

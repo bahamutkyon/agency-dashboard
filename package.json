@@ -11,6 +11,7 @@
     "check": "node scripts/check-env.mjs",
     "doctor": "node scripts/doctor.mjs",
     "setup:full": "node scripts/setup-full.mjs",
+    "install:awesome": "node scripts/install-awesome-skills.mjs",
     "build:skill-map": "node scripts/build-agent-skill-map.mjs",
     "audit:skills": "node scripts/skill-audit.mjs",
     "validate:skill": "node scripts/validate-skill-usage.mjs",
