@@ -1075,9 +1075,311 @@ git commit -m "test: 能力學習進程端到端驗證通過"
 
 ---
 
+## 任務 9：時間驅動 — 自動定期學習排程
+
+對應規格 §10。讓能力學習能定期自動觸發。
+
+**文件：**
+- 修改：`server/src/db.ts`（加 `learning_schedules` 表）
+- 修改：`server/src/learningStore.ts`（排程 store 函式）
+- 創建：`server/src/learningScheduler.ts`
+- 修改：`server/src/index.ts`（排程 API + 啟動初始化）
+- 修改：`client/src/components/CapabilityLearningPanel.tsx`（排程區塊）
+- 測試：`server/src/learningSchedule.test.ts`
+
+- [ ] **步驟 1：加 DB 表**
+
+在 `server/src/db.ts` 的 `SCHEMA` 字串末尾（`category_capability_memory` 表之後）加入：
+
+```sql
+CREATE TABLE IF NOT EXISTS learning_schedules (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL DEFAULT '',
+  targets     TEXT NOT NULL DEFAULT '[]',
+  cron        TEXT NOT NULL,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  last_run_at INTEGER,
+  created_at  INTEGER NOT NULL
+);
+```
+
+- [ ] **步驟 2：寫失敗的測試**
+
+建立 `server/src/learningSchedule.test.ts`：
+
+```typescript
+import { describe, it, expect, afterAll } from "vitest";
+import {
+  listLearningSchedules, getLearningSchedule,
+  upsertLearningSchedule, deleteLearningSchedule, type LearningSchedule,
+} from "./learningStore.js";
+
+const ID = "lsched_test_1";
+
+describe("learning schedule store", () => {
+  afterAll(() => deleteLearningSchedule(ID));
+
+  it("upsert 後可讀回，targets 正確序列化", () => {
+    const s: LearningSchedule = {
+      id: ID, name: "每週設計部",
+      targets: [{ type: "category", id: "design" }],
+      cron: "0 9 * * 1", enabled: true, createdAt: Date.now(),
+    };
+    upsertLearningSchedule(s);
+    const got = getLearningSchedule(ID)!;
+    expect(got.name).toBe("每週設計部");
+    expect(got.targets).toEqual([{ type: "category", id: "design" }]);
+    expect(got.enabled).toBe(true);
+  });
+
+  it("upsert 同 id 為更新（停用）", () => {
+    const s = getLearningSchedule(ID)!;
+    upsertLearningSchedule({ ...s, enabled: false });
+    expect(getLearningSchedule(ID)!.enabled).toBe(false);
+  });
+
+  it("listLearningSchedules 含此排程", () => {
+    expect(listLearningSchedules().some((x) => x.id === ID)).toBe(true);
+  });
+
+  it("delete 後讀不到", () => {
+    deleteLearningSchedule(ID);
+    expect(getLearningSchedule(ID)).toBeUndefined();
+  });
+});
+```
+
+- [ ] **步驟 3：運行測試驗證失敗**
+
+運行：`cd server && npx vitest run src/learningSchedule.test.ts`
+預期：FAIL，報錯 `listLearningSchedules is not a function` 等。
+
+- [ ] **步驟 4：實現排程 store 函式**
+
+在 `server/src/learningStore.ts` 末尾加入：
+
+```typescript
+// --- 能力學習排程（時間驅動）---
+
+export interface LearningSchedule {
+  id: string;
+  name: string;
+  targets: { type: "category" | "agent"; id: string }[];
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: number;
+  createdAt: number;
+}
+
+function rowToLearningSchedule(r: any): LearningSchedule {
+  return {
+    id: r.id,
+    name: r.name,
+    targets: JSON.parse(r.targets || "[]"),
+    cron: r.cron,
+    enabled: !!r.enabled,
+    lastRunAt: r.last_run_at ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+export function listLearningSchedules(): LearningSchedule[] {
+  const rows = db.prepare("SELECT * FROM learning_schedules ORDER BY created_at DESC").all() as any[];
+  return rows.map(rowToLearningSchedule);
+}
+
+export function getLearningSchedule(id: string): LearningSchedule | undefined {
+  const r = db.prepare("SELECT * FROM learning_schedules WHERE id = ?").get(id) as any;
+  return r ? rowToLearningSchedule(r) : undefined;
+}
+
+export function upsertLearningSchedule(s: LearningSchedule): void {
+  db.prepare(`
+    INSERT INTO learning_schedules (id, name, targets, cron, enabled, last_run_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name, targets = excluded.targets, cron = excluded.cron,
+      enabled = excluded.enabled, last_run_at = excluded.last_run_at
+  `).run(s.id, s.name, JSON.stringify(s.targets), s.cron,
+         s.enabled ? 1 : 0, s.lastRunAt ?? null, s.createdAt);
+}
+
+export function deleteLearningSchedule(id: string): void {
+  db.prepare("DELETE FROM learning_schedules WHERE id = ?").run(id);
+}
+```
+
+- [ ] **步驟 5：運行測試驗證通過**
+
+運行：`cd server && npx vitest run src/learningSchedule.test.ts`
+預期：PASS（4 個測試）。
+
+- [ ] **步驟 6：實現排程器**
+
+建立 `server/src/learningScheduler.ts`（模式對齊既有 `scheduler.ts`）：
+
+```typescript
+/**
+ * 能力學習的時間驅動排程器 — 模式對齊 scheduler.ts。
+ * 每個 learning_schedule 依 cron 觸發，自動跑一輪能力學習。
+ */
+import cron, { ScheduledTask } from "node-cron";
+import {
+  listLearningSchedules, getLearningSchedule, upsertLearningSchedule,
+} from "./learningStore.js";
+import { createLearningRun, executeLearningRun, runLearningTarget } from "./capabilityLearning.js";
+
+type ProgressSink = (payload: any) => void;
+
+class LearningScheduler {
+  private tasks = new Map<string, ScheduledTask>();
+  private sink: ProgressSink = () => {};
+
+  /** server 啟動時呼叫一次，注入 socket 進度推送函式。 */
+  init(sink: ProgressSink) {
+    this.sink = sink;
+    this.sync();
+    console.log(`[learning-scheduler] initialized, ${this.tasks.size} active schedules`);
+  }
+
+  /** create/update/delete 後重新註冊全部 cron job。 */
+  sync() {
+    for (const id of [...this.tasks.keys()]) this.unregister(id);
+    for (const s of listLearningSchedules()) {
+      if (s.enabled && cron.validate(s.cron)) this.register(s.id, s.cron);
+    }
+  }
+
+  private register(id: string, expr: string) {
+    if (this.tasks.has(id)) return;
+    const task = cron.schedule(expr, () => this.fire(id), {
+      timezone: process.env.SCHEDULER_TZ || "Asia/Taipei",
+    });
+    this.tasks.set(id, task);
+  }
+
+  private unregister(id: string) {
+    const t = this.tasks.get(id);
+    if (t) { t.stop(); this.tasks.delete(id); }
+  }
+
+  private async fire(id: string) {
+    const s = getLearningSchedule(id);
+    if (!s || !s.enabled || s.targets.length === 0) return;
+    console.log(`[learning-scheduler] FIRE "${s.name}" (${s.targets.length} targets)`);
+    upsertLearningSchedule({ ...s, lastRunAt: Date.now() });
+    const run = createLearningRun(s.targets);
+    try {
+      await executeLearningRun(run, runLearningTarget, (r) => this.sink({
+        runId: r.id, status: r.status, total: r.total, done: r.done,
+        current: r.current, failed: r.failed,
+        createdProposals: r.createdProposals, scheduleId: id,
+      }));
+    } catch (e: any) {
+      console.warn(`[learning-scheduler] run "${s.name}" failed:`, e?.message || e);
+    }
+  }
+}
+
+export const learningScheduler = new LearningScheduler();
+```
+
+- [ ] **步驟 7：接 API 路由與啟動初始化**
+
+修改 `server/src/index.ts`：
+
+(a) import 區加入：
+
+```typescript
+import cron from "node-cron";
+import { learningScheduler } from "./learningScheduler.js";
+import {
+  listLearningSchedules, getLearningSchedule,
+  upsertLearningSchedule, deleteLearningSchedule,
+} from "./learningStore.js";
+```
+
+> `listLearningSchedules` 等也可併入既有 `from "./learningStore.js"` 那段 import；擇一即可，勿重複宣告。
+
+(b) 在 `/api/learning/run/:id` 路由之後加入排程 CRUD：
+
+```typescript
+app.get("/api/learning/schedules", (_req, res) => {
+  res.json(listLearningSchedules());
+});
+
+app.post("/api/learning/schedules", (req, res) => {
+  const { name, targets, cron: expr } = req.body || {};
+  if (!expr || !cron.validate(expr)) {
+    return res.status(400).json({ error: "cron 格式錯誤" });
+  }
+  const clean = Array.isArray(targets)
+    ? targets.filter((t: any) => t && (t.type === "category" || t.type === "agent") && typeof t.id === "string")
+    : [];
+  if (clean.length === 0) return res.status(400).json({ error: "targets 不可為空" });
+  const s = {
+    id: uuid(), name: String(name || "能力學習排程"),
+    targets: clean, cron: expr, enabled: true, createdAt: Date.now(),
+  };
+  upsertLearningSchedule(s);
+  learningScheduler.sync();
+  res.json(s);
+});
+
+app.patch("/api/learning/schedules/:id", (req, res) => {
+  const s = getLearningSchedule(req.params.id);
+  if (!s) return res.status(404).json({ error: "找不到排程" });
+  if (typeof req.body?.enabled === "boolean") s.enabled = req.body.enabled;
+  upsertLearningSchedule(s);
+  learningScheduler.sync();
+  res.json(s);
+});
+
+app.delete("/api/learning/schedules/:id", (req, res) => {
+  deleteLearningSchedule(req.params.id);
+  learningScheduler.sync();
+  res.json({ ok: true });
+});
+```
+
+(c) 在 server 啟動處 —— 既有 `scheduler` 初始化附近（搜尋 `scheduler.init` 或 `[scheduler] initialized` 對應的呼叫點）—— 加上：
+
+```typescript
+learningScheduler.init((payload) => io.emit("learning:progress", payload));
+```
+
+- [ ] **步驟 8：型別檢查**
+
+運行：`cd server && npx tsc --noEmit -p . 2>&1 | grep -E "learningScheduler|learningStore|index.ts"`
+預期：無輸出（既有 `memoryDistiller.ts` / `scheduler.ts` / `workflowRunner.ts` 的錯誤無關，忽略）。
+
+- [ ] **步驟 9：前端排程區塊**
+
+在 `client/src/components/CapabilityLearningPanel.tsx` 加一個排程區塊：
+- cron **預設選項**（不要讓使用者手寫 cron）：「每天 09:00」=`0 9 * * *`、「每週一 09:00」=`0 9 * * 1`、「每月 1 號 09:00」=`0 9 1 * *`
+- 「建立排程」：用目前勾選的 targets + 選定的 cron 預設 → `POST /api/learning/schedules`
+- 列出既有排程（`GET /api/learning/schedules`）：顯示 name / cron / targets 數 / 啟用狀態，提供啟用停用切換（`PATCH`）與刪除（`DELETE`）
+- 文案提示：自動排程一樣會吃 Claude 訂閱額度
+
+實作沿用任務 7 既有的 fetch 慣例與面板樣式。
+
+- [ ] **步驟 10：建置驗證**
+
+運行：`cd client && npx tsc -b`
+預期：無錯誤。
+
+- [ ] **步驟 11：Commit**
+
+```bash
+git add server/src/db.ts server/src/learningStore.ts server/src/learningScheduler.ts server/src/index.ts server/src/learningSchedule.test.ts client/src/components/CapabilityLearningPanel.tsx
+git commit -m "feat: 能力學習時間驅動 — 定期自動學習排程"
+```
+
+---
+
 ## 自檢結果
 
-**規格覆蓋度：** 規格 §4.1 資料模型→任務 1+2；§4.2 capabilityLearning→任務 3；§4.3 learningStore→任務 1；§4.4 approve→任務 4；§4.5 注入→任務 5；§4.6 API→任務 6；§4.7 UI→任務 7；§6 錯誤處理→任務 3（輸出上限、解析失敗 throw）+任務 6（failed 清單）；§7 測試→各任務 TDD 步驟；§8 實作順序→任務編號一致。全部覆蓋。
+**規格覆蓋度：** 規格 §4.1 資料模型→任務 1+2；§4.2 capabilityLearning→任務 3；§4.3 learningStore→任務 1；§4.4 approve→任務 4；§4.5 注入→任務 5；§4.6 API→任務 6；§4.7 UI→任務 7；§6 錯誤處理→任務 3（輸出上限、解析失敗 throw）+任務 6（failed 清單）；§7 測試→各任務 TDD 步驟；§8 實作順序→任務編號一致；§10 時間驅動→任務 9。全部覆蓋。
 
 **占位符掃描：** 任務 7 步驟 2 的 JSX `return` 是唯一「描述需求而非給完整碼」處——已明確標註元件邏輯（state/fetch/socket）完整給出、僅 JSX 需對齊既有面板，並列出全部 5 塊渲染需求，屬「遵循既有模式」的合理留白，非占位符。其餘步驟均含完整可執行碼。
 
