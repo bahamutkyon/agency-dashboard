@@ -19,6 +19,52 @@
 
 ---
 
+## [0.20.0] — 2026-05-21
+
+🧠 自主學習系統 Phase 1 + 🎨 skill 生態擴充。agent 能在對話中提出「學習提案」、
+經使用者審核後回灌能力;同時引入兩個自家 skill 與 25 個 awesome skill,
+並把它們接進實際 workflow。
+
+### 新增
+- **🧠 自主學習系統 Phase 1(學習引擎)** — agent 在回應末尾輸出 `LEARN` 標記 →
+  後端解析成「學習提案」存入 SQLite(pending)→ 使用者在前端審核佇列批准/拒絕 →
+  批准的提案按 scope 寫入工作區客戶檔案或 agent 手藝記憶 → 下次 agent 啟動時注入
+  - `learningCapture.ts` — 標記解析、去重、bigrams 抽取(無 DB 依賴的純函式)
+  - `learningStore.ts` — 學習提案與手藝記憶的 SQLite 存取,去重區分 workspace
+  - `learningInjector.ts` — 手藝記憶注入塊組裝
+  - `LearningQueuePanel.tsx` — 前端審核佇列面板,已接入導覽
+  - `/api/learning/*` — 提案查詢 / 批准 / 拒絕 / 手藝記憶 API 路由
+  - 設計規格與 Phase 1 實作計畫(`docs/superpowers/`)
+- **🎨 兩個自家 skill** — `creative-quality-gate`(anti-AI-slop 黑名單 + 五維自評審
+  雙閘門)、`design-system-picker`(23 套 design system DESIGN.md 規範)
+- **🎨 25 個 awesome skill 升為正式 dependency** — 來自 ComposioHQ/awesome-claude-skills,
+  `npm run install:awesome` 一鍵安裝;setup:full 新增 Step 2/5、doctor 新增體檢區塊
+- **vitest 測試框架** — server 端首套測試基礎設施,目前 17 個測試
+- **skill 驗證與批量映射工具** — `validate:skill`(驗證 agent 輸出實際呼叫了
+  expected skill)、`map-*.mjs`(批量 priming)、`verify-skill-priming.mjs`
+
+### 修改
+- **workflow 模板嵌入新 skill** — 文案類流程 emit 前過 `creative-quality-gate`
+  雙閘門;課程銷售頁 / pitch deck / campaign 用 `design-system-picker` 挑風格;
+  簡報走 `awesome-doc-pptx`、財務分析走 `awesome-doc-xlsx`
+- **`agent-skill-map.json`** — +308 行,把 awesome skill 與兩個新 skill priming
+  到對應 agent
+- **setup:full 流程改為 5 步** — 新增 Awesome Skills 步驟,其餘順延編號;
+  修正 Step 1 寫死的「21 個」改讀 manifest 實際數量
+- **`.gitignore`** — 排除 build 產物(tsbuildinfo)、dev 日誌、`*.pre-awesome.bak`
+
+### 修復
+- **client tsc 建置錯誤** — 修復既有的 TypeScript 編譯問題
+- **`learningCapture` 健壯性** — CRLF 處理、巢狀標記防禦
+- **approve 路由 CAS 防重複套用** — 加 try/catch,審核佇列操作失敗時給使用者回饋
+- **`agentManager` 學習提案** — 加 try/catch,例外不影響主對話流程
+
+### 已知限制
+- 學習回灌只對新開的對話生效;reattach 既有對話不會重建 system prompt
+- Phase 1 不含排程、`craftConsolidator`、語意矛盾偵測(屬 Phase 2)
+
+---
+
 ## [0.19.0] — 2026-05-12
 
 🎯 Skill priming + skill audit。213 agent 全部預先配上「最該善用的 3-5 個 skill」,

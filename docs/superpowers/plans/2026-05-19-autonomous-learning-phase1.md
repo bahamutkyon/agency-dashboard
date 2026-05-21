@@ -1,5 +1,7 @@
 # 自主學習系統 Phase 1（學習引擎）實現計劃
 
+> **狀態：✅ 已完成** — 2026-05-19 全套實作合併（commit `568eac2`…`1882924`），vitest 17 個測試全通過，學習面板已掛載前端。下方複選框已全數標記完成。
+
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推薦）或 superpowers:executing-plans 逐任務實現此計劃。步驟使用複選框（`- [ ]`）語法來跟蹤進度。
 
 **目標：** 讓 agent 能在對話中提出「學習提案」，使用者在審核佇列批准後，學習成果回灌進 agent 能力。
@@ -26,7 +28,7 @@
 **文件：**
 - 修改：`server/package.json`
 
-- [ ] **步驟 1：加入 vitest 依賴與 test script**
+- [x] **步驟 1：加入 vitest 依賴與 test script**
 
 修改 `server/package.json`，在 `scripts` 加一行、在 `devDependencies` 加一行：
 
@@ -51,17 +53,17 @@
 }
 ```
 
-- [ ] **步驟 2：安裝**
+- [x] **步驟 2：安裝**
 
 運行：`cd server && npm install`
 預期：vitest 安裝成功，無錯誤。
 
-- [ ] **步驟 3：驗證 vitest 可執行**
+- [x] **步驟 3：驗證 vitest 可執行**
 
 運行：`cd server && npx vitest run`
 預期：vitest 啟動，回報 "No test files found"（此時尚無測試檔），exit code 0 或提示無檔案——只要 vitest 本身能跑起來即可。
 
-- [ ] **步驟 4：Commit**
+- [x] **步驟 4：Commit**
 
 ```bash
 git add server/package.json server/package-lock.json
@@ -77,7 +79,7 @@ git commit -m "chore: 加入 vitest 測試框架"
 **文件：**
 - 修改：`server/src/db.ts`（`SCHEMA` 常數，約第 25-146 行之間）
 
-- [ ] **步驟 1：在 SCHEMA 常數末尾（反引號結束前）加入兩張表**
+- [x] **步驟 1：在 SCHEMA 常數末尾（反引號結束前）加入兩張表**
 
 在 `db.ts` 的 `SCHEMA` 模板字串內、`workflow_runs` 表定義之後、結尾反引號之前，加入：
 
@@ -104,7 +106,7 @@ CREATE TABLE IF NOT EXISTS agent_craft_memory (
 );
 ```
 
-- [ ] **步驟 2：驗證表已建立**
+- [x] **步驟 2：驗證表已建立**
 
 運行：
 ```bash
@@ -112,7 +114,7 @@ cd server && npx tsx -e "import('./src/db.js').then(m => { const r = m.db.prepar
 ```
 預期：輸出包含 `learning_proposals` 與 `agent_craft_memory` 兩列。
 
-- [ ] **步驟 3：Commit**
+- [x] **步驟 3：Commit**
 
 ```bash
 git add server/src/db.ts
@@ -129,7 +131,7 @@ git commit -m "feat: 學習系統資料表 schema"
 - 創建：`server/src/learningCapture.ts`
 - 測試：`server/src/learningCapture.test.ts`
 
-- [ ] **步驟 1：編寫失敗的測試**
+- [x] **步驟 1：編寫失敗的測試**
 
 創建 `server/src/learningCapture.test.ts`：
 
@@ -203,12 +205,12 @@ describe("similarity / isDuplicate", () => {
 });
 ```
 
-- [ ] **步驟 2：運行測試驗證失敗**
+- [x] **步驟 2：運行測試驗證失敗**
 
 運行：`cd server && npx vitest run src/learningCapture.test.ts`
 預期：FAIL，報錯找不到 `./learningCapture.js` 模組。
 
-- [ ] **步驟 3：編寫實現代碼**
+- [x] **步驟 3：編寫實現代碼**
 
 創建 `server/src/learningCapture.ts`：
 
@@ -291,12 +293,12 @@ export function isDuplicate(content: string, existing: string[]): boolean {
 }
 ```
 
-- [ ] **步驟 4：運行測試驗證通過**
+- [x] **步驟 4：運行測試驗證通過**
 
 運行：`cd server && npx vitest run src/learningCapture.test.ts`
 預期：PASS，全部測試通過。
 
-- [ ] **步驟 5：Commit**
+- [x] **步驟 5：Commit**
 
 ```bash
 git add server/src/learningCapture.ts server/src/learningCapture.test.ts
@@ -312,7 +314,7 @@ git commit -m "feat: 學習標記解析與去重（learningCapture）"
 **文件：**
 - 創建：`server/src/learningStore.ts`
 
-- [ ] **步驟 1：編寫實現代碼**
+- [x] **步驟 1：編寫實現代碼**
 
 創建 `server/src/learningStore.ts`：
 
@@ -422,7 +424,7 @@ export function appendCraftMemory(agentId: string, entry: string): void {
 }
 ```
 
-- [ ] **步驟 2：端到端驗證**
+- [x] **步驟 2：端到端驗證**
 
 運行（單行）：
 ```bash
@@ -430,7 +432,7 @@ cd server && npx tsx -e "import('./src/learningStore.js').then(m => { const p = 
 ```
 預期：`created:` 印出一個 `lp_` 開頭的 id；`dup should be null: null`；`pending count:` ≥ 1；`craft memory:` 含「測試手藝條目」；`pending after approve: 0`。
 
-- [ ] **步驟 3：清掉驗證留下的測試資料**
+- [x] **步驟 3：清掉驗證留下的測試資料**
 
 運行：
 ```bash
@@ -438,7 +440,7 @@ cd server && npx tsx -e "import('./src/db.js').then(m => { m.db.prepare(\"DELETE
 ```
 預期：輸出 `cleaned`。
 
-- [ ] **步驟 4：Commit**
+- [x] **步驟 4：Commit**
 
 ```bash
 git add server/src/learningStore.ts
@@ -455,7 +457,7 @@ git commit -m "feat: 學習提案與手藝記憶 DB 存取（learningStore）"
 - 創建：`server/src/learningInjector.ts`
 - 測試：`server/src/learningInjector.test.ts`
 
-- [ ] **步驟 1：編寫失敗的測試**
+- [x] **步驟 1：編寫失敗的測試**
 
 創建 `server/src/learningInjector.test.ts`：
 
@@ -477,12 +479,12 @@ describe("buildCraftMemoryBlock", () => {
 });
 ```
 
-- [ ] **步驟 2：運行測試驗證失敗**
+- [x] **步驟 2：運行測試驗證失敗**
 
 運行：`cd server && npx vitest run src/learningInjector.test.ts`
 預期：FAIL，找不到 `./learningInjector.js` 模組。
 
-- [ ] **步驟 3：編寫實現代碼**
+- [x] **步驟 3：編寫實現代碼**
 
 創建 `server/src/learningInjector.ts`：
 
@@ -503,12 +505,12 @@ ${c}
 }
 ```
 
-- [ ] **步驟 4：運行測試驗證通過**
+- [x] **步驟 4：運行測試驗證通過**
 
 運行：`cd server && npx vitest run src/learningInjector.test.ts`
 預期：PASS。
 
-- [ ] **步驟 5：Commit**
+- [x] **步驟 5：Commit**
 
 ```bash
 git add server/src/learningInjector.ts server/src/learningInjector.test.ts
@@ -524,7 +526,7 @@ git commit -m "feat: 手藝記憶注入塊組裝（learningInjector）"
 **文件：**
 - 修改：`server/src/agentManager.ts`
 
-- [ ] **步驟 1：更新 import**
+- [x] **步驟 1：更新 import**
 
 `agentManager.ts` 開頭的 import 區塊（第 1-15 行附近）：從 `./store.js` 的 import 中**移除** `appendWorkspaceMemory`（接線後此處不再直接呼叫它）。在 import 區塊**新增**三行：
 
@@ -534,7 +536,7 @@ import { createProposal, getCraftMemory } from "./learningStore.js";
 import { buildCraftMemoryBlock } from "./learningInjector.js";
 ```
 
-- [ ] **步驟 2：把 memoryCapability 換成 learningCapability**
+- [x] **步驟 2：把 memoryCapability 換成 learningCapability**
 
 `agentManager.ts` 第 115 行附近有一個 `const memoryCapability = ...`。將整個 `memoryCapability` 常數宣告替換為：
 
@@ -561,7 +563,7 @@ kind 四選一：
 `;
 ```
 
-- [ ] **步驟 3：在 start() 注入手藝記憶塊、改用 learningCapability**
+- [x] **步驟 3：在 start() 注入手藝記憶塊、改用 learningCapability**
 
 `agentManager.ts` 第 113 行附近有 `const skillPrimingBlock = buildSkillPrimingBlock(agentId);`。在它**下一行**新增：
 
@@ -581,7 +583,7 @@ kind 四選一：
     let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
 ```
 
-- [ ] **步驟 4：把 attachPersistence 的 REMEMBER 擷取改走提案**
+- [x] **步驟 4：把 attachPersistence 的 REMEMBER 擷取改走提案**
 
 `agentManager.ts` 的 `attachPersistence` 方法內、`message` 事件分支中有一段解析 `REMEMBER` 標記並呼叫 `appendWorkspaceMemory` 的程式碼（約第 250-257 行）。將整段：
 
@@ -615,12 +617,12 @@ kind 四選一：
         }
 ```
 
-- [ ] **步驟 5：型別檢查**
+- [x] **步驟 5：型別檢查**
 
 運行：`cd server && npx tsc --noEmit`
 預期：無錯誤。若報 `appendWorkspaceMemory` 未使用或未定義，確認步驟 1 的 import 調整正確。
 
-- [ ] **步驟 6：端到端驗證**
+- [x] **步驟 6：端到端驗證**
 
 啟動後端：`cd server && npm run dev`（背景執行）。另開終端機運行：
 
@@ -634,7 +636,7 @@ cd server && npx tsx -e "import('./src/db.js').then(m => { m.db.prepare(\"DELETE
 
 > 注意：完整的「agent 對話 → 標記 → 提案」鏈路會在任務 7 的瀏覽器驗證中端到端確認。
 
-- [ ] **步驟 7：Commit**
+- [x] **步驟 7：Commit**
 
 ```bash
 git add server/src/agentManager.ts
@@ -650,7 +652,7 @@ git commit -m "feat: agentManager 接入學習提案擷取與手藝記憶注入"
 **文件：**
 - 修改：`server/src/index.ts`
 
-- [ ] **步驟 1：更新 import**
+- [x] **步驟 1：更新 import**
 
 在 `index.ts` 從 `./store.js` 的 import（第 19-27 行）中，於既有名單加入 `appendWorkspaceMemory`。並在 import 區塊新增一行：
 
@@ -661,7 +663,7 @@ import {
 } from "./learningStore.js";
 ```
 
-- [ ] **步驟 2：新增 4 個路由**
+- [x] **步驟 2：新增 4 個路由**
 
 在 `index.ts` 的 notes 路由區塊之後（約第 980 行 `app.delete("/api/notes/:id" ...)` 之後）加入：
 
@@ -701,12 +703,12 @@ app.get("/api/learning/craft", (req, res) => {
 });
 ```
 
-- [ ] **步驟 3：型別檢查**
+- [x] **步驟 3：型別檢查**
 
 運行：`cd server && npx tsc --noEmit`
 預期：無錯誤。
 
-- [ ] **步驟 4：驗證路由**
+- [x] **步驟 4：驗證路由**
 
 啟動後端：`cd server && npm run dev`（背景執行）。另開終端機：
 
@@ -716,7 +718,7 @@ curl -s "http://localhost:5191/api/learning/craft?agentId=nobody"
 ```
 預期：第一個回傳 `[]`（或既有待審提案的 JSON 陣列）；第二個回傳 `{"agentId":"nobody","content":""}`。確認後關閉後端。
 
-- [ ] **步驟 5：Commit**
+- [x] **步驟 5：Commit**
 
 ```bash
 git add server/src/index.ts
@@ -735,7 +737,7 @@ git commit -m "feat: 學習系統 API 路由"
 - 修改：`client/src/App.tsx`
 - 修改：`client/src/components/AgentSidebar.tsx`
 
-- [ ] **步驟 1：api.ts 新增型別與方法**
+- [x] **步驟 1：api.ts 新增型別與方法**
 
 在 `client/src/lib/api.ts` 檔案末尾（最後一個 `export interface` 之後）新增型別：
 
@@ -764,7 +766,7 @@ export interface LearningProposal {
     fetch(`/api/learning/proposals/${id}/reject`, { method: "POST" }).then(j),
 ```
 
-- [ ] **步驟 2：建立 LearningQueuePanel 組件**
+- [x] **步驟 2：建立 LearningQueuePanel 組件**
 
 創建 `client/src/components/LearningQueuePanel.tsx`：
 
@@ -852,7 +854,7 @@ export function LearningQueuePanel({ agents }: { agents: AgentMeta[] }) {
 }
 ```
 
-- [ ] **步驟 3：App.tsx 接線**
+- [x] **步驟 3：App.tsx 接線**
 
 在 `client/src/App.tsx` 做四處修改：
 
@@ -881,7 +883,7 @@ import { LearningQueuePanel } from "./components/LearningQueuePanel";
           {isView("learning") && <LearningQueuePanel key={`l-${reloadKey}`} agents={agents} />}
 ```
 
-- [ ] **步驟 4：AgentSidebar.tsx 新增導覽按鈕**
+- [x] **步驟 4：AgentSidebar.tsx 新增導覽按鈕**
 
 開啟 `client/src/components/AgentSidebar.tsx`，做三處修改：
 
@@ -907,12 +909,12 @@ import { LearningQueuePanel } from "./components/LearningQueuePanel";
           </button>
 ```
 
-- [ ] **步驟 5：型別檢查與建置**
+- [x] **步驟 5：型別檢查與建置**
 
 運行：`cd client && npx tsc --noEmit && npm run build`
 預期：無型別錯誤，建置成功。
 
-- [ ] **步驟 6：瀏覽器端到端驗證**
+- [x] **步驟 6：瀏覽器端到端驗證**
 
 啟動完整 dashboard：專案根目錄運行 `npm run dev`（背景執行）。瀏覽器開 `http://localhost:5190`：
 
@@ -925,7 +927,7 @@ import { LearningQueuePanel } from "./components/LearningQueuePanel";
 
 預期：上述 6 步全部符合。若提案沒出現，檢查 server console 是否有 `parseLearnMarkers` / `createProposal` 相關錯誤。
 
-- [ ] **步驟 7：Commit**
+- [x] **步驟 7：Commit**
 
 ```bash
 git add client/src/lib/api.ts client/src/components/LearningQueuePanel.tsx client/src/App.tsx client/src/components/AgentSidebar.tsx
@@ -936,12 +938,12 @@ git commit -m "feat: 學習審核佇列前端面板與導覽接線"
 
 ## 完成後驗收
 
-- [ ] 全部單元測試通過：`cd server && npm test`
-- [ ] agent 在對話輸出 `LEARN` 標記 → 提案進審核佇列（pending）
-- [ ] 批准 `craft`/`domain` 提案 → 寫入 `agent_craft_memory`；批准 `fact`/`calibration` 提案 → 寫入 `workspace.memory`
-- [ ] 拒絕的提案不再出現、且相同內容不會重複冒出（去重生效）
-- [ ] 下次 agent 啟動時 system prompt 含手藝記憶注入塊
-- [ ] 既有 `REMEMBER` 標記改為產生提案（不再自動寫入備忘錄）
+- [x] 全部單元測試通過：`cd server && npm test`
+- [x] agent 在對話輸出 `LEARN` 標記 → 提案進審核佇列（pending）
+- [x] 批准 `craft`/`domain` 提案 → 寫入 `agent_craft_memory`；批准 `fact`/`calibration` 提案 → 寫入 `workspace.memory`
+- [x] 拒絕的提案不再出現、且相同內容不會重複冒出（去重生效）
+- [x] 下次 agent 啟動時 system prompt 含手藝記憶注入塊
+- [x] 既有 `REMEMBER` 標記改為產生提案（不再自動寫入備忘錄）
 
 ## Phase 2 銜接（本計劃不做）
 
