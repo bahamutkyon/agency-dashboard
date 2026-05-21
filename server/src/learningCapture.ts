@@ -4,7 +4,7 @@
  */
 
 export type LearnKind = "fact" | "craft" | "domain" | "calibration";
-export type LearnScope = "workspace" | "agent-global";
+export type LearnScope = "workspace" | "agent-global" | "category";
 
 export interface LearnDraft {
   kind: LearnKind;
