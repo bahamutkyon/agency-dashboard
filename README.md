@@ -299,6 +299,62 @@ npm run audit:skills -- --out audit.md        # 輸出 markdown 檔
 
 ---
 
+## 🌱 自主學習系統(0.20+)
+
+讓 agent 在對話中「學到的東西」能沉澱下來,而不是關掉視窗就忘光。
+
+### 怎麼運作
+
+1. agent 在回應末尾輸出 `LEARN` 標記(它判斷這次學到值得記住的東西時)
+2. 後端解析成「學習提案」,存進 SQLite,狀態 `pending`
+3. 你在導覽的 **學習佇列** 面板看到提案,逐條批准或拒絕
+4. 批准的提案按範圍寫入:
+   - **工作區範圍** → 寫進該工作區的客戶檔案(沿用既有記憶)
+   - **agent 範圍** → 寫進該 agent 的「手藝記憶」(新增的表)
+5. 下次該 agent **新開對話**時,手藝記憶會注入 system prompt
+
+### 注意
+
+- 回灌只對**新開的對話**生效。已經開著的對話 reattach 不會重建 system prompt
+- 審核佇列本身就是安全閘 — agent 不會自己偷改能力,一定要你點批准
+- Phase 1 只做「學習引擎」。排程、自動整合、語意矛盾偵測屬 Phase 2
+
+---
+
+## 🎨 創意 skill:設計風格 + 品質閘門 + Awesome Skills(0.20+)
+
+### design-system-picker — 挑對設計語言
+
+要產出「Linear 風的 dashboard」「Notion 風的提案頁」這類有特定品牌視覺
+語言的東西時,agent 會從 23 套精選 design system 裡挑一套,讀它的
+`DESIGN.md`(色彩 / 字型 / 間距規範)當設計依據,而不是自己亂編色碼。
+
+### creative-quality-gate — 對外交付前的品質閘門
+
+創意產出(文案 / 簡報 / 設計)emit 前要過兩道閘:
+
+- **anti-AI-slop 黑名單** — 擋掉「賦能 / 助力 / 打造」、「不僅…而且」、
+  紫漸變、通用 emoji 堆、假數據等 AI 味濃的東西
+- **五維自評審** — Philosophy / Hierarchy / Detail / Function / Innovation
+  五個維度打分,任一維 <3 必須回工
+
+dashboard 的文案類 workflow 模板已經把這道閘嵌進去了。
+
+### Awesome Skills — 25 個外掛能力
+
+來自 [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills)
+的精選 skill,加 `awesome-` 前綴避免與既有 skill 衝突。涵蓋文件處理
+(docx / pdf / pptx / xlsx)、圖片增強、影片下載、簡報設計、會議洞察等。
+
+```bash
+npm run install:awesome              # 安裝缺的(既有不覆寫)
+npm run install:awesome -- --force   # 全部重裝
+```
+
+`setup:full` 也會在 Step 2 問你要不要裝;`doctor` 會把它列進體檢。
+
+---
+
 ## 🧠 站在 Claude Code 全域配置之上(三層繼承)
 
 dashboard 不是孤島,它**站在你 Claude Code 的家目錄配置之上**。每個 agent 對話都會自動繼承你機器上裝的東西:
