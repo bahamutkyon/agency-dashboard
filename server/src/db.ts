@@ -164,6 +164,12 @@ CREATE TABLE IF NOT EXISTS agent_craft_memory (
   content TEXT NOT NULL DEFAULT '',
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS category_capability_memory (
+  category   TEXT PRIMARY KEY,
+  content    TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
 `;
 
 db.exec(SCHEMA);

@@ -106,3 +106,23 @@ export function appendCraftMemory(agentId: string, entry: string): void {
     ON CONFLICT(agent_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
   `).run(agentId, next, Date.now());
 }
+
+// --- 類層能力記憶（category-global，跨工作區，同類 agent 共享）---
+
+export function getCategoryMemory(categoryId: string): string {
+  const r = db.prepare("SELECT content FROM category_capability_memory WHERE category = ?").get(categoryId) as any;
+  return r?.content || "";
+}
+
+export function appendCategoryMemory(categoryId: string, entry: string): void {
+  const cur = getCategoryMemory(categoryId).trim();
+  const ts = new Date().toISOString().slice(0, 10);
+  const line = `- [${ts}] ${entry.trim()}`;
+  let next = cur ? `${cur}\n${line}` : line;
+  if (next.length > CRAFT_CAP) next = "(舊能力記憶已壓縮)\n" + next.slice(-(CRAFT_CAP - 200));
+  db.prepare(`
+    INSERT INTO category_capability_memory (category, content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+  `).run(categoryId, next, Date.now());
+}
