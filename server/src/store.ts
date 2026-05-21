@@ -318,6 +318,43 @@ export function listSessions(workspaceId?: string): SessionRecord[] {
   return (rows as any[]).map((r) => rowToSession(r, []));
 }
 
+/** Session 摘要：list view 需要的欄位 + 訊息數 + 最後一句預覽，但不含全部訊息。 */
+export interface SessionSummary extends Omit<SessionRecord, "messages"> {
+  messageCount: number;
+  lastSnippet: string | null;
+  lastRole: Message["role"] | null;
+}
+
+/**
+ * 列出 session 並附上訊息數與最後一句預覽 —— 全部在「單一查詢」內完成。
+ * 取代舊的 `listSessions().map(getSession)` 模式（每筆 session 一次查詢，
+ * 且把整串訊息全文撈出只為了數長度）。correlated subquery 走 idx_messages_session
+ * 索引，數百筆 session 也只是一次表掃描。
+ */
+export function listSessionsWithCounts(workspaceId?: string): SessionSummary[] {
+  const sql = `
+    SELECT s.*,
+      (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS message_count,
+      (SELECT m.content FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_content,
+      (SELECT m.role    FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_role
+    FROM sessions s
+    ${workspaceId ? "WHERE s.workspace_id = ?" : ""}
+    ORDER BY s.updated_at DESC
+  `;
+  const rows = (workspaceId
+    ? db.prepare(sql).all(workspaceId)
+    : db.prepare(sql).all()) as any[];
+  return rows.map((r) => {
+    const { messages: _omit, ...rest } = rowToSession(r, []);
+    return {
+      ...rest,
+      messageCount: Number(r.message_count) || 0,
+      lastSnippet: r.last_content != null ? String(r.last_content) : null,
+      lastRole: (r.last_role as Message["role"]) || null,
+    };
+  });
+}
+
 /**
  * Upsert a session. If messages array is provided, we replace all stored
  * messages with the new array — caller is responsible for being consistent.

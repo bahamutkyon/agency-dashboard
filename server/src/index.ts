@@ -17,7 +17,7 @@ import { routePrompt } from "./smartRouter.js";
 import { importWorkflowYaml, exportWorkflowYaml } from "./yamlAdapter.js";
 import { v4 as uuid } from "uuid";
 import {
-  getSession, listSessions, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
+  getSession, listSessionsWithCounts, listTemplates, upsertTemplate, deleteTemplate as removeTemplate,
   upsertSession, listNotes, upsertNote, deleteNote as removeNote,
   listWorkspaces, getWorkspace, createWorkspace, updateWorkspace, deleteWorkspace as removeWorkspace,
   searchSessions, aggregateTags, listSchedules, DEFAULT_WORKSPACE_ID,
@@ -229,15 +229,10 @@ app.get("/api/sessions", (req, res) => {
   // ?includeEmpty=1 to bypass filter (e.g. for sessionCounts that want totals).
   // Default: drop sessions with zero messages (殭屍 session 不該出現在歷史).
   const includeEmpty = String(req.query.includeEmpty || "") === "1";
-  const out = listSessions(ws(req)).map((s) => {
-    const full = getSession(s.id);
-    return {
-      ...s,
-      status: agentManager.liveStatus(s.id),
-      messages: undefined,
-      messageCount: full?.messages?.length || 0,
-    };
-  }).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting");
+  const out = listSessionsWithCounts(ws(req)).map((s) => ({
+    ...s,
+    status: agentManager.liveStatus(s.id),
+  })).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting");
   res.json(out);
 });
 
@@ -294,23 +289,20 @@ app.post("/api/agent-memory/distill", async (req, res) => {
 app.get("/api/agents/:agentId/sessions", (req, res) => {
   const agentId = req.params.agentId;
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
-  const all = listSessions(wsId).filter((s) => s.agentId === agentId);
-  const enriched = all.map((s) => {
-    const full = getSession(s.id);
-    const lastMsg = full?.messages?.[full.messages.length - 1];
-    return {
+  const enriched = listSessionsWithCounts(wsId)
+    .filter((s) => s.agentId === agentId)
+    .map((s) => ({
       id: s.id,
       title: s.title,
       tags: s.tags,
       provider: s.provider,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
-      messageCount: full?.messages?.length || 0,
+      messageCount: s.messageCount,
       status: agentManager.liveStatus(s.id),
-      lastSnippet: lastMsg ? lastMsg.content.slice(0, 120) : null,
-      lastRole: lastMsg?.role || null,
-    };
-  });
+      lastSnippet: s.lastSnippet ? s.lastSnippet.slice(0, 120) : null,
+      lastRole: s.lastRole,
+    }));
   // 過濾空場次,但保留正在進行 / 剛開的(status === "busy" / "starting")
   const out = enriched.filter((s) =>
     s.messageCount > 0 || s.status === "busy" || s.status === "starting"
