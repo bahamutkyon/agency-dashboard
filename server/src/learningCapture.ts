@@ -25,10 +25,11 @@ export function deriveScope(kind: LearnKind): LearnScope {
  * 解析文字中所有 LEARN 與 REMEMBER 標記。
  *  - === LEARN kind=craft === ... === END LEARN ===
  *  - === REMEMBER === ... === END REMEMBER ===（視為 kind=fact）
- * 略過空內容與超過 200 字的內容；單次最多回傳 5 條（LEARN + REMEMBER 合計）。
+ * 略過空內容與超過 200 字的內容；單次最多回傳 maxDrafts 條（LEARN + REMEMBER 合計），
+ * 預設 5（Phase 1 行為）；類層呼叫時傳 8 以支援 5-8 條產出。
  * LEARN 先解析、REMEMBER 後解析，超出上限時後者先被裁掉。
  */
-export function parseLearnMarkers(text: string): LearnDraft[] {
+export function parseLearnMarkers(text: string, maxDrafts: number = MAX_DRAFTS): LearnDraft[] {
   const out: LearnDraft[] = [];
 
   const learnRe = /===\s*LEARN\s+kind=(\w+)\s*===[ \t]*\r?\n([\s\S]*?)\r?\n===\s*END\s*LEARN\s*===/gi;
@@ -59,7 +60,7 @@ export function parseLearnMarkers(text: string): LearnDraft[] {
     out.push({ kind: "fact", scope: "workspace", content });
   }
 
-  return out.slice(0, MAX_DRAFTS);
+  return out.slice(0, maxDrafts);
 }
 
 /** 從字串產生字元 bigram 集合；長度 1 時退回單字元集合。 */

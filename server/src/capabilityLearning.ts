@@ -31,7 +31,7 @@ export function parseCategoryAgentId(agentId: string): string | null {
  * （createProposal 內建去重，重複的不計入）。
  */
 export function ingestLearningOutput(text: string, target: LearnTarget): number {
-  const drafts = parseLearnMarkers(text);
+  const drafts = parseLearnMarkers(text, 8);
   let created = 0;
   for (const d of drafts) {
     const proposal = target.type === "category"
@@ -59,6 +59,12 @@ export function ingestLearningOutput(text: string, target: LearnTarget): number 
 /** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */
 function runClaudeOnce(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err: Error | null, val?: string) => {
+      if (settled) return;
+      settled = true;
+      err ? reject(err) : resolve(val!);
+    };
     const child = spawnClaude([
       "-p", "--output-format", "json",
       "--model", LEARNING_MODEL,
@@ -69,19 +75,19 @@ function runClaudeOnce(prompt: string): Promise<string> {
     child.stdout!.setEncoding("utf8");
     child.stdout!.on("data", (d) => {
       out += String(d);
-      if (out.length > 5_000_000) { child.kill(); reject(new Error("輸出超過上限")); }
+      if (out.length > 5_000_000) { child.kill(); done(new Error("輸出超過上限")); }
     });
     child.stderr!.on("data", () => {});
     child.stdin!.write(Buffer.from(prompt, "utf8"));
     child.stdin!.end();
-    child.on("error", (e) => reject(e));
+    child.on("error", (e) => done(e));
     child.on("close", (code) => {
-      if (code !== 0) { reject(new Error(`claude exit ${code}`)); return; }
+      if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
       try {
         const j = JSON.parse(out);
-        resolve(String(j.result || ""));
+        done(null, String(j.result || ""));
       } catch (e: any) {
-        reject(new Error(`解析回應失敗: ${e.message}`));
+        done(new Error(`解析回應失敗: ${e.message}`));
       }
     });
   });
@@ -100,7 +106,7 @@ export async function runLearningTarget(target: LearnTarget): Promise<{ created:
   }
   const text = await runClaudeOnce(prompt);
   const created = ingestLearningOutput(text, target);
-  if (created === 0 && !parseLearnMarkers(text).length) {
+  if (created === 0 && !parseLearnMarkers(text, 8).length) {
     throw new Error("回應未包含任何學習標記");
   }
   return { created };

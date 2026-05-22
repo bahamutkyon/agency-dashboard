@@ -46,6 +46,12 @@ describe("parseLearnMarkers", () => {
     expect(parseLearnMarkers(text)).toHaveLength(5);
   });
 
+  it("指定 maxDrafts=8 時最多回傳 8 條", () => {
+    const block = (i: number) => `=== LEARN kind=fact ===\n條目${i}\n=== END LEARN ===`;
+    const text = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(block).join("\n");
+    expect(parseLearnMarkers(text, 8)).toHaveLength(8);
+  });
+
   it("無標記時回傳空陣列", () => {
     expect(parseLearnMarkers("普通回答，沒有標記")).toEqual([]);
   });

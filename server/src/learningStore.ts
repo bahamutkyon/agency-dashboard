@@ -50,7 +50,7 @@ export function createProposal(input: {
   const prior = db.prepare(`
     SELECT content FROM learning_proposals
     WHERE agent_id = ?
-      AND (scope = 'agent-global' OR workspace_id = ?)
+      AND (scope = 'agent-global' OR scope = 'category' OR workspace_id = ?)
     ORDER BY created_at DESC LIMIT 100
   `).all(input.agentId, input.workspaceId) as any[];
   if (isDuplicate(input.content, prior.map((r) => r.content))) return null;

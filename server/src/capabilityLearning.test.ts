@@ -18,6 +18,7 @@ describe("parseCategoryAgentId", () => {
 describe("ingestLearningOutput", () => {
   afterAll(() => {
     db.prepare("DELETE FROM learning_proposals WHERE agent_id = ?").run(CATEGORY_PREFIX + CAT);
+    db.prepare("DELETE FROM learning_proposals WHERE agent_id = ?").run(CATEGORY_PREFIX + "test-dedup-cat");
   });
 
   it("解析類層輸出，建立 scope=category 的提案", () => {
@@ -40,5 +41,18 @@ describe("ingestLearningOutput", () => {
 
   it("沒有標記時回傳 0", () => {
     expect(ingestLearningOutput("普通文字沒有標記", { type: "category", id: CAT })).toBe(0);
+  });
+
+  it("同一類別重跑相同內容，第二次因去重回傳 0", () => {
+    const text = [
+      "=== LEARN kind=domain ===",
+      "類層去重測試條目",
+      "=== END LEARN ===",
+    ].join("\n");
+    const target = { type: "category" as const, id: "test-dedup-cat" };
+    const first = ingestLearningOutput(text, target);
+    const second = ingestLearningOutput(text, target);
+    expect(first).toBe(1);
+    expect(second).toBe(0);
   });
 });
