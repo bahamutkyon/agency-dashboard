@@ -71,8 +71,11 @@ export function getProposal(id: string): LearningProposal | undefined {
 }
 
 export function listPendingProposals(workspaceId?: string): LearningProposal[] {
+  // agent-global（手藝/領域）與 category（類共通能力）提案本質跨工作區，
+  // 不該被工作區過濾掩蓋——否則在非預設工作區會看不到能力學習產出的提案。
+  // 只有 workspace scope（關於使用者的事實）才綁定工作區。
   const rows = workspaceId
-    ? db.prepare("SELECT * FROM learning_proposals WHERE status = 'pending' AND workspace_id = ? ORDER BY created_at DESC").all(workspaceId)
+    ? db.prepare("SELECT * FROM learning_proposals WHERE status = 'pending' AND (workspace_id = ? OR scope = 'agent-global' OR scope = 'category') ORDER BY created_at DESC").all(workspaceId)
     : db.prepare("SELECT * FROM learning_proposals WHERE status = 'pending' ORDER BY created_at DESC").all();
   return (rows as any[]).map(rowToProposal);
 }

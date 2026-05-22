@@ -6,6 +6,7 @@ import {
 import { db } from "./db.js";
 import {
   getCategoryMemory, getProposal, setProposalStatus, appendCraftMemory, appendCategoryMemory,
+  listPendingProposals,
 } from "./learningStore.js";
 
 const CAT = "test-ingest-cat";
@@ -124,5 +125,22 @@ describe("executeLearningRun", () => {
     expect(run.done).toBe(2);
     expect(run.failed).toHaveLength(1);
     expect(run.failed[0].error).toContain("壞掉了");
+  });
+});
+
+describe("listPendingProposals 跨工作區可見性", () => {
+  const CAT3 = "test-xws-cat";
+  afterAll(() => {
+    db.prepare("DELETE FROM learning_proposals WHERE agent_id = ?").run(CATEGORY_PREFIX + CAT3);
+  });
+
+  it("類層提案（scope=category）在非預設工作區也看得到", () => {
+    ingestLearningOutput(
+      "=== LEARN kind=domain ===\n跨工作區可見性測試\n=== END LEARN ===",
+      { type: "category", id: CAT3 },
+    );
+    // 類層提案存在 default 工作區，但從別的工作區查詢也應該看得到
+    const rows = listPendingProposals("ws_some_other_workspace");
+    expect(rows.some((p) => p.agentId === CATEGORY_PREFIX + CAT3)).toBe(true);
   });
 });
