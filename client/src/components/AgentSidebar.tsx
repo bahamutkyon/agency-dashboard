@@ -16,6 +16,7 @@ interface Props {
   onOpenBatch: () => void;
   onOpenNotes: () => void;
   onOpenLearning: () => void;
+  onOpenCapabilityLearning: () => void;
   onOpenWorkflows: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
@@ -24,7 +25,7 @@ export function AgentSidebar({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenWorkflows,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenWorkflows,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -105,6 +106,14 @@ export function AgentSidebar({
           >
             <span>🧠</span>
             <span>學習</span>
+          </button>
+          <button
+            onClick={onOpenCapabilityLearning}
+            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
+            title="能力學習進程"
+          >
+            <span>🎓</span>
+            <span>能力學習</span>
           </button>
           <button
             onClick={onOpenTemplates}
