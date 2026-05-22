@@ -6,9 +6,9 @@ import {
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
 import { parseLearnMarkers } from "./learningCapture.js";
-import { createProposal, getCraftMemory } from "./learningStore.js";
-import { buildCraftMemoryBlock } from "./learningInjector.js";
-import { readAgentDefinition } from "./agentLoader.js";
+import { createProposal, getCraftMemory, getCategoryMemory } from "./learningStore.js";
+import { buildCapabilityBlock } from "./learningInjector.js";
+import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
@@ -118,7 +118,10 @@ export class AgentManager {
     // 注意:craftBlock 與下方的 memoryBlock/agentMemoryBlock 都只在 start()
     // (新開對話)注入。reattach() 喚醒既有對話時不會重建 system prompt,
     // 因此批准後的學習成果只對「之後新開的對話」生效,進行中的舊對話需新開才看得到。
-    const craftBlock = buildCraftMemoryBlock(getCraftMemory(agentId));
+    const craftBlock = buildCapabilityBlock(
+      getCategoryMemory(categoryFor(agentId)),
+      getCraftMemory(agentId),
+    );
 
     const learningCapability = `
 

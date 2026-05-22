@@ -95,7 +95,7 @@ function buildRepoCategoryMap(repo: string): Map<string, string> {
 let repoMapCache: Map<string, string> | null = null;
 let repoPathCache: string | null | undefined;
 
-function categoryFor(id: string): string {
+export function categoryFor(id: string): string {
   if (repoPathCache === undefined) {
     repoPathCache = findRepoPath();
     if (repoPathCache) {
