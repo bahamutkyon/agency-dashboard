@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { getSocket } from "../lib/socket";
+import { api, AgentMeta, CategoryMeta } from "../lib/api";
 
-interface AgentMeta { id: string; name: string; category: string; }
-interface Category { id: string; label: string; count: number; }
 interface RunProgress {
   runId: string;
   status: string;
@@ -15,20 +14,21 @@ interface RunProgress {
 
 export function CapabilityLearningPanel() {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryMeta[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/agents")
-      .then((r) => r.json())
+    api.agents()
       .then((d) => {
         setAgents(d.agents || []);
         setCategories(d.categories || []);
+        setLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => { setLoaded(true); });
   }, []);
 
   useEffect(() => {
@@ -65,12 +65,14 @@ export function CapabilityLearningPanel() {
     if (targets.length === 0) return;
     setBusy(true);
     setProgress(null);
-    const r = await fetch("/api/learning/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targets }),
-    });
-    if (!r.ok) {
+    try {
+      const r = await fetch("/api/learning/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targets }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+    } catch {
       setBusy(false);
       alert("啟動失敗");
     }
@@ -129,9 +131,14 @@ export function CapabilityLearningPanel() {
             </div>
           </div>
 
-          {categories.length === 0 && (
+          {!loaded && (
             <div className="p-6 text-center text-zinc-500 text-sm">
               載入中…
+            </div>
+          )}
+          {loaded && categories.length === 0 && (
+            <div className="p-6 text-center text-zinc-500 text-sm">
+              沒有可用的類別
             </div>
           )}
 
@@ -262,8 +269,8 @@ export function CapabilityLearningPanel() {
             {progress.failed && progress.failed.length > 0 && (
               <div className="space-y-1">
                 <div className="text-xs text-rose-400 font-medium">失敗項目：</div>
-                {progress.failed.map((f, i) => (
-                  <div key={i} className="text-xs text-zinc-500 pl-2">
+                {progress.failed.map((f) => (
+                  <div key={f.target} className="text-xs text-zinc-500 pl-2">
                     <span className="text-rose-400">{f.target}</span>
                     {f.error && <span className="ml-2">— {f.error}</span>}
                   </div>
