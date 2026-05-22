@@ -32,7 +32,10 @@ import {
   getCraftMemory, appendCraftMemory, appendCategoryMemory,
 } from "./learningStore.js";
 
-import { parseCategoryAgentId } from "./capabilityLearning.js";
+import {
+  parseCategoryAgentId, createLearningRun, executeLearningRun,
+  getLearningRun, runLearningTarget,
+} from "./capabilityLearning.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -1083,6 +1086,36 @@ io.on("connection", (socket) => {
     console.log(`[ws] session:stop ${sessionId}`);
     agentManager.stop(sessionId);
   });
+});
+
+// 啟動能力學習 run — 序列逐一跑，socket 推進度。
+app.post("/api/learning/run", (req, res) => {
+  const targets = Array.isArray(req.body?.targets) ? req.body.targets : [];
+  const clean = targets.filter(
+    (t: any) => t && (t.type === "category" || t.type === "agent") && typeof t.id === "string",
+  );
+  if (clean.length === 0) return res.status(400).json({ error: "targets 不可為空" });
+
+  const run = createLearningRun(clean);
+  res.json({ runId: run.id, total: run.total });
+
+  // 背景序列執行，不阻塞回應
+  executeLearningRun(run, runLearningTarget, (r) => {
+    io.emit("learning:progress", {
+      runId: r.id, status: r.status, total: r.total, done: r.done,
+      current: r.current, failed: r.failed, createdProposals: r.createdProposals,
+    });
+  }).catch((e) => {
+    run.status = "error";
+    console.warn("[capability-learning] run failed:", e?.message || e);
+  });
+});
+
+// 查詢 run 進度
+app.get("/api/learning/run/:id", (req, res) => {
+  const run = getLearningRun(req.params.id);
+  if (!run) return res.status(404).json({ error: "找不到 run" });
+  res.json(run);
 });
 
 server.listen(PORT, REMOTE_CFG.bindHost, () => {

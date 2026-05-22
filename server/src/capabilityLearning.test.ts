@@ -1,6 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import {
   ingestLearningOutput, parseCategoryAgentId, CATEGORY_PREFIX,
+  executeLearningRun, type LearningRun, type LearnTarget,
 } from "./capabilityLearning.js";
 import { db } from "./db.js";
 import {
@@ -81,5 +82,47 @@ describe("approve 類層提案 → 寫進類記憶", () => {
     expect(categoryId).toBe(CAT2);
     appendCategoryMemory(categoryId!, p.content);
     expect(getCategoryMemory(CAT2)).toContain("批准測試能力");
+  });
+});
+
+describe("executeLearningRun", () => {
+  function makeRun(targets: LearnTarget[]): LearningRun {
+    return {
+      id: "run_test", targets, status: "running",
+      total: targets.length, done: 0, current: null,
+      failed: [], createdProposals: 0,
+    };
+  }
+
+  it("全部成功 → status done、done 計數正確、累計提案數", async () => {
+    const run = makeRun([
+      { type: "category", id: "a" },
+      { type: "category", id: "b" },
+    ]);
+    const progress: number[] = [];
+    await executeLearningRun(run, async () => ({ created: 3 }), (r) => progress.push(r.done));
+    expect(run.status).toBe("done");
+    expect(run.done).toBe(2);
+    expect(run.createdProposals).toBe(6);
+    expect(progress).toEqual([1, 2]);
+  });
+
+  it("單一 target 失敗 → 記入 failed、繼續跑完、status done", async () => {
+    const run = makeRun([
+      { type: "category", id: "ok" },
+      { type: "category", id: "bad" },
+    ]);
+    await executeLearningRun(
+      run,
+      async (t) => {
+        if (t.id === "bad") throw new Error("壞掉了");
+        return { created: 1 };
+      },
+      () => {},
+    );
+    expect(run.status).toBe("done");
+    expect(run.done).toBe(2);
+    expect(run.failed).toHaveLength(1);
+    expect(run.failed[0].error).toContain("壞掉了");
   });
 });

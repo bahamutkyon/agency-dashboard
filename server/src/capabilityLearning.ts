@@ -93,6 +93,61 @@ function runClaudeOnce(prompt: string): Promise<string> {
   });
 }
 
+// --- 學習 run 狀態機 ---
+
+export interface LearningRun {
+  id: string;
+  targets: LearnTarget[];
+  status: "running" | "done" | "error";
+  total: number;
+  done: number;
+  current: string | null;
+  failed: { target: string; error: string }[];
+  createdProposals: number;
+}
+
+const runs = new Map<string, LearningRun>();
+
+export function getLearningRun(id: string): LearningRun | undefined {
+  return runs.get(id);
+}
+
+/**
+ * 序列執行一個 run：逐一處理 target，每完成一個呼叫 onProgress。
+ * worker 注入以利測試；正式呼叫傳 runLearningTarget。
+ */
+export async function executeLearningRun(
+  run: LearningRun,
+  worker: (t: LearnTarget) => Promise<{ created: number }>,
+  onProgress: (run: LearningRun) => void,
+): Promise<void> {
+  for (const t of run.targets) {
+    run.current = `${t.type}:${t.id}`;
+    try {
+      const { created } = await worker(t);
+      run.createdProposals += created;
+    } catch (e: any) {
+      run.failed.push({ target: `${t.type}:${t.id}`, error: e?.message || String(e) });
+    }
+    run.done++;
+    onProgress(run);
+  }
+  run.current = null;
+  run.status = "done";
+}
+
+/** 建立並登記一個新 run（狀態機初始值）。 */
+export function createLearningRun(targets: LearnTarget[]): LearningRun {
+  const run: LearningRun = {
+    id: `lrun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    targets, status: "running",
+    total: targets.length, done: 0, current: null,
+    failed: [], createdProposals: 0,
+  };
+  runs.set(run.id, run);
+  return run;
+}
+
 /** 跑單一 target 的能力學習，回傳建立的提案數。 */
 export async function runLearningTarget(target: LearnTarget): Promise<{ created: number }> {
   let prompt: string;
