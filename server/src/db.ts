@@ -170,6 +170,16 @@ CREATE TABLE IF NOT EXISTS category_capability_memory (
   content    TEXT NOT NULL DEFAULT '',
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS learning_schedules (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL DEFAULT '',
+  targets     TEXT NOT NULL DEFAULT '[]',
+  cron        TEXT NOT NULL,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  last_run_at INTEGER,
+  created_at  INTEGER NOT NULL
+);
 `;
 
 db.exec(SCHEMA);

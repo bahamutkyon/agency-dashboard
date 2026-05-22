@@ -30,12 +30,16 @@ import {
 import {
   listPendingProposals, getProposal, setProposalStatus,
   getCraftMemory, appendCraftMemory, appendCategoryMemory,
+  listLearningSchedules, getLearningSchedule,
+  upsertLearningSchedule, deleteLearningSchedule,
 } from "./learningStore.js";
+import { learningScheduler } from "./learningScheduler.js";
 
 import {
   parseCategoryAgentId, createLearningRun, executeLearningRun,
   getLearningRun, runLearningTarget,
 } from "./capabilityLearning.js";
+import cron from "node-cron";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -1122,6 +1126,45 @@ app.get("/api/learning/run/:id", (req, res) => {
   res.json(run);
 });
 
+// --- 能力學習排程（時間驅動）CRUD ---
+
+app.get("/api/learning/schedules", (_req, res) => {
+  res.json(listLearningSchedules());
+});
+
+app.post("/api/learning/schedules", (req, res) => {
+  const { name, targets, cron: expr } = req.body || {};
+  if (!expr || !cron.validate(expr)) {
+    return res.status(400).json({ error: "cron 格式錯誤" });
+  }
+  const clean = Array.isArray(targets)
+    ? targets.filter((t: any) => t && (t.type === "category" || t.type === "agent") && typeof t.id === "string")
+    : [];
+  if (clean.length === 0) return res.status(400).json({ error: "targets 不可為空" });
+  const s = {
+    id: uuid(), name: String(name || "能力學習排程"),
+    targets: clean, cron: expr, enabled: true, createdAt: Date.now(),
+  };
+  upsertLearningSchedule(s);
+  learningScheduler.sync();
+  res.json(s);
+});
+
+app.patch("/api/learning/schedules/:id", (req, res) => {
+  const s = getLearningSchedule(req.params.id);
+  if (!s) return res.status(404).json({ error: "找不到排程" });
+  if (typeof req.body?.enabled === "boolean") s.enabled = req.body.enabled;
+  upsertLearningSchedule(s);
+  learningScheduler.sync();
+  res.json(s);
+});
+
+app.delete("/api/learning/schedules/:id", (req, res) => {
+  deleteLearningSchedule(req.params.id);
+  learningScheduler.sync();
+  res.json({ ok: true });
+});
+
 server.listen(PORT, REMOTE_CFG.bindHost, () => {
   if (REMOTE_CFG.enabled) {
     console.log(`[agency-dashboard] 🌐 listening on http://${REMOTE_CFG.bindHost}:${PORT} (REMOTE ACCESS ENABLED)`);
@@ -1133,6 +1176,7 @@ server.listen(PORT, REMOTE_CFG.bindHost, () => {
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
   scheduler.init();
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
+  learningScheduler.init((payload) => io.emit("learning:progress", payload));
   workflowRunner.on("update", (runId: string) => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);

@@ -126,3 +126,52 @@ export function appendCategoryMemory(categoryId: string, entry: string): void {
     ON CONFLICT(category) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
   `).run(categoryId, next, Date.now());
 }
+
+// --- 能力學習排程（時間驅動）---
+
+export interface LearningSchedule {
+  id: string;
+  name: string;
+  targets: { type: "category" | "agent"; id: string }[];
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: number;
+  createdAt: number;
+}
+
+function rowToLearningSchedule(r: any): LearningSchedule {
+  return {
+    id: r.id,
+    name: r.name,
+    targets: JSON.parse(r.targets || "[]"),
+    cron: r.cron,
+    enabled: !!r.enabled,
+    lastRunAt: r.last_run_at ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+export function listLearningSchedules(): LearningSchedule[] {
+  const rows = db.prepare("SELECT * FROM learning_schedules ORDER BY created_at DESC").all() as any[];
+  return rows.map(rowToLearningSchedule);
+}
+
+export function getLearningSchedule(id: string): LearningSchedule | undefined {
+  const r = db.prepare("SELECT * FROM learning_schedules WHERE id = ?").get(id) as any;
+  return r ? rowToLearningSchedule(r) : undefined;
+}
+
+export function upsertLearningSchedule(s: LearningSchedule): void {
+  db.prepare(`
+    INSERT INTO learning_schedules (id, name, targets, cron, enabled, last_run_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name, targets = excluded.targets, cron = excluded.cron,
+      enabled = excluded.enabled, last_run_at = excluded.last_run_at
+  `).run(s.id, s.name, JSON.stringify(s.targets), s.cron,
+         s.enabled ? 1 : 0, s.lastRunAt ?? null, s.createdAt);
+}
+
+export function deleteLearningSchedule(id: string): void {
+  db.prepare("DELETE FROM learning_schedules WHERE id = ?").run(id);
+}

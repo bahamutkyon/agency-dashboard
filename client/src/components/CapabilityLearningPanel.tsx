@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSocket } from "../lib/socket";
 import { api, AgentMeta, CategoryMeta } from "../lib/api";
 
@@ -12,6 +12,22 @@ interface RunProgress {
   createdProposals: number;
 }
 
+interface LearningSchedule {
+  id: string;
+  name: string;
+  targets: { type: "category" | "agent"; id: string }[];
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: number;
+  createdAt: number;
+}
+
+const CRON_PRESETS = [
+  { label: "每天 09:00", value: "0 9 * * *" },
+  { label: "每週一 09:00", value: "0 9 * * 1" },
+  { label: "每月 1 號 09:00", value: "0 9 1 * *" },
+];
+
 export function CapabilityLearningPanel() {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
@@ -21,6 +37,19 @@ export function CapabilityLearningPanel() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Schedule state
+  const [schedules, setSchedules] = useState<LearningSchedule[]>([]);
+  const [selectedCron, setSelectedCron] = useState(CRON_PRESETS[0].value);
+  const [scheduleName, setScheduleName] = useState("");
+  const [schedBusy, setSchedBusy] = useState(false);
+
+  const fetchSchedules = useCallback(() => {
+    fetch("/api/learning/schedules")
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d) && setSchedules(d))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     api.agents()
       .then((d) => {
@@ -29,7 +58,8 @@ export function CapabilityLearningPanel() {
         setLoaded(true);
       })
       .catch(() => { setLoaded(true); });
-  }, []);
+    fetchSchedules();
+  }, [fetchSchedules]);
 
   useEffect(() => {
     const sock = getSocket();
@@ -55,6 +85,43 @@ export function CapabilityLearningPanel() {
       next.has(catId) ? next.delete(catId) : next.add(catId);
       return next;
     });
+  }
+
+  async function createSchedule() {
+    const targets = [...picked].map((k) => {
+      const [type, ...rest] = k.split(":");
+      return { type, id: rest.join(":") };
+    });
+    if (targets.length === 0) { alert("請先勾選目標"); return; }
+    setSchedBusy(true);
+    try {
+      const r = await fetch("/api/learning/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: scheduleName.trim() || "能力學習排程",
+          targets,
+          cron: selectedCron,
+        }),
+      });
+      if (!r.ok) { const e = await r.json(); alert(e.error || "建立失敗"); }
+      else fetchSchedules();
+    } catch { alert("建立失敗"); }
+    finally { setSchedBusy(false); }
+  }
+
+  async function toggleSchedule(s: LearningSchedule) {
+    await fetch(`/api/learning/schedules/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: !s.enabled }),
+    });
+    fetchSchedules();
+  }
+
+  async function deleteSchedule(id: string) {
+    await fetch(`/api/learning/schedules/${id}`, { method: "DELETE" });
+    fetchSchedules();
   }
 
   async function start() {
@@ -261,7 +328,7 @@ export function CapabilityLearningPanel() {
             {/* Done summary */}
             {progress.status === "done" && (
               <div className="text-sm text-emerald-400 font-medium">
-                🎉 已產生 {progress.createdProposals} 條提案，請到「學習佇列」批准
+                已產生 {progress.createdProposals} 條提案，請到「學習佇列」批准
               </div>
             )}
 
@@ -279,6 +346,96 @@ export function CapabilityLearningPanel() {
             )}
           </div>
         )}
+
+        {/* ---- 定期自動學習排程 ---- */}
+        <div className="mt-8">
+          <h3 className="text-base font-semibold mb-1">定期自動學習排程</h3>
+          <p className="text-xs text-zinc-500 mb-3">
+            自動排程同樣會消耗 Claude 訂閱額度（Opus 4.7），請斟酌設定頻率。
+          </p>
+
+          {/* Create schedule form */}
+          <div className="bg-panel border border-zinc-800 rounded-lg p-4 mb-4 space-y-3">
+            <div className="text-xs font-medium text-zinc-300 mb-1">建立新排程</div>
+
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder="排程名稱（選填）"
+                value={scheduleName}
+                onChange={(e) => setScheduleName(e.target.value)}
+                className="flex-1 min-w-[160px] px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-700 rounded text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-violet-500"
+              />
+              <select
+                value={selectedCron}
+                onChange={(e) => setSelectedCron(e.target.value)}
+                className="px-3 py-1.5 text-xs bg-zinc-900 border border-zinc-700 rounded text-zinc-200 focus:outline-none focus:border-violet-500"
+              >
+                {CRON_PRESETS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs text-zinc-500">
+              使用上方已勾選的 {pickedCount} 個目標建立排程
+            </div>
+
+            <button
+              onClick={createSchedule}
+              disabled={schedBusy || pickedCount === 0}
+              className="px-4 py-1.5 rounded bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium"
+            >
+              {schedBusy ? "建立中…" : pickedCount > 0 ? `建立排程（${pickedCount} 個目標）` : "請先勾選目標"}
+            </button>
+          </div>
+
+          {/* Schedule list */}
+          {schedules.length === 0 ? (
+            <div className="text-xs text-zinc-600 px-1">尚無排程</div>
+          ) : (
+            <div className="bg-panel border border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-800">
+              {schedules.map((s) => {
+                const preset = CRON_PRESETS.find((p) => p.value === s.cron);
+                return (
+                  <div key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/40">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-zinc-200 truncate">{s.name}</div>
+                      <div className="text-xs text-zinc-500 mt-0.5">
+                        <span className="text-zinc-400">{preset ? preset.label : s.cron}</span>
+                        <span className="mx-1.5 text-zinc-700">·</span>
+                        <span>{s.targets.length} 個目標</span>
+                        {s.lastRunAt && (
+                          <>
+                            <span className="mx-1.5 text-zinc-700">·</span>
+                            <span>上次執行 {new Date(s.lastRunAt).toLocaleString("zh-TW", { hour12: false })}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${s.enabled ? "bg-emerald-900/50 text-emerald-400" : "bg-zinc-800 text-zinc-500"}`}>
+                        {s.enabled ? "啟用" : "停用"}
+                      </span>
+                      <button
+                        onClick={() => toggleSchedule(s)}
+                        className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400"
+                      >
+                        {s.enabled ? "停用" : "啟用"}
+                      </button>
+                      <button
+                        onClick={() => deleteSchedule(s.id)}
+                        className="text-xs px-2 py-1 bg-zinc-800 hover:bg-rose-900/50 hover:text-rose-400 rounded text-zinc-500"
+                      >
+                        刪除
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
