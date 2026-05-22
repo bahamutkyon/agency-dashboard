@@ -33,6 +33,8 @@ export function parseCategoryAgentId(agentId: string): string | null {
 export function ingestLearningOutput(text: string, target: LearnTarget): number {
   const drafts = parseLearnMarkers(text, 8);
   let created = 0;
+  // kind / scope 由 target 類型決定，不採信 Claude 回應裡的 kind 標記
+  // （類層一律 domain、個人層一律 craft），避免模型亂標。
   for (const d of drafts) {
     const proposal = target.type === "category"
       ? createProposal({
@@ -107,6 +109,7 @@ export interface LearningRun {
 }
 
 const runs = new Map<string, LearningRun>();
+const RUN_TTL_MS = 30 * 60 * 1000; // run 完成後保留 30 分鐘供查詢，之後清掉
 
 export function getLearningRun(id: string): LearningRun | undefined {
   return runs.get(id);
@@ -121,19 +124,25 @@ export async function executeLearningRun(
   worker: (t: LearnTarget) => Promise<{ created: number }>,
   onProgress: (run: LearningRun) => void,
 ): Promise<void> {
-  for (const t of run.targets) {
-    run.current = `${t.type}:${t.id}`;
-    try {
-      const { created } = await worker(t);
-      run.createdProposals += created;
-    } catch (e: any) {
-      run.failed.push({ target: `${t.type}:${t.id}`, error: e?.message || String(e) });
+  try {
+    for (const t of run.targets) {
+      run.current = `${t.type}:${t.id}`;
+      try {
+        const { created } = await worker(t);
+        run.createdProposals += created;
+      } catch (e: any) {
+        run.failed.push({ target: `${t.type}:${t.id}`, error: e?.message || String(e) });
+      }
+      run.done++;
+      onProgress(run);
     }
-    run.done++;
-    onProgress(run);
+    run.current = null;
+    run.status = "done";
+  } finally {
+    // run 結束（成功或拋錯）後延遲清理，避免 runs Map 無限增長。
+    // unref 讓這個 timer 不會阻止 process 結束。
+    setTimeout(() => runs.delete(run.id), RUN_TTL_MS).unref();
   }
-  run.current = null;
-  run.status = "done";
 }
 
 /** 建立並登記一個新 run（狀態機初始值）。 */

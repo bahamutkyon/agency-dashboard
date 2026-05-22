@@ -1107,6 +1107,10 @@ app.post("/api/learning/run", (req, res) => {
     });
   }).catch((e) => {
     run.status = "error";
+    io.emit("learning:progress", {
+      runId: run.id, status: run.status, total: run.total, done: run.done,
+      current: null, failed: run.failed, createdProposals: run.createdProposals,
+    });
     console.warn("[capability-learning] run failed:", e?.message || e);
   });
 });
