@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS learning_proposals (
   agent_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   kind TEXT NOT NULL,          -- fact | craft | domain | calibration
-  scope TEXT NOT NULL,         -- workspace | agent-global
+  scope TEXT NOT NULL,         -- workspace | agent-global | category
   content TEXT NOT NULL,
   source TEXT NOT NULL,        -- e.g. conversation:<sessionId>
   status TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected

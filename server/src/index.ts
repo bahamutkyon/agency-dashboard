@@ -29,8 +29,10 @@ import {
 
 import {
   listPendingProposals, getProposal, setProposalStatus,
-  getCraftMemory, appendCraftMemory,
+  getCraftMemory, appendCraftMemory, appendCategoryMemory,
 } from "./learningStore.js";
+
+import { parseCategoryAgentId } from "./capabilityLearning.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -991,11 +993,21 @@ app.post("/api/learning/proposals/:id/approve", (req, res) => {
   const p = getProposal(req.params.id);
   if (!p) return res.status(404).json({ error: "找不到提案" });
   if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
-  // 先以 CAS 搶占標記,確保並發 / 重送下只有一個請求會執行副作用
+
+  // 類層提案：先驗證 agent_id 前綴格式，格式異常直接拒絕、不搶占。
+  let categoryId: string | null = null;
+  if (p.scope === "category") {
+    categoryId = parseCategoryAgentId(p.agentId);
+    if (!categoryId) return res.status(400).json({ error: "類別提案格式異常" });
+  }
+
+  // 以 CAS 搶占標記，確保並發 / 重送下只有一個請求會執行副作用
   const claimed = setProposalStatus(p.id, "approved");
   if (!claimed) return res.status(409).json({ error: "提案已處理過" });
   try {
-    if (p.scope === "agent-global") {
+    if (p.scope === "category") {
+      appendCategoryMemory(categoryId!, p.content);
+    } else if (p.scope === "agent-global") {
       appendCraftMemory(p.agentId, p.content);
     } else {
       appendWorkspaceMemory(p.workspaceId, p.content);
