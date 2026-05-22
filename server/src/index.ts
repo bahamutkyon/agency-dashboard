@@ -1153,10 +1153,12 @@ app.post("/api/learning/schedules", (req, res) => {
 app.patch("/api/learning/schedules/:id", (req, res) => {
   const s = getLearningSchedule(req.params.id);
   if (!s) return res.status(404).json({ error: "找不到排程" });
-  if (typeof req.body?.enabled === "boolean") s.enabled = req.body.enabled;
-  upsertLearningSchedule(s);
+  const updated = typeof req.body?.enabled === "boolean"
+    ? { ...s, enabled: req.body.enabled }
+    : s;
+  upsertLearningSchedule(updated);
   learningScheduler.sync();
-  res.json(s);
+  res.json(updated);
 });
 
 app.delete("/api/learning/schedules/:id", (req, res) => {

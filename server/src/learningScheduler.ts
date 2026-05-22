@@ -23,6 +23,7 @@ class LearningScheduler {
 
   /** create/update/delete 後重新註冊全部 cron job。 */
   sync() {
+    // teardown-and-rebuild：先全部停掉再依 DB 重建，確保啟用/停用/cron 變更都生效
     for (const id of [...this.tasks.keys()]) this.unregister(id);
     for (const s of listLearningSchedules()) {
       if (s.enabled && cron.validate(s.cron)) this.register(s.id, s.cron);
@@ -30,11 +31,11 @@ class LearningScheduler {
   }
 
   private register(id: string, expr: string) {
-    if (this.tasks.has(id)) return;
     const task = cron.schedule(expr, () => this.fire(id), {
       timezone: process.env.SCHEDULER_TZ || "Asia/Taipei",
     });
     this.tasks.set(id, task);
+    console.log(`[learning-scheduler] registered schedule ${id} (${expr})`);
   }
 
   private unregister(id: string) {

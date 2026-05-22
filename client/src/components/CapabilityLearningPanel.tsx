@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSocket } from "../lib/socket";
 import { api, AgentMeta, CategoryMeta } from "../lib/api";
 
@@ -36,6 +36,7 @@ export function CapabilityLearningPanel() {
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const runIdRef = useRef<string | null>(null);
 
   // Schedule state
   const [schedules, setSchedules] = useState<LearningSchedule[]>([]);
@@ -64,6 +65,7 @@ export function CapabilityLearningPanel() {
   useEffect(() => {
     const sock = getSocket();
     const onProgress = (p: RunProgress) => {
+      if (p.runId !== runIdRef.current) return; // 只認自己手動啟動的 run，忽略排程自動 run
       setProgress(p);
       if (p.status === "done" || p.status === "error") setBusy(false);
     };
@@ -111,16 +113,18 @@ export function CapabilityLearningPanel() {
   }
 
   async function toggleSchedule(s: LearningSchedule) {
-    await fetch(`/api/learning/schedules/${s.id}`, {
+    const r = await fetch(`/api/learning/schedules/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: !s.enabled }),
     });
+    if (!r.ok) { alert("操作失敗"); return; }
     fetchSchedules();
   }
 
   async function deleteSchedule(id: string) {
-    await fetch(`/api/learning/schedules/${id}`, { method: "DELETE" });
+    const r = await fetch(`/api/learning/schedules/${id}`, { method: "DELETE" });
+    if (!r.ok) { alert("操作失敗"); return; }
     fetchSchedules();
   }
 
@@ -131,6 +135,7 @@ export function CapabilityLearningPanel() {
     });
     if (targets.length === 0) return;
     setBusy(true);
+    runIdRef.current = null;
     setProgress(null);
     try {
       const r = await fetch("/api/learning/run", {
@@ -139,6 +144,8 @@ export function CapabilityLearningPanel() {
         body: JSON.stringify({ targets }),
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      runIdRef.current = d.runId;
     } catch {
       setBusy(false);
       alert("啟動失敗");
