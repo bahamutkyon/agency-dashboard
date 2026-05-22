@@ -13,8 +13,8 @@ import { buildCategoryLearningPrompt, buildAgentLearningPrompt } from "./capabil
 /** 類層提案的 agent_id 前綴 — 避免與真實 agentId 撞名。 */
 export const CATEGORY_PREFIX = "__category__:";
 
-/** 能力學習用的模型：一次性反思任務，重品質但非 Opus。 */
-const LEARNING_MODEL = "claude-sonnet-4-6";
+/** 能力學習用的模型：盤點專業必備知識是高品質反思任務，用最強的 Opus 4.7。 */
+const LEARNING_MODEL = "claude-opus-4-7";
 
 export interface LearnTarget {
   type: "category" | "agent";
