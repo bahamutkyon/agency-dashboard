@@ -1,28 +1,59 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AgentSidebar } from "./components/AgentSidebar";
-import { ChatWindow } from "./components/ChatWindow";
-import { SchedulePanel } from "./components/SchedulePanel";
-import { HistoryPanel } from "./components/HistoryPanel";
-import { TemplatesPanel } from "./components/TemplatesPanel";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { UsageBar } from "./components/UsageBar";
 import { SecurityBadge } from "./components/SecurityBadge";
 import { CapabilitiesBadge } from "./components/CapabilitiesBadge";
 import { RemoteAccessBadge } from "./components/RemoteAccessBadge";
-import { AgentMeetingRoom } from "./components/AgentMeetingRoom";
-import { BatchPanel } from "./components/BatchPanel";
-import { NotesPanel } from "./components/NotesPanel";
-import { LearningQueuePanel } from "./components/LearningQueuePanel";
-import { CapabilityLearningPanel } from "./components/CapabilityLearningPanel";
-import { MemoryEditor } from "./components/MemoryEditor";
-import { WorkflowsPanel } from "./components/WorkflowsPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
-import { OnboardingTour } from "./components/OnboardingTour";
 import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
 import { api, type AgentMeta, type CategoryMeta } from "./lib/api";
+
+// ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
+const ChatWindow = lazy(() =>
+  import("./components/ChatWindow").then((m) => ({ default: m.ChatWindow }))
+);
+const SchedulePanel = lazy(() =>
+  import("./components/SchedulePanel").then((m) => ({ default: m.SchedulePanel }))
+);
+const HistoryPanel = lazy(() =>
+  import("./components/HistoryPanel").then((m) => ({ default: m.HistoryPanel }))
+);
+const TemplatesPanel = lazy(() =>
+  import("./components/TemplatesPanel").then((m) => ({ default: m.TemplatesPanel }))
+);
+const SettingsPanel = lazy(() =>
+  import("./components/SettingsPanel").then((m) => ({ default: m.SettingsPanel }))
+);
+const BatchPanel = lazy(() =>
+  import("./components/BatchPanel").then((m) => ({ default: m.BatchPanel }))
+);
+const NotesPanel = lazy(() =>
+  import("./components/NotesPanel").then((m) => ({ default: m.NotesPanel }))
+);
+const LearningQueuePanel = lazy(() =>
+  import("./components/LearningQueuePanel").then((m) => ({ default: m.LearningQueuePanel }))
+);
+const CapabilityLearningPanel = lazy(() =>
+  import("./components/CapabilityLearningPanel").then((m) => ({ default: m.CapabilityLearningPanel }))
+);
+const MemoryEditor = lazy(() =>
+  import("./components/MemoryEditor").then((m) => ({ default: m.MemoryEditor }))
+);
+const WorkflowsPanel = lazy(() =>
+  import("./components/WorkflowsPanel").then((m) => ({ default: m.WorkflowsPanel }))
+);
+const OnboardingTour = lazy(() =>
+  import("./components/OnboardingTour").then((m) => ({ default: m.OnboardingTour }))
+);
+const AgentMeetingRoom = lazy(() =>
+  import("./components/AgentMeetingRoom").then((m) => ({ default: m.AgentMeetingRoom }))
+);
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
 
 type View =
   | { kind: "chat"; sessionId: string }
@@ -64,11 +95,13 @@ export default function App() {
     return typeof window !== "undefined" && window.innerWidth >= 768;
   });
 
-  const toggleSidebar = () => {
-    const next = !sidebarOpen;
-    setSidebarOpen(next);
-    localStorage.setItem("agency:sidebar", next ? "open" : "closed");
-  };
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem("agency:sidebar", next ? "open" : "closed");
+      return next;
+    });
+  }, []);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -105,7 +138,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [sidebarOpen]);
+  }, [toggleSidebar]);
 
   useEffect(() => {
     applyAll();
@@ -131,43 +164,36 @@ export default function App() {
 
   // When the workspace changes, drop all open tabs (they belong to the old
   // workspace) and force-reload the active panel by bumping reloadKey.
-  const onWorkspaceSwitched = () => {
+  const onWorkspaceSwitched = useCallback(() => {
     setTabs([]);
     setView(null);
     setReloadKey((k) => k + 1);
-  };
+  }, []);
 
   const liveAgentIds = useMemo(() => new Set(tabs.map((t) => t.agentId)), [tabs]);
   const knownAgentIds = useMemo(() => new Set(agents.map((a) => a.id)), [agents]);
 
-  const openAgentById = async (id: string) => {
-    const agent = agents.find((a) => a.id === id);
-    if (agent) await openAgent(agent);
-  };
-
-  const [providersAvail, setProvidersAvail] = useState({ claude: true, codex: false, gemini: false });
-  useEffect(() => {
-    api.providers().then((p) => setProvidersAvail(p.available)).catch(() => {});
-  }, []);
-
-  /**
-   * Click an agent in sidebar:
-   *   - If there's already an open tab for this agent (current session) → switch to it
-   *   - Otherwise open the agent's meeting room (lists past sessions + 「+ 開新會議」)
-   *
-   * Old behavior of "always start a new session" is now `startNewMeeting()`.
-   */
-  const openAgent = async (agent: AgentMeta, _provider?: "claude" | "codex" | "gemini") => {
+  const openAgent = useCallback(async (agent: AgentMeta, _provider?: "claude" | "codex" | "gemini") => {
     const existing = tabs.find((t) => t.agentId === agent.id);
     if (existing) {
       setView({ kind: "chat", sessionId: existing.sessionId });
       return;
     }
     setView({ kind: "meeting-room", agentId: agent.id });
-  };
+  }, [tabs]);
+
+  const openAgentById = useCallback(async (id: string) => {
+    const agent = agents.find((a) => a.id === id);
+    if (agent) await openAgent(agent);
+  }, [agents, openAgent]);
+
+  const [providersAvail, setProvidersAvail] = useState({ claude: true, codex: false, gemini: false });
+  useEffect(() => {
+    api.providers().then((p) => setProvidersAvail(p.available)).catch(() => {});
+  }, []);
 
   /** Actually create a new session with this agent + custom topic. */
-  const startNewMeeting = async (agent: AgentMeta, topic: string, provider?: "claude" | "codex" | "gemini") => {
+  const startNewMeeting = useCallback(async (agent: AgentMeta, topic: string, provider?: "claude" | "codex" | "gemini") => {
     const title = topic.trim() ? `${agent.name} · ${topic.trim()}` : undefined;
     const r = await api.startSession(agent.id, title, provider);
     setTabs((prev) => [...prev, {
@@ -176,26 +202,26 @@ export default function App() {
       status: "idle", provider: r.provider,
     }]);
     setView({ kind: "chat", sessionId: r.id });
-  };
+  }, []);
 
-  const askOrchestrator = async () => {
+  const askOrchestrator = useCallback(async () => {
     const { id } = await api.startOrchestrator();
     setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", status: "idle" }]);
     setView({ kind: "chat", sessionId: id });
-  };
+  }, []);
 
-  const openSchedules = () => setView({ kind: "schedules" });
-  const openHistory = () => setView({ kind: "history" });
-  const openTemplates = () => setView({ kind: "templates" });
-  const openSettings = () => setView({ kind: "settings" });
-  const openBatch = () => setView({ kind: "batch" });
-  const openNotes = () => setView({ kind: "notes" });
-  const openLearning = () => setView({ kind: "learning" });
-  const openCapabilityLearning = () => setView({ kind: "capability-learning" });
-  const openMemoryEditor = () => setView({ kind: "memory-editor" });
-  const openWorkflows = () => setView({ kind: "workflows" });
+  const openSchedules = useCallback(() => setView({ kind: "schedules" }), []);
+  const openHistory = useCallback(() => setView({ kind: "history" }), []);
+  const openTemplates = useCallback(() => setView({ kind: "templates" }), []);
+  const openSettings = useCallback(() => setView({ kind: "settings" }), []);
+  const openBatch = useCallback(() => setView({ kind: "batch" }), []);
+  const openNotes = useCallback(() => setView({ kind: "notes" }), []);
+  const openLearning = useCallback(() => setView({ kind: "learning" }), []);
+  const openCapabilityLearning = useCallback(() => setView({ kind: "capability-learning" }), []);
+  const openMemoryEditor = useCallback(() => setView({ kind: "memory-editor" }), []);
+  const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
 
-  const openOnboarding = (sessionId: string, draftWorkspaceId?: string) => {
+  const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
       sessionId,
       agentId: "agents-orchestrator",
@@ -204,11 +230,11 @@ export default function App() {
       onboardingTargetWorkspaceId: draftWorkspaceId,
     }]);
     setView({ kind: "chat", sessionId });
-  };
+  }, []);
 
   // handoff: open a new chat with `agentId` and inject the message as the
   // first user input, framed as a handoff from the previous agent.
-  const handoff = async (toAgentId: string, message: string, fromAgentName: string) => {
+  const handoff = useCallback(async (toAgentId: string, message: string, fromAgentName: string) => {
     const agent = agents.find((a) => a.id === toAgentId);
     if (!agent) return;
     const { id } = await api.startSession(agent.id, `${agent.name}(從 ${fromAgentName} 接手)`);
@@ -222,9 +248,9 @@ ${message}
     setTimeout(() => {
       getSocket().emit("session:send", { sessionId: id, text: handoffPrompt });
     }, 500);
-  };
+  }, [agents]);
 
-  const openHistorySession = (sessionId: string, agentId: string, title: string) => {
+  const openHistorySession = useCallback((sessionId: string, agentId: string, title: string) => {
     const existing = tabs.find((t) => t.sessionId === sessionId);
     if (existing) {
       setView({ kind: "chat", sessionId });
@@ -246,28 +272,33 @@ ${message}
     }
     setTabs((prev) => [...prev, { sessionId, agentId, agentName, topic, status: "idle" }]);
     setView({ kind: "chat", sessionId });
-  };
+  }, [tabs, agents]);
 
   /**
    * Close a tab — does NOT delete the session. Conversation stays in DB,
    * findable via History or the agent's meeting room. Real deletion only
    * happens via the explicit 「刪除」 button in HistoryPanel.
    */
-  const closeTab = (sessionId: string) => {
-    setTabs((prev) => prev.filter((t) => t.sessionId !== sessionId));
-    if (view?.kind === "chat" && view.sessionId === sessionId) {
-      const remaining = tabs.filter((t) => t.sessionId !== sessionId);
-      setView(remaining[0] ? { kind: "chat", sessionId: remaining[0].sessionId } : null);
-    }
-  };
+  const closeTab = useCallback((sessionId: string) => {
+    setTabs((prev) => {
+      const remaining = prev.filter((t) => t.sessionId !== sessionId);
+      setView((v) => {
+        if (v?.kind === "chat" && v.sessionId === sessionId) {
+          return remaining[0] ? { kind: "chat", sessionId: remaining[0].sessionId } : null;
+        }
+        return v;
+      });
+      return remaining;
+    });
+  }, []);
 
-  const updateStatus = (sessionId: string, status: string) => {
+  const updateStatus = useCallback((sessionId: string, status: string) => {
     setTabs((prev) => prev.map((t) => (t.sessionId === sessionId ? { ...t, status } : t)));
-  };
+  }, []);
 
   // tab drag-to-reorder
   const [draggingTab, setDraggingTab] = useState<string | null>(null);
-  const reorderTabs = (fromId: string, toId: string) => {
+  const reorderTabs = useCallback((fromId: string, toId: string) => {
     if (fromId === toId) return;
     setTabs((prev) => {
       const fromIdx = prev.findIndex((t) => t.sessionId === fromId);
@@ -278,20 +309,100 @@ ${message}
       next.splice(toIdx, 0, moved);
       return next;
     });
-  };
+  }, []);
+
+  const onPaletteClose = useCallback(() => setPaletteOpen(false), []);
+  const onTourClose = useCallback(() => setTourOpen(false), []);
+  const onMemoApplied = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const onPickAgentMobile = useCallback((a: AgentMeta, p?: "claude" | "codex" | "gemini") => {
+    openAgent(a, p);
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openAgent, toggleSidebar]);
+
+  const onAskOrchestratorMobile = useCallback(() => {
+    askOrchestrator();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [askOrchestrator, toggleSidebar]);
+
+  const onOpenSchedulesMobile = useCallback(() => {
+    openSchedules();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openSchedules, toggleSidebar]);
+
+  const onOpenHistoryMobile = useCallback(() => {
+    openHistory();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openHistory, toggleSidebar]);
+
+  const onOpenTemplatesMobile = useCallback(() => {
+    openTemplates();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openTemplates, toggleSidebar]);
+
+  const onOpenSettingsMobile = useCallback(() => {
+    openSettings();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openSettings, toggleSidebar]);
+
+  const onOpenBatchMobile = useCallback(() => {
+    openBatch();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openBatch, toggleSidebar]);
+
+  const onOpenNotesMobile = useCallback(() => {
+    openNotes();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openNotes, toggleSidebar]);
+
+  const onOpenLearningMobile = useCallback(() => {
+    openLearning();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openLearning, toggleSidebar]);
+
+  const onOpenCapabilityLearningMobile = useCallback(() => {
+    openCapabilityLearning();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openCapabilityLearning, toggleSidebar]);
+
+  const onOpenMemoryEditorMobile = useCallback(() => {
+    openMemoryEditor();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openMemoryEditor, toggleSidebar]);
+
+  const onOpenWorkflowsMobile = useCallback(() => {
+    openWorkflows();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openWorkflows, toggleSidebar]);
+
+  const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
+    setView({ kind: v });
+  }, []);
+
+  const onLaunchDraftAssistant = useCallback((sid: string) => {
+    setTabs((prev) => [...prev, {
+      sessionId: sid, agentId: "agents-orchestrator",
+      agentName: "🔗 Workflow 設計顧問", status: "idle",
+    }]);
+    setView({ kind: "chat", sessionId: sid });
+  }, []);
 
   const isView = (k: View["kind"]) => view?.kind === k;
 
   return (
     <div className="h-screen flex">
-      {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} />}
+      {tourOpen && (
+        <Suspense fallback={null}>
+          <OnboardingTour onClose={onTourClose} />
+        </Suspense>
+      )}
       <CommandPalette
         open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={onPaletteClose}
         agents={agents}
         onPickAgent={openAgent}
         onPickSession={openHistorySession}
-        onOpenView={(v) => setView({ kind: v })}
+        onOpenView={onOpenView}
         onAskOrchestrator={askOrchestrator}
       />
       {sidebarOpen && (
@@ -308,18 +419,18 @@ ${message}
               categories={categories}
               liveAgentIds={liveAgentIds}
               sessionCounts={sessionCounts}
-              onPick={(a, p) => { openAgent(a, p); if (window.innerWidth < 768) toggleSidebar(); }}
-              onAskOrchestrator={() => { askOrchestrator(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenSchedules={() => { openSchedules(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenHistory={() => { openHistory(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenTemplates={() => { openTemplates(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenSettings={() => { openSettings(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenBatch={() => { openBatch(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenNotes={() => { openNotes(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenLearning={() => { openLearning(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenCapabilityLearning={() => { openCapabilityLearning(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenMemoryEditor={() => { openMemoryEditor(); if (window.innerWidth < 768) toggleSidebar(); }}
-              onOpenWorkflows={() => { openWorkflows(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onPick={onPickAgentMobile}
+              onAskOrchestrator={onAskOrchestratorMobile}
+              onOpenSchedules={onOpenSchedulesMobile}
+              onOpenHistory={onOpenHistoryMobile}
+              onOpenTemplates={onOpenTemplatesMobile}
+              onOpenSettings={onOpenSettingsMobile}
+              onOpenBatch={onOpenBatchMobile}
+              onOpenNotes={onOpenNotesMobile}
+              onOpenLearning={onOpenLearningMobile}
+              onOpenCapabilityLearning={onOpenCapabilityLearningMobile}
+              onOpenMemoryEditor={onOpenMemoryEditorMobile}
+              onOpenWorkflows={onOpenWorkflowsMobile}
               providersAvail={providersAvail}
             />
           </div>
@@ -395,60 +506,96 @@ ${message}
         </div>
 
         <div className="flex-1 overflow-hidden">
-          {isView("schedules") && <SchedulePanel key={`s-${reloadKey}`} agents={agents} />}
-          {isView("history") && <HistoryPanel key={`h-${reloadKey}`} agents={agents} onOpen={openHistorySession} />}
+          {isView("schedules") && (
+            <Suspense fallback={LazyFallback}>
+              <SchedulePanel key={`s-${reloadKey}`} agents={agents} />
+            </Suspense>
+          )}
+          {isView("history") && (
+            <Suspense fallback={LazyFallback}>
+              <HistoryPanel key={`h-${reloadKey}`} agents={agents} onOpen={openHistorySession} />
+            </Suspense>
+          )}
           {view?.kind === "meeting-room" && (() => {
             const a = agents.find((x) => x.id === view.agentId);
             if (!a) return <div className="p-6 text-zinc-500">找不到 agent: {view.agentId}</div>;
             return (
-              <AgentMeetingRoom
-                key={`mr-${view.agentId}-${reloadKey}`}
-                agent={a}
-                onOpen={openHistorySession}
-                onStartNew={(agent, topic) => startNewMeeting(agent, topic)}
-                onClose={() => setView(null)}
-              />
+              <Suspense fallback={LazyFallback}>
+                <AgentMeetingRoom
+                  key={`mr-${view.agentId}-${reloadKey}`}
+                  agent={a}
+                  onOpen={openHistorySession}
+                  onStartNew={(agent, topic) => startNewMeeting(agent, topic)}
+                  onClose={() => setView(null)}
+                />
+              </Suspense>
             );
           })()}
-          {isView("templates") && <TemplatesPanel key={`t-${reloadKey}`} agents={agents} />}
-          {isView("settings") && <SettingsPanel />}
-          {isView("batch") && <BatchPanel key={`b-${reloadKey}`} agents={agents} />}
-          {isView("notes") && <NotesPanel key={`n-${reloadKey}`} />}
-          {isView("learning") && <LearningQueuePanel key={`l-${reloadKey}`} agents={agents} />}
-          {isView("capability-learning") && <CapabilityLearningPanel key={`cl-${reloadKey}`} />}
-          {isView("memory-editor") && <MemoryEditor key={`me-${reloadKey}`} />}
+          {isView("templates") && (
+            <Suspense fallback={LazyFallback}>
+              <TemplatesPanel key={`t-${reloadKey}`} agents={agents} />
+            </Suspense>
+          )}
+          {isView("settings") && (
+            <Suspense fallback={LazyFallback}>
+              <SettingsPanel />
+            </Suspense>
+          )}
+          {isView("batch") && (
+            <Suspense fallback={LazyFallback}>
+              <BatchPanel key={`b-${reloadKey}`} agents={agents} />
+            </Suspense>
+          )}
+          {isView("notes") && (
+            <Suspense fallback={LazyFallback}>
+              <NotesPanel key={`n-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("learning") && (
+            <Suspense fallback={LazyFallback}>
+              <LearningQueuePanel key={`l-${reloadKey}`} agents={agents} />
+            </Suspense>
+          )}
+          {isView("capability-learning") && (
+            <Suspense fallback={LazyFallback}>
+              <CapabilityLearningPanel key={`cl-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("memory-editor") && (
+            <Suspense fallback={LazyFallback}>
+              <MemoryEditor key={`me-${reloadKey}`} />
+            </Suspense>
+          )}
           {isView("workflows") && (
-            <WorkflowsPanel
-              key={`w-${reloadKey}`}
-              agents={agents}
-              onOpenSession={openHistorySession}
-              onLaunchDraftAssistant={(sid) => {
-                setTabs((prev) => [...prev, {
-                  sessionId: sid, agentId: "agents-orchestrator",
-                  agentName: "🔗 Workflow 設計顧問", status: "idle",
-                }]);
-                setView({ kind: "chat", sessionId: sid });
-              }}
-            />
+            <Suspense fallback={LazyFallback}>
+              <WorkflowsPanel
+                key={`w-${reloadKey}`}
+                agents={agents}
+                onOpenSession={openHistorySession}
+                onLaunchDraftAssistant={onLaunchDraftAssistant}
+              />
+            </Suspense>
           )}
           {isView("chat") && (() => {
             const tab = tabs.find((t) => view?.kind === "chat" && t.sessionId === view.sessionId);
             return tab ? (
-              <ChatWindow
-                key={tab.sessionId}
-                sessionId={tab.sessionId}
-                agentId={tab.agentId}
-                agentName={tab.agentName}
-                provider={tab.provider}
-                onStatusChange={(s) => updateStatus(tab.sessionId, s)}
-                onOpenAgentById={openAgentById}
-                knownAgentIds={knownAgentIds}
-                onHandoff={handoff}
-                agents={agents}
-                onboardingTargetWorkspaceId={tab.onboardingTargetWorkspaceId}
-                onMemoApplied={() => setReloadKey((k) => k + 1)}
-                onAcceptFork={handoff}
-              />
+              <Suspense fallback={LazyFallback}>
+                <ChatWindow
+                  key={tab.sessionId}
+                  sessionId={tab.sessionId}
+                  agentId={tab.agentId}
+                  agentName={tab.agentName}
+                  provider={tab.provider}
+                  onStatusChange={(s) => updateStatus(tab.sessionId, s)}
+                  onOpenAgentById={openAgentById}
+                  knownAgentIds={knownAgentIds}
+                  onHandoff={handoff}
+                  agents={agents}
+                  onboardingTargetWorkspaceId={tab.onboardingTargetWorkspaceId}
+                  onMemoApplied={onMemoApplied}
+                  onAcceptFork={handoff}
+                />
+              </Suspense>
             ) : null;
           })()}
           {!view && (

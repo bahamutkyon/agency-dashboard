@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 
 interface UsageSummary {
   today: { date: string; costUSD: number; inputTokens: number; outputTokens: number; turns: number };
@@ -27,7 +27,7 @@ function fmtCountdown(resetsAt: number) {
   return `${m}m`;
 }
 
-export function UsageBar() {
+function UsageBarInner() {
   const [u, setU] = useState<UsageSummary | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -137,3 +137,5 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+export const UsageBar = memo(UsageBarInner);

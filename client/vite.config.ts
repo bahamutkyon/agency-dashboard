@@ -40,6 +40,15 @@ export default defineConfig(() => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            markdown: ["react-markdown", "remark-gfm"],
+          },
+        },
+      },
+    },
     server: {
       port: 5190,
       strictPort: false,
