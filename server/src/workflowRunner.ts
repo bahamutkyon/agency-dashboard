@@ -36,7 +36,7 @@ interface RunOptions {
 const DEFAULT_MAX_CONCURRENCY = 2;
 const DEFAULT_RETRIES = 2;
 
-function depsReady(step: WorkflowStep, completed: Set<string>): boolean {
+export function depsReady(step: WorkflowStep, completed: Set<string>): boolean {
   const deps = step.dependsOn || [];
   if (deps.length === 0) return true;
   const mode = step.dependsOnMode || "all";
@@ -44,7 +44,7 @@ function depsReady(step: WorkflowStep, completed: Set<string>): boolean {
   return deps.every((d) => completed.has(d));
 }
 
-function normalizeSteps(steps: WorkflowStep[]): WorkflowStep[] {
+export function normalizeSteps(steps: WorkflowStep[]): WorkflowStep[] {
   return steps.map((s, i) => ({
     ...s,
     id: s.id || `step_${i + 1}`,
@@ -53,7 +53,7 @@ function normalizeSteps(steps: WorkflowStep[]): WorkflowStep[] {
   }));
 }
 
-function validateGraph(steps: WorkflowStep[]): string | null {
+export function validateGraph(steps: WorkflowStep[]): string | null {
   const ids = new Set(steps.map((s) => s.id!));
   // missing deps?
   for (const s of steps) {
@@ -419,7 +419,7 @@ class WorkflowRunner extends EventEmitter {
   }
 }
 
-function ancestorsOf(id: string, steps: WorkflowStep[]): Set<string> {
+export function ancestorsOf(id: string, steps: WorkflowStep[]): Set<string> {
   const out = new Set<string>();
   const stepsById = new Map(steps.map((s) => [s.id!, s]));
   const visit = (sid: string) => {
@@ -436,7 +436,7 @@ function ancestorsOf(id: string, steps: WorkflowStep[]): Set<string> {
   return out;
 }
 
-function descendantsOf(id: string, steps: WorkflowStep[]): Set<string> {
+export function descendantsOf(id: string, steps: WorkflowStep[]): Set<string> {
   const out = new Set<string>();
   const visit = (sid: string) => {
     for (const s of steps) {
