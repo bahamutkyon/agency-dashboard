@@ -310,22 +310,23 @@ class WorkflowRunner extends EventEmitter {
         updateRun(runId, { currentStep: idx, sessionIds, stepOutputs: outputs });
         this.emit("update", runId);
 
+        // Track whether this attempt succeeded so finally can decide cleanup.
+        let attemptSucceeded = false;
+        let onEvent: ((evt: any) => void) | null = null;
+        let onAbort: (() => void) | null = null;
+
         try {
           const output = await Promise.race([
             new Promise<string>((resolve, reject) => {
               let buffer = "";
               let assistantText = "";
-              const onAbort = () => { reject(new Error("cancelled")); };
-              const onEvent = (evt: any) => {
+              onAbort = () => { reject(new Error("cancelled")); };
+              onEvent = (evt: any) => {
                 if (evt.type === "delta") buffer += evt.payload;
                 else if (evt.type === "message") assistantText = evt.payload.content;
                 else if (evt.type === "result") {
-                  session.removeListener("event", onEvent);
-                  signal.removeEventListener("abort", onAbort);
                   resolve(assistantText || buffer);
                 } else if (evt.type === "error" && String(evt.payload).startsWith("spawn")) {
-                  session.removeListener("event", onEvent);
-                  signal.removeEventListener("abort", onAbort);
                   reject(new Error(String(evt.payload)));
                 }
               };
@@ -338,6 +339,7 @@ class WorkflowRunner extends EventEmitter {
             }),
           ]);
 
+          attemptSucceeded = true;
           outputs[step.id!] = output;
           completed.add(step.id!);
           updateRun(runId, { currentStep: idx, sessionIds, stepOutputs: outputs });
@@ -350,6 +352,15 @@ class WorkflowRunner extends EventEmitter {
             const wait = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
             console.warn(`[workflow] step ${step.id} attempt ${attempt + 1} failed: ${e.message}; retrying in ${wait}ms`);
             await new Promise((r) => setTimeout(r, wait));
+          }
+        } finally {
+          // Always remove listeners to prevent leaks on timeout / error paths.
+          if (onEvent) session.removeListener("event", onEvent);
+          if (onAbort) signal.removeEventListener("abort", onAbort);
+          // Stop and remove zombie sessions from failed / timed-out attempts.
+          // Successful attempts keep their session alive (caller may need it).
+          if (!attemptSucceeded) {
+            agentManager.stop(session.id);
           }
         }
       }
