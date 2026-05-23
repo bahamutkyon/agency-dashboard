@@ -436,13 +436,10 @@ ${labelled.slice(0, 25000)}
   ]);
 
   let out = ""; let err = "";
-  child.stdout.on("data", (d) => { out += String(d); });
-  child.stderr.on("data", (d) => { err += String(d); });
-  child.stdout.setEncoding("utf8");
-  child.stdin.write(Buffer.from(mergePrompt, "utf8"));
-  child.stdin.end();
-
-  child.on("close", (code) => {
+  let mergeSettled = false;
+  const mergeDone = (code: number | null) => {
+    if (mergeSettled) return;
+    mergeSettled = true;
     if (code !== 0) return res.status(500).json({ error: err || `exit ${code}` });
     try {
       const j = JSON.parse(out);
@@ -450,7 +447,17 @@ ${labelled.slice(0, 25000)}
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  };
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (d) => {
+    out += String(d);
+    if (out.length > 5_000_000) { child.kill(); if (!mergeSettled) { mergeSettled = true; res.status(500).json({ error: "輸出超過上限" }); } }
   });
+  child.stderr.on("data", (d) => { err += String(d); });
+  child.stdin.write(Buffer.from(mergePrompt, "utf8"));
+  child.stdin.end();
+
+  child.on("close", mergeDone);
 });
 
 // Summarize — spawns a fresh claude turn (general-purpose) that reads the
@@ -488,13 +495,10 @@ ${transcript.slice(0, 30000)}
 
   let out = "";
   let err = "";
-  child.stdout.on("data", (d) => { out += String(d); });
-  child.stderr.on("data", (d) => { err += String(d); });
-  child.stdout.setEncoding("utf8");
-  child.stdin.write(Buffer.from(prompt, "utf8"));
-  child.stdin.end();
-
-  child.on("close", (code) => {
+  let summarySettled = false;
+  const summaryDone = (code: number | null) => {
+    if (summarySettled) return;
+    summarySettled = true;
     if (code !== 0) {
       return res.status(500).json({ error: err || `claude exited ${code}` });
     }
@@ -504,7 +508,17 @@ ${transcript.slice(0, 30000)}
     } catch (e: any) {
       res.status(500).json({ error: `parse error: ${e.message}`, raw: out.slice(0, 500) });
     }
+  };
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (d) => {
+    out += String(d);
+    if (out.length > 5_000_000) { child.kill(); if (!summarySettled) { summarySettled = true; res.status(500).json({ error: "輸出超過上限" }); } }
   });
+  child.stderr.on("data", (d) => { err += String(d); });
+  child.stdin.write(Buffer.from(prompt, "utf8"));
+  child.stdin.end();
+
+  child.on("close", summaryDone);
 });
 
 // Workflow drafting — orchestrator interviews the user about a recurring
@@ -1044,9 +1058,39 @@ app.get("/api/learning/craft", (req, res) => {
 const server = createServer(app);
 const io = new SocketServer(server, { cors: { origin: "*" } });
 
+// sessionObservers: sessionId → Set of socketIds currently observing that session.
+// sessionForwards: sessionId → the "event" listener attached to the AgentSession.
+// This allows proper cleanup when a socket disconnects or the last observer leaves.
+const sessionObservers = new Map<string, Set<string>>();
+const sessionForwards = new Map<string, (evt: any) => void>();
+
+function leaveSession(socketId: string, sessionId: string) {
+  const observers = sessionObservers.get(sessionId);
+  if (!observers) return;
+  observers.delete(socketId);
+  if (observers.size === 0) {
+    // Last observer gone — detach the event listener from the AgentSession.
+    const forward = sessionForwards.get(sessionId);
+    if (forward) {
+      const session = agentManager.get(sessionId);
+      if (session) session.off("event", forward);
+      sessionForwards.delete(sessionId);
+    }
+    sessionObservers.delete(sessionId);
+    console.log(`[ws] unwired session ${sessionId} (no more observers)`);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`[ws] client connected ${socket.id}`);
-  socket.on("disconnect", (r) => console.log(`[ws] client disconnected ${socket.id} (${r})`));
+
+  socket.on("disconnect", (r) => {
+    console.log(`[ws] client disconnected ${socket.id} (${r})`);
+    // Clean up all sessions this socket was observing.
+    for (const [sessionId] of sessionObservers) {
+      leaveSession(socket.id, sessionId);
+    }
+  });
 
   socket.on("session:join", (sessionId: string) => {
     console.log(`[ws] session:join ${sessionId}`);
@@ -1058,12 +1102,20 @@ io.on("connection", (socket) => {
     }
     socket.join(`session:${sessionId}`);
 
-    const forward = (evt: any) => {
-      io.to(`session:${sessionId}`).emit("session:event", { sessionId, ...evt });
-    };
-    if (!(session as any)._wired) {
+    // Register this socket as an observer.
+    if (!sessionObservers.has(sessionId)) {
+      sessionObservers.set(sessionId, new Set());
+    }
+    const observers = sessionObservers.get(sessionId)!;
+    observers.add(socket.id);
+
+    // Attach the shared forward listener only once per session.
+    if (!sessionForwards.has(sessionId)) {
+      const forward = (evt: any) => {
+        io.to(`session:${sessionId}`).emit("session:event", { sessionId, ...evt });
+      };
       session.on("event", forward);
-      (session as any)._wired = true;
+      sessionForwards.set(sessionId, forward);
       console.log(`[ws] wired session ${sessionId}`);
     }
   });

@@ -70,8 +70,32 @@ agent-id 是 dashboard 的識別碼。命名規則:部門 prefix + 角色,例如
 - 使用者會看到提示並選擇接受或忽略,你只是「建議」
 `;
 
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 export class AgentManager {
   private sessions = new Map<string, AgentSession>();
+  // Track when each session was closed (epoch ms). Used for idle eviction.
+  private sessionClosedAt = new Map<string, number>();
+
+  constructor() {
+    // Run idle-session cleanup every 5 minutes in the background.
+    setInterval(() => this.cleanupIdleSessions(), 5 * 60 * 1000).unref();
+  }
+
+  private cleanupIdleSessions() {
+    const now = Date.now();
+    for (const [id, session] of this.sessions) {
+      if (session.status === "closed" || session.status === "error") {
+        const closedAt = this.sessionClosedAt.get(id) ?? 0;
+        if (now - closedAt > SESSION_TTL_MS) {
+          session.removeAllListeners();
+          this.sessions.delete(id);
+          this.sessionClosedAt.delete(id);
+          console.log(`[agentManager] evicted idle session ${id.slice(0, 8)}`);
+        }
+      }
+    }
+  }
 
   list(): SessionRecord[] {
     return listSessions().map((rec) => {
@@ -256,8 +280,12 @@ kind 四選一：
 
   stop(sessionId: string) {
     const s = this.sessions.get(sessionId);
-    if (s) s.stop();
+    if (s) {
+      s.stop();
+      this.sessionClosedAt.set(sessionId, Date.now());
+    }
     this.sessions.delete(sessionId);
+    this.sessionClosedAt.delete(sessionId);
   }
 
   remove(sessionId: string) {
@@ -269,6 +297,12 @@ kind 四選一：
     let buffer = "";
     let assistantPersisted = false;
     s.on("event", (evt) => {
+      // Track when session reaches a terminal state for idle eviction.
+      if (evt.type === "status" && (evt.payload === "closed" || evt.payload === "error")) {
+        if (!this.sessionClosedAt.has(s.id)) {
+          this.sessionClosedAt.set(s.id, Date.now());
+        }
+      }
       if (evt.type === "delta") {
         buffer += evt.payload;
       } else if (evt.type === "message") {

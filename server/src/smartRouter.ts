@@ -194,9 +194,25 @@ Respond with JSON only (no commentary):
     ]);
     let out = "";
     let err = "";
+    let routerSettled = false;
+    const routerDone = (result: RoutingDecision) => {
+      if (routerSettled) return;
+      routerSettled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+    const routerFail = (fallbackReason: string) => {
+      if (routerSettled) return;
+      routerSettled = true;
+      clearTimeout(timeout);
+      resolve({ provider: "claude", reason: fallbackReason, source: "fallback" });
+    };
     child.stdout!.setEncoding("utf8");
     child.stderr!.setEncoding("utf8");
-    child.stdout!.on("data", (d) => { out += String(d); });
+    child.stdout!.on("data", (d) => {
+      out += String(d);
+      if (out.length > 5_000_000) { child.kill(); routerFail("smartRouter 輸出超過上限,預設使用 Claude"); }
+    });
     child.stderr!.on("data", (d) => { err += String(d); });
     // Build stream-json user message. Force ASCII-only escaping so Windows
     // codepage (Big5/CP950 default in zh-TW) can't mangle CJK in the pipe.
@@ -212,10 +228,10 @@ Respond with JSON only (no commentary):
     const timeout = setTimeout(() => {
       try { child.kill(); } catch {}
       console.warn(`[smartRouter] LLM classify timeout. stderr: ${err.slice(0, 200)}`);
-      resolve({ provider: "claude", reason: "LLM 分類超時,預設使用 Claude", source: "fallback" });
+      routerFail("LLM 分類超時,預設使用 Claude");
     }, 20000);
     child.on("close", () => {
-      clearTimeout(timeout);
+      if (routerSettled) return; // already resolved (timeout or stdout cap)
       try {
         // stream-json output: each line is an event; we want the final
         // assistant message text
@@ -238,7 +254,7 @@ Respond with JSON only (no commentary):
         if (m) {
           const decision = JSON.parse(m[0]);
           if (decision.provider === "claude" || decision.provider === "codex") {
-            resolve({
+            routerDone({
               provider: decision.provider,
               reason: decision.reason || "LLM 判斷",
               source: "llm",
@@ -249,7 +265,7 @@ Respond with JSON only (no commentary):
         }
       } catch (e) { /* fall through */ }
       console.warn(`[smartRouter] LLM parse failed. assistant text extracted: "${out.split("\n").map(l => { try { return JSON.parse(l)?.message?.content?.[0]?.text || ""; } catch { return ""; } }).filter(Boolean).join(" | ").slice(0, 400)}"`);
-      resolve({ provider: "claude", reason: "LLM 解析失敗,預設使用 Claude", source: "fallback" });
+      routerFail("LLM 解析失敗,預設使用 Claude");
     });
   });
 }
