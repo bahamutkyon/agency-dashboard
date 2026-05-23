@@ -1,7 +1,8 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import {
   ingestLearningOutput, parseCategoryAgentId, CATEGORY_PREFIX,
-  executeLearningRun, type LearningRun, type LearnTarget,
+  executeLearningRun, createLearningRun, getLearningRun, resumeUnfinishedRuns,
+  type LearningRun, type LearnTarget,
 } from "./capabilityLearning.js";
 import { db } from "./db.js";
 import {
@@ -142,5 +143,122 @@ describe("listPendingProposals 跨工作區可見性", () => {
     // 類層提案存在 default 工作區，但從別的工作區查詢也應該看得到
     const rows = listPendingProposals("ws_some_other_workspace");
     expect(rows.some((p) => p.agentId === CATEGORY_PREFIX + CAT3)).toBe(true);
+  });
+});
+
+// ============ run 持久化與恢復測試 ============
+
+const TEST_RUN_PREFIX = "lrun_test_";
+
+afterAll(() => {
+  db.prepare("DELETE FROM learning_runs WHERE id LIKE ?").run(TEST_RUN_PREFIX + "%");
+});
+
+describe("createLearningRun 寫入 DB", () => {
+  it("createLearningRun 在 DB 中建立對應紀錄", () => {
+    const targets: LearnTarget[] = [
+      { type: "category", id: "test-persist-cat" },
+      { type: "agent", id: "test-persist-agent" },
+    ];
+    const run = createLearningRun(targets);
+    // 將 id 改成可預測的測試 id 以便 cleanup（直接更新 DB）
+    const testId = TEST_RUN_PREFIX + "create";
+    db.prepare("UPDATE learning_runs SET id = ? WHERE id = ?").run(testId, run.id);
+    (run as any).id = testId;
+
+    const row = db.prepare("SELECT * FROM learning_runs WHERE id = ?").get(testId) as any;
+    expect(row).toBeDefined();
+    expect(row.status).toBe("running");
+    expect(row.total).toBe(2);
+    expect(row.done).toBe(0);
+    expect(JSON.parse(row.targets)).toEqual(targets);
+    expect(JSON.parse(row.failed)).toEqual([]);
+  });
+});
+
+describe("executeLearningRun 進度持續寫回 DB", () => {
+  it("每完成一個 target，DB 的 done 欄位遞增", async () => {
+    const targets: LearnTarget[] = [
+      { type: "category", id: "db-prog-a" },
+      { type: "category", id: "db-prog-b" },
+      { type: "category", id: "db-prog-c" },
+    ];
+    const run = createLearningRun(targets);
+    const testId = TEST_RUN_PREFIX + "progress";
+    db.prepare("UPDATE learning_runs SET id = ? WHERE id = ?").run(testId, run.id);
+    (run as any).id = testId;
+
+    const snapshots: number[] = [];
+    await executeLearningRun(run, async () => ({ created: 1 }), (_r) => {
+      // 在 onProgress 時讀 DB 確認已寫入
+      const row = db.prepare("SELECT done FROM learning_runs WHERE id = ?").get(testId) as any;
+      snapshots.push(row?.done ?? -1);
+    });
+
+    // DB 在每個 onProgress 後都應已更新
+    expect(snapshots).toEqual([1, 2, 3]);
+    // 最終 status=done 寫入 DB
+    const final = db.prepare("SELECT status, done FROM learning_runs WHERE id = ?").get(testId) as any;
+    expect(final.status).toBe("done");
+    expect(final.done).toBe(3);
+  });
+});
+
+describe("getLearningRun 從 DB 重建（斷點續跑入口）", () => {
+  it("run 不在 in-memory 時，getLearningRun 從 DB 重建物件", () => {
+    const testId = TEST_RUN_PREFIX + "rebuild";
+    const targets: LearnTarget[] = [
+      { type: "agent", id: "ag1" },
+      { type: "agent", id: "ag2" },
+      { type: "agent", id: "ag3" },
+    ];
+    // 直接插一筆 done=2/total=3 的中斷紀錄，模擬 server 重啟前的進度
+    db.prepare(`
+      INSERT OR REPLACE INTO learning_runs
+      (id, targets, status, total, done, current, failed, created_proposals, schedule_id, created_at, updated_at)
+      VALUES (?, ?, 'running', 3, 2, 'agent:ag2', '[]', 5, NULL, ?, ?)
+    `).run(testId, JSON.stringify(targets), Date.now(), Date.now());
+
+    const rebuilt = getLearningRun(testId);
+    expect(rebuilt).toBeDefined();
+    expect(rebuilt!.done).toBe(2);
+    expect(rebuilt!.total).toBe(3);
+    expect(rebuilt!.status).toBe("running");
+    expect(rebuilt!.targets).toEqual(targets);
+    expect(rebuilt!.createdProposals).toBe(5);
+  });
+
+  it("從 done=2 續跑時，executeLearningRun 只處理剩餘的 1 個 target", async () => {
+    const testId = TEST_RUN_PREFIX + "resume";
+    const targets: LearnTarget[] = [
+      { type: "agent", id: "r1" },
+      { type: "agent", id: "r2" },
+      { type: "agent", id: "r3" },
+    ];
+    // 插一筆 done=2 的中斷紀錄
+    db.prepare(`
+      INSERT OR REPLACE INTO learning_runs
+      (id, targets, status, total, done, current, failed, created_proposals, schedule_id, created_at, updated_at)
+      VALUES (?, ?, 'running', 3, 2, NULL, '[]', 10, NULL, ?, ?)
+    `).run(testId, JSON.stringify(targets), Date.now(), Date.now());
+
+    const run = getLearningRun(testId)!;
+    expect(run.done).toBe(2);
+
+    const processed: string[] = [];
+    await executeLearningRun(
+      run,
+      async (t) => { processed.push(t.id); return { created: 0 }; },
+      () => {},
+    );
+
+    // 只有第 3 個（index=2，r3）應被處理
+    expect(processed).toEqual(["r3"]);
+    expect(run.done).toBe(3);
+    expect(run.status).toBe("done");
+    // DB 也應是 done
+    const row = db.prepare("SELECT status, done FROM learning_runs WHERE id = ?").get(testId) as any;
+    expect(row.status).toBe("done");
+    expect(row.done).toBe(3);
   });
 });

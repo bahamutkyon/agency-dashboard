@@ -180,6 +180,21 @@ CREATE TABLE IF NOT EXISTS learning_schedules (
   last_run_at INTEGER,
   created_at  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS learning_runs (
+  id                TEXT PRIMARY KEY,
+  targets           TEXT NOT NULL DEFAULT '[]',
+  status            TEXT NOT NULL,           -- running | done | error
+  total             INTEGER NOT NULL,
+  done              INTEGER NOT NULL DEFAULT 0,
+  current           TEXT,                    -- e.g. "agent:design-ui-designer"
+  failed            TEXT NOT NULL DEFAULT '[]',
+  created_proposals INTEGER NOT NULL DEFAULT 0,
+  schedule_id       TEXT,                    -- 若由排程觸發
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_learning_runs_status ON learning_runs(status);
 `;
 
 db.exec(SCHEMA);

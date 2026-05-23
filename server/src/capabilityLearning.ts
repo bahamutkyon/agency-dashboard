@@ -6,7 +6,7 @@
 import { spawnClaude } from "./claudeProcess.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCategoryMemory } from "./learningStore.js";
-import { DEFAULT_WORKSPACE_ID } from "./db.js";
+import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
 import { loadAgents, categoryLabel } from "./agentLoader.js";
 import { buildCategoryLearningPrompt, buildAgentLearningPrompt } from "./capabilityPrompts.js";
 
@@ -106,18 +106,87 @@ export interface LearningRun {
   current: string | null;
   failed: { target: string; error: string }[];
   createdProposals: number;
+  scheduleId?: string | null;
 }
 
 const runs = new Map<string, LearningRun>();
 const RUN_TTL_MS = 30 * 60 * 1000; // run 完成後保留 30 分鐘供查詢，之後清掉
 
+// --- DB 持久化 helpers ---
+
+/** 把 LearningRun 的當前狀態 INSERT 進 DB（建立時呼叫）。 */
+function insertRunToDB(run: LearningRun): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT OR REPLACE INTO learning_runs
+    (id, targets, status, total, done, current, failed, created_proposals, schedule_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    run.id,
+    JSON.stringify(run.targets),
+    run.status,
+    run.total,
+    run.done,
+    run.current ?? null,
+    JSON.stringify(run.failed),
+    run.createdProposals,
+    run.scheduleId ?? null,
+    now,
+    now,
+  );
+}
+
+/** 把 LearningRun 的當前狀態 UPDATE 進 DB（每次進度變化時呼叫）。 */
+function persistRun(run: LearningRun): void {
+  db.prepare(`
+    UPDATE learning_runs
+    SET status = ?, done = ?, current = ?, failed = ?, created_proposals = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    run.status,
+    run.done,
+    run.current ?? null,
+    JSON.stringify(run.failed),
+    run.createdProposals,
+    Date.now(),
+    run.id,
+  );
+}
+
+/** 從 DB 的一行資料重建 LearningRun 物件（不寫進 in-memory Map）。 */
+function rowToRun(row: any): LearningRun {
+  return {
+    id: row.id,
+    targets: JSON.parse(row.targets || "[]"),
+    status: row.status,
+    total: row.total,
+    done: row.done,
+    current: row.current ?? null,
+    failed: JSON.parse(row.failed || "[]"),
+    createdProposals: row.created_proposals,
+    scheduleId: row.schedule_id ?? null,
+  };
+}
+
+/**
+ * 查詢 run 進度：先查 in-memory Map，沒有再查 DB。
+ * 讓 GET /api/learning/run/:id 在 server 重啟後仍可查到歷史紀錄。
+ */
 export function getLearningRun(id: string): LearningRun | undefined {
-  return runs.get(id);
+  const mem = runs.get(id);
+  if (mem) return mem;
+  const row = db.prepare("SELECT * FROM learning_runs WHERE id = ?").get(id) as any;
+  if (!row) return undefined;
+  return rowToRun(row);
 }
 
 /**
  * 序列執行一個 run：逐一處理 target，每完成一個呼叫 onProgress。
  * worker 注入以利測試；正式呼叫傳 runLearningTarget。
+ *
+ * 斷點續跑核心：for 迴圈從 run.done 開始（而非 0），
+ * 讓 resume 時跳過已完成的部分。
+ * 新建的 run 其 done=0，行為與舊版一致。
  */
 export async function executeLearningRun(
   run: LearningRun,
@@ -125,7 +194,9 @@ export async function executeLearningRun(
   onProgress: (run: LearningRun) => void,
 ): Promise<void> {
   try {
-    for (const t of run.targets) {
+    // 從 done 開始，而非 0。新建 run done=0 等同全跑；resume 時則從中斷點繼續。
+    for (let i = run.done; i < run.targets.length; i++) {
+      const t = run.targets[i];
       run.current = `${t.type}:${t.id}`;
       try {
         const { created } = await worker(t);
@@ -134,27 +205,57 @@ export async function executeLearningRun(
         run.failed.push({ target: `${t.type}:${t.id}`, error: e?.message || String(e) });
       }
       run.done++;
+      persistRun(run);
       onProgress(run);
     }
     run.current = null;
     run.status = "done";
+    persistRun(run);
   } finally {
     // run 結束（成功或拋錯）後延遲清理，避免 runs Map 無限增長。
+    // DB 紀錄保留；in-memory 30 分鐘後清除。
     // unref 讓這個 timer 不會阻止 process 結束。
     setTimeout(() => runs.delete(run.id), RUN_TTL_MS).unref();
   }
 }
 
-/** 建立並登記一個新 run（狀態機初始值）。 */
-export function createLearningRun(targets: LearnTarget[]): LearningRun {
+/** 建立並登記一個新 run（狀態機初始值），同時寫入 DB。 */
+export function createLearningRun(targets: LearnTarget[], scheduleId?: string | null): LearningRun {
   const run: LearningRun = {
     id: `lrun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     targets, status: "running",
     total: targets.length, done: 0, current: null,
     failed: [], createdProposals: 0,
+    scheduleId: scheduleId ?? null,
   };
   runs.set(run.id, run);
+  insertRunToDB(run);
   return run;
+}
+
+/**
+ * server 啟動時呼叫：撿起上次中斷的 run（status='running'）並從斷點續跑。
+ * 傳入 worker 與 sink 由 index.ts 注入（和正常啟動路徑一致），
+ * 避免 capabilityLearning.ts 直接依賴 socket.io。
+ */
+export function resumeUnfinishedRuns(
+  worker: (t: LearnTarget) => Promise<{ created: number }>,
+  sink: (run: LearningRun) => void,
+): void {
+  const rows = db.prepare("SELECT * FROM learning_runs WHERE status = 'running'").all() as any[];
+  if (rows.length === 0) return;
+  console.log(`[capability-learning] resuming ${rows.length} unfinished run(s)`);
+  for (const row of rows) {
+    const run = rowToRun(row);
+    // 重建 in-memory 讓 getLearningRun 可以直接查 Map
+    runs.set(run.id, run);
+    // 背景續跑，不 await
+    executeLearningRun(run, worker, sink).catch((e) => {
+      run.status = "error";
+      persistRun(run);
+      console.warn(`[capability-learning] resumed run ${run.id} failed:`, e?.message || e);
+    });
+  }
 }
 
 /** 跑單一 target 的能力學習，回傳建立的提案數。 */

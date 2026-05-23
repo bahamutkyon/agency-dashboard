@@ -37,7 +37,7 @@ import { learningScheduler } from "./learningScheduler.js";
 
 import {
   parseCategoryAgentId, createLearningRun, executeLearningRun,
-  getLearningRun, runLearningTarget,
+  getLearningRun, runLearningTarget, resumeUnfinishedRuns,
 } from "./capabilityLearning.js";
 import cron from "node-cron";
 
@@ -1231,6 +1231,12 @@ server.listen(PORT, REMOTE_CFG.bindHost, () => {
   scheduler.init();
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
+  resumeUnfinishedRuns(runLearningTarget, (r) => {
+    io.emit("learning:progress", {
+      runId: r.id, status: r.status, total: r.total, done: r.done,
+      current: r.current, failed: r.failed, createdProposals: r.createdProposals,
+    });
+  });
   workflowRunner.on("update", (runId: string) => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);
