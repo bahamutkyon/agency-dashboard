@@ -20,23 +20,32 @@ export function buildCategoryLearningPrompt(categoryLabel: string): string {
 直接輸出 5-8 個這樣的標記區塊，不要前言、不要編號、不要額外解釋。`;
 }
 
-/** 個人層學習：在類共通能力之上，要 agent 盤點自己角色獨有的手藝。 */
+/** 個人層學習：在類共通能力之上，要 agent 盤點自己角色獨有的手藝。
+ *  agentBody 是該 agent .md 的完整人設正文（職責、風格、領域知識），
+ *  比 description 那一行豐富，讓 Opus 有足夠素材寫出真正獨門的手藝。
+ *  早期版本只給 description，導致窄領域 agent（如嵌入式韌體、Solidity）
+ *  寫不出 LEARN 標記。 */
 export function buildAgentLearningPrompt(
   agentName: string,
   agentDescription: string,
   categoryMemory: string,
+  agentBody?: string,
 ): string {
   const cat = (categoryMemory || "").trim();
+  const body = (agentBody || "").trim();
+  const bodyBlock = body
+    ? `\n# 你的完整角色設定（人設、職責、工作風格、領域知識）\n${body}\n`
+    : "";
   const catBlock = cat
     ? `\n# 你所屬領域的類共通能力（你已具備）\n${cat}\n`
     : "";
   const onTop = cat ? "在上述類共通能力之上" : "在你的專業角色基礎上";
   const avoid = cat ? "避免與上述類共通能力重複，" : "";
   return `你是「${agentName}」。${agentDescription}
-${catBlock}
+${bodyBlock}${catBlock}
 # 任務
-${onTop}，作為更具體、更專精的「${agentName}」，你還需要哪些**獨有的**專業細節、手藝、判斷，才能比同領域的一般專家更強？
-寫出 3-5 條。每條聚焦你這個角色**獨有**的東西，${avoid}**不超過 200 字**，具體可操作。
+${onTop}，作為更具體、更專精的「${agentName}」，你還需要哪些**獨有的**專業細節、手藝、判斷，才能比同領域的一般專家更強？從你的人設與領域中提煉**具體可操作**的工作心法、判斷準則、踩坑經驗。
+寫出 3-5 條。每條聚焦你這個角色**獨有**的東西，${avoid}**不超過 200 字**，具體可操作（最好帶數字門檻、判準、或一句話的決策樹）。
 
 # 輸出格式
 每條用下面的標記包起來（kind 固定為 craft）：

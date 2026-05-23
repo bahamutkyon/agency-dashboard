@@ -7,7 +7,7 @@ import { spawnClaude } from "./claudeProcess.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCategoryMemory } from "./learningStore.js";
 import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
-import { loadAgents, categoryLabel } from "./agentLoader.js";
+import { loadAgents, categoryLabel, readAgentDefinition } from "./agentLoader.js";
 import { buildCategoryLearningPrompt, buildAgentLearningPrompt } from "./capabilityPrompts.js";
 
 /** 類層提案的 agent_id 前綴 — 避免與真實 agentId 撞名。 */
@@ -267,7 +267,9 @@ export async function runLearningTarget(target: LearnTarget): Promise<{ created:
     const agent = loadAgents().find((a) => a.id === target.id);
     if (!agent) throw new Error(`找不到 agent: ${target.id}`);
     const catMem = getCategoryMemory(agent.category);
-    prompt = buildAgentLearningPrompt(agent.name, agent.description, catMem);
+    // 把 agent .md 完整人設正文也餵給 Opus，讓窄領域 agent 有足夠素材寫出獨門手藝
+    const def = readAgentDefinition(target.id);
+    prompt = buildAgentLearningPrompt(agent.name, agent.description, catMem, def?.body);
   }
   const text = await runClaudeOnce(prompt);
   const created = ingestLearningOutput(text, target);
