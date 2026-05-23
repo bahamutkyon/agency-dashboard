@@ -312,7 +312,7 @@ export interface LearningProposal {
   agentId: string;
   workspaceId: string;
   kind: "fact" | "craft" | "domain" | "calibration";
-  scope: "workspace" | "agent-global";
+  scope: "workspace" | "agent-global" | "category";
   content: string;
   source: string;
   status: "pending" | "approved" | "rejected";

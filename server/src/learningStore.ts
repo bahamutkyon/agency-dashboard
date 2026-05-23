@@ -130,6 +130,24 @@ export function appendCategoryMemory(categoryId: string, entry: string): void {
   `).run(categoryId, next, Date.now());
 }
 
+/** 直接覆蓋類層能力記憶（供編輯 UI 用，不追加時間戳記）。空字串視為清除。 */
+export function setCategoryMemory(categoryId: string, content: string): void {
+  db.prepare(`
+    INSERT INTO category_capability_memory (category, content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+  `).run(categoryId, content, Date.now());
+}
+
+/** 直接覆蓋 agent 手藝記憶（供編輯 UI 用，不追加時間戳記）。空字串視為清除。 */
+export function setCraftMemory(agentId: string, content: string): void {
+  db.prepare(`
+    INSERT INTO agent_craft_memory (agent_id, content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(agent_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+  `).run(agentId, content, Date.now());
+}
+
 // --- 能力學習排程（時間驅動）---
 
 export interface LearningSchedule {

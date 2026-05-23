@@ -14,6 +14,7 @@ import { BatchPanel } from "./components/BatchPanel";
 import { NotesPanel } from "./components/NotesPanel";
 import { LearningQueuePanel } from "./components/LearningQueuePanel";
 import { CapabilityLearningPanel } from "./components/CapabilityLearningPanel";
+import { MemoryEditor } from "./components/MemoryEditor";
 import { WorkflowsPanel } from "./components/WorkflowsPanel";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
@@ -33,6 +34,7 @@ type View =
   | { kind: "notes" }
   | { kind: "learning" }
   | { kind: "capability-learning" }
+  | { kind: "memory-editor" }
   | { kind: "workflows" }
   | { kind: "meeting-room"; agentId: string };
 
@@ -190,6 +192,7 @@ export default function App() {
   const openNotes = () => setView({ kind: "notes" });
   const openLearning = () => setView({ kind: "learning" });
   const openCapabilityLearning = () => setView({ kind: "capability-learning" });
+  const openMemoryEditor = () => setView({ kind: "memory-editor" });
   const openWorkflows = () => setView({ kind: "workflows" });
 
   const openOnboarding = (sessionId: string, draftWorkspaceId?: string) => {
@@ -315,6 +318,7 @@ ${message}
               onOpenNotes={() => { openNotes(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenLearning={() => { openLearning(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenCapabilityLearning={() => { openCapabilityLearning(); if (window.innerWidth < 768) toggleSidebar(); }}
+              onOpenMemoryEditor={() => { openMemoryEditor(); if (window.innerWidth < 768) toggleSidebar(); }}
               onOpenWorkflows={() => { openWorkflows(); if (window.innerWidth < 768) toggleSidebar(); }}
               providersAvail={providersAvail}
             />
@@ -412,6 +416,7 @@ ${message}
           {isView("notes") && <NotesPanel key={`n-${reloadKey}`} />}
           {isView("learning") && <LearningQueuePanel key={`l-${reloadKey}`} agents={agents} />}
           {isView("capability-learning") && <CapabilityLearningPanel key={`cl-${reloadKey}`} />}
+          {isView("memory-editor") && <MemoryEditor key={`me-${reloadKey}`} />}
           {isView("workflows") && (
             <WorkflowsPanel
               key={`w-${reloadKey}`}

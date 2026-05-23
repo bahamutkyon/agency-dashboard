@@ -6,8 +6,11 @@ import {
 } from "./capabilityLearning.js";
 import { db } from "./db.js";
 import {
-  getCategoryMemory, getProposal, setProposalStatus, appendCraftMemory, appendCategoryMemory,
+  getCategoryMemory, getCraftMemory, getProposal, setProposalStatus,
+  appendCraftMemory, appendCategoryMemory,
+  setCategoryMemory, setCraftMemory,
   listPendingProposals,
+  createProposal,
 } from "./learningStore.js";
 
 const CAT = "test-ingest-cat";
@@ -260,5 +263,150 @@ describe("getLearningRun 從 DB 重建（斷點續跑入口）", () => {
     const row = db.prepare("SELECT status, done FROM learning_runs WHERE id = ?").get(testId) as any;
     expect(row.status).toBe("done");
     expect(row.done).toBe(3);
+  });
+});
+
+// ============ setCategoryMemory / setCraftMemory 直接覆蓋測試 ============
+
+describe("setCategoryMemory 直接覆蓋", () => {
+  const CAT_SET = "test-set-category";
+  afterAll(() => {
+    db.prepare("DELETE FROM category_capability_memory WHERE category = ?").run(CAT_SET);
+  });
+
+  it("新增：寫入後 getCategoryMemory 回傳相同內容", () => {
+    setCategoryMemory(CAT_SET, "初始內容");
+    expect(getCategoryMemory(CAT_SET)).toBe("初始內容");
+  });
+
+  it("覆蓋：再次呼叫會完全取代舊內容", () => {
+    setCategoryMemory(CAT_SET, "初始內容");
+    setCategoryMemory(CAT_SET, "更新後的內容");
+    expect(getCategoryMemory(CAT_SET)).toBe("更新後的內容");
+  });
+
+  it("清除：傳入空字串後 getCategoryMemory 回傳空字串", () => {
+    setCategoryMemory(CAT_SET, "有內容");
+    setCategoryMemory(CAT_SET, "");
+    expect(getCategoryMemory(CAT_SET)).toBe("");
+  });
+
+  it("不影響其他類別的記憶", () => {
+    const OTHER = "test-set-other-cat";
+    try {
+      appendCategoryMemory(OTHER, "別的類別條目");
+      setCategoryMemory(CAT_SET, "A 改了");
+      expect(getCategoryMemory(OTHER)).toContain("別的類別條目");
+    } finally {
+      db.prepare("DELETE FROM category_capability_memory WHERE category = ?").run(OTHER);
+    }
+  });
+});
+
+describe("setCraftMemory 直接覆蓋", () => {
+  const AGENT_SET = "test-set-craft-agent";
+  afterAll(() => {
+    db.prepare("DELETE FROM agent_craft_memory WHERE agent_id = ?").run(AGENT_SET);
+  });
+
+  it("新增：寫入後 getCraftMemory 回傳相同內容", () => {
+    setCraftMemory(AGENT_SET, "手藝初始");
+    expect(getCraftMemory(AGENT_SET)).toBe("手藝初始");
+  });
+
+  it("覆蓋：再次呼叫會完全取代舊內容（不是追加）", () => {
+    setCraftMemory(AGENT_SET, "手藝初始");
+    setCraftMemory(AGENT_SET, "手藝更新");
+    const content = getCraftMemory(AGENT_SET);
+    expect(content).toBe("手藝更新");
+    expect(content).not.toContain("手藝初始");
+  });
+
+  it("清除：傳入空字串後 getCraftMemory 回傳空字串", () => {
+    setCraftMemory(AGENT_SET, "有手藝");
+    setCraftMemory(AGENT_SET, "");
+    expect(getCraftMemory(AGENT_SET)).toBe("");
+  });
+});
+
+// ============ bulk-approve / bulk-reject 邏輯測試 ============
+
+describe("bulk-approve 邏輯（直接呼叫 store 函式模擬）", () => {
+  const BULK_CAT = "test-bulk-cat";
+  afterAll(() => {
+    db.prepare("DELETE FROM learning_proposals WHERE agent_id = ?").run(CATEGORY_PREFIX + BULK_CAT);
+    db.prepare("DELETE FROM category_capability_memory WHERE category = ?").run(BULK_CAT);
+  });
+
+  it("批次批准成功：多個 pending 提案都被 approve、記憶寫入", () => {
+    // 分兩次 ingest，確保去重不擋第二次（內容不同）
+    ingestLearningOutput(
+      "=== LEARN kind=domain ===\n批次測試條目 Alpha（獨特內容 X1）\n=== END LEARN ===",
+      { type: "category", id: BULK_CAT },
+    );
+    ingestLearningOutput(
+      "=== LEARN kind=domain ===\n批次測試條目 Beta（獨特內容 X2）\n=== END LEARN ===",
+      { type: "category", id: BULK_CAT },
+    );
+    const rows = db.prepare(
+      "SELECT id FROM learning_proposals WHERE agent_id = ? AND status = 'pending'",
+    ).all(CATEGORY_PREFIX + BULK_CAT) as any[];
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+
+    let ok = 0, fail = 0;
+    for (const { id } of rows) {
+      const p = getProposal(id)!;
+      if (!p || p.status !== "pending") { fail++; continue; }
+      const catId = parseCategoryAgentId(p.agentId);
+      if (!catId) { fail++; continue; }
+      if (!setProposalStatus(p.id, "approved")) { fail++; continue; }
+      appendCategoryMemory(catId, p.content);
+      ok++;
+    }
+    expect(ok).toBeGreaterThanOrEqual(2);
+    expect(fail).toBe(0);
+    const mem = getCategoryMemory(BULK_CAT);
+    expect(mem).toContain("Alpha");
+    expect(mem).toContain("Beta");
+  });
+
+  it("已 approved 的提案再次 setProposalStatus → 回傳 false（CAS 保護）", () => {
+    ingestLearningOutput(
+      "=== LEARN kind=domain ===\nCAS 保護測試\n=== END LEARN ===",
+      { type: "category", id: BULK_CAT },
+    );
+    const row = db.prepare(
+      "SELECT id FROM learning_proposals WHERE agent_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+    ).get(CATEGORY_PREFIX + BULK_CAT) as any;
+    expect(setProposalStatus(row.id, "approved")).toBe(true);  // 第一次成功
+    expect(setProposalStatus(row.id, "approved")).toBe(false); // 第二次失敗
+    expect(setProposalStatus(row.id, "rejected")).toBe(false); // 改 rejected 也失敗
+  });
+});
+
+describe("bulk-reject 邏輯", () => {
+  const BULK_REJ_AGENT = "test-bulk-reject-agent";
+  afterAll(() => {
+    db.prepare("DELETE FROM learning_proposals WHERE agent_id = ?").run(BULK_REJ_AGENT);
+  });
+
+  it("批次拒絕：pending 提案被 reject，非 pending 的計入 fail", () => {
+    // 建立 2 個 pending 提案
+    const p1 = createProposal({ agentId: BULK_REJ_AGENT, workspaceId: "ws_default", kind: "craft", scope: "agent-global", content: "拒絕測試 1", source: "test" });
+    const p2 = createProposal({ agentId: BULK_REJ_AGENT, workspaceId: "ws_default", kind: "craft", scope: "agent-global", content: "拒絕測試 2", source: "test" });
+    expect(p1).not.toBeNull();
+    expect(p2).not.toBeNull();
+
+    // 先 approve p1 讓它離開 pending
+    setProposalStatus(p1!.id, "approved");
+
+    let ok = 0, fail = 0;
+    for (const id of [p1!.id, p2!.id]) {
+      const p = getProposal(id);
+      if (p && p.status === "pending" && setProposalStatus(p.id, "rejected")) ok++;
+      else fail++;
+    }
+    expect(ok).toBe(1);  // 只有 p2 是 pending
+    expect(fail).toBe(1); // p1 已 approved
   });
 });

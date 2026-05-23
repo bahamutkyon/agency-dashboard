@@ -30,6 +30,7 @@ import {
 import {
   listPendingProposals, getProposal, setProposalStatus,
   getCraftMemory, appendCraftMemory, appendCategoryMemory,
+  getCategoryMemory, setCategoryMemory, setCraftMemory,
   listLearningSchedules, getLearningSchedule,
   upsertLearningSchedule, deleteLearningSchedule,
 } from "./learningStore.js";
@@ -1044,6 +1045,70 @@ app.post("/api/learning/proposals/:id/reject", (req, res) => {
   if (!p) return res.status(404).json({ error: "找不到提案" });
   if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
   setProposalStatus(p.id, "rejected");
+  res.json({ ok: true });
+});
+
+// 批次批准（最多 500 條）
+app.post("/api/learning/proposals/bulk-approve", (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 500) : [];
+  if (ids.length === 0) return res.status(400).json({ error: "ids 不可為空" });
+  let ok = 0, fail = 0;
+  const errs: { id: string; error: string }[] = [];
+  for (const id of ids) {
+    try {
+      const p = getProposal(id);
+      if (!p || p.status !== "pending") { fail++; errs.push({ id, error: "找不到或非 pending" }); continue; }
+      let categoryId: string | null = null;
+      if (p.scope === "category") {
+        categoryId = parseCategoryAgentId(p.agentId);
+        if (!categoryId) { fail++; errs.push({ id, error: "類別格式異常" }); continue; }
+      }
+      if (!setProposalStatus(p.id, "approved")) { fail++; errs.push({ id, error: "已處理過" }); continue; }
+      if (p.scope === "category") appendCategoryMemory(categoryId!, p.content);
+      else if (p.scope === "agent-global") appendCraftMemory(p.agentId, p.content);
+      else appendWorkspaceMemory(p.workspaceId, p.content);
+      ok++;
+    } catch (e: any) { fail++; errs.push({ id, error: e?.message || String(e) }); }
+  }
+  res.json({ ok, fail, errors: errs.slice(0, 20) });
+});
+
+// 批次拒絕（最多 500 條）
+app.post("/api/learning/proposals/bulk-reject", (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 500) : [];
+  if (ids.length === 0) return res.status(400).json({ error: "ids 不可為空" });
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    const p = getProposal(id);
+    if (p && p.status === "pending" && setProposalStatus(p.id, "rejected")) ok++;
+    else fail++;
+  }
+  res.json({ ok, fail });
+});
+
+// 讀取類層能力記憶
+app.get("/api/learning/category-memory/:category", (req, res) => {
+  res.json({ category: req.params.category, content: getCategoryMemory(req.params.category) });
+});
+
+// 覆蓋類層能力記憶（直接 SET，非追加）
+app.put("/api/learning/category-memory/:category", (req, res) => {
+  const cat = req.params.category;
+  const content = String(req.body?.content || "");
+  setCategoryMemory(cat, content);
+  res.json({ ok: true });
+});
+
+// 讀取個別 agent 手藝記憶（path 參數版，補齊現有的 query string 版）
+app.get("/api/learning/craft/:agentId", (req, res) => {
+  res.json({ agentId: req.params.agentId, content: getCraftMemory(req.params.agentId) });
+});
+
+// 覆蓋個別 agent 手藝記憶（直接 SET，非追加）
+app.put("/api/learning/craft/:agentId", (req, res) => {
+  const aid = req.params.agentId;
+  const content = String(req.body?.content || "");
+  setCraftMemory(aid, content);
   res.json({ ok: true });
 });
 
