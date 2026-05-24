@@ -31,7 +31,8 @@ export function parseCategoryAgentId(agentId: string): string | null {
  * （createProposal 內建去重，重複的不計入）。
  */
 export function ingestLearningOutput(text: string, target: LearnTarget): number {
-  const drafts = parseLearnMarkers(text, 8);
+  // 能力學習條目較詳細（含具體判準/數字），放寬至 500 字
+  const drafts = parseLearnMarkers(text, 8, 500);
   let created = 0;
   // kind / scope 由 target 類型決定，不採信 Claude 回應裡的 kind 標記
   // （類層一律 domain、個人層一律 craft），避免模型亂標。
@@ -273,7 +274,7 @@ export async function runLearningTarget(target: LearnTarget): Promise<{ created:
   }
   const text = await runClaudeOnce(prompt);
   const created = ingestLearningOutput(text, target);
-  if (created === 0 && !parseLearnMarkers(text, 8).length) {
+  if (created === 0 && !parseLearnMarkers(text, 8, 500).length) {
     throw new Error("回應未包含任何學習標記");
   }
   return { created };

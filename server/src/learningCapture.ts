@@ -25,11 +25,16 @@ export function deriveScope(kind: LearnKind): LearnScope {
  * 解析文字中所有 LEARN 與 REMEMBER 標記。
  *  - === LEARN kind=craft === ... === END LEARN ===
  *  - === REMEMBER === ... === END REMEMBER ===（視為 kind=fact）
- * 略過空內容與超過 200 字的內容；單次最多回傳 maxDrafts 條（LEARN + REMEMBER 合計），
- * 預設 5（Phase 1 行為）；類層呼叫時傳 8 以支援 5-8 條產出。
+ * 略過空內容與超過 maxLen 字的內容；單次最多回傳 maxDrafts 條（LEARN + REMEMBER 合計）。
+ * 預設 maxDrafts=5、maxLen=200（Phase 1 對話內 LEARN 標記用）；
+ * 能力學習場景傳 maxDrafts=8、maxLen=500（產出條目較長、較詳細）。
  * LEARN 先解析、REMEMBER 後解析，超出上限時後者先被裁掉。
  */
-export function parseLearnMarkers(text: string, maxDrafts: number = MAX_DRAFTS): LearnDraft[] {
+export function parseLearnMarkers(
+  text: string,
+  maxDrafts: number = MAX_DRAFTS,
+  maxLen: number = MAX_CONTENT_LEN,
+): LearnDraft[] {
   const out: LearnDraft[] = [];
 
   const learnRe = /===\s*LEARN\s+kind=(\w+)\s*===[ \t]*\r?\n([\s\S]*?)\r?\n===\s*END\s*LEARN\s*===/gi;
@@ -42,7 +47,7 @@ export function parseLearnMarkers(text: string, maxDrafts: number = MAX_DRAFTS):
       learnRe.lastIndex = m.index + m[0].indexOf("\n") + 1;
       continue;
     }
-    if (!content || content.length > MAX_CONTENT_LEN) continue;
+    if (!content || content.length > maxLen) continue;
     const rawKind = m[1].toLowerCase();
     const kind = (VALID_KINDS as string[]).includes(rawKind) ? (rawKind as LearnKind) : "fact";
     out.push({ kind, scope: deriveScope(kind), content });
@@ -56,7 +61,7 @@ export function parseLearnMarkers(text: string, maxDrafts: number = MAX_DRAFTS):
       rememberRe.lastIndex = r.index + r[0].indexOf("\n") + 1;
       continue;
     }
-    if (!content || content.length > MAX_CONTENT_LEN) continue;
+    if (!content || content.length > maxLen) continue;
     out.push({ kind: "fact", scope: "workspace", content });
   }
 
