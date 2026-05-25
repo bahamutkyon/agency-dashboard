@@ -230,6 +230,11 @@ export default function App() {
       onboardingTargetWorkspaceId: draftWorkspaceId,
     }]);
     setView({ kind: "chat", sessionId });
+    // 觸發 orchestrator 開始訪問（agent 不會自己開口，要先收到 user message 才會回應）
+    // 對比 handoff 也是同樣機制
+    setTimeout(() => {
+      getSocket().emit("session:send", { sessionId, text: "請開始訪問我，依你的工作區設定顧問流程提問。" });
+    }, 500);
   }, []);
 
   // handoff: open a new chat with `agentId` and inject the message as the
