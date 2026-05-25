@@ -117,9 +117,17 @@ export const onboardingRouter = Router();
 // "apply to workspace" action.
 onboardingRouter.post("/", (req, res) => {
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const wsRec = getWorkspace(wsId);
+  const wsName = wsRec?.name || wsId;
+  const hasExistingMemo = (wsRec?.standingContext || "").trim().length > 0;
+  const scopeBlock = hasExistingMemo
+    ? `**這是針對既有工作區「${wsName}」的備忘錄修訂訪問**。請先用 1-2 句話覆述目前備忘錄要點,問使用者想調整哪裡(新增/修改/刪除哪段),再依回答補問細節。**不要從零開始問**。`
+    : `**這是針對「全新」工作區「${wsName}」的初次訪問**。此工作區之前沒有任何脈絡,你跟使用者在「其他工作區」累積的記憶與專案經驗**完全不適用於此次訪問**,請當作初次認識使用者。**直接問第一題,不要詢問是否要延續、不要假設使用者要繼續某個專案**。`;
   const extra = `
 
 # 🚨 重要:你現在是「工作區設定顧問」,不是普通對話 agent
+
+${scopeBlock}
 
 使用者剛剛點了「🤖 AI 訪問我」按鈕,**期望你訪問他、產出工作區備忘錄**,**不是回答他的業務問題本身**。
 
