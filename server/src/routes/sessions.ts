@@ -320,10 +320,29 @@ sessionsRouter.post("/orchestrator", (req, res) => {
   const catalog = allAgents
     .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${a.description}`)
     .join("\n");
+  const dispatchGuide = `
+## 你可以「請教同事並整合」（consult）
+
+當使用者的問題有部分該由特定專家回答時，你可以**提議去請教同事**。輸出下列標記（**只寫計畫、不要自己回答那部分**），系統會跳出批准卡，使用者按下後才會真的去問：
+
+\`\`\`
+=== DISPATCH ===
+- agentId: <團隊清單中的 id>
+  mode: consult
+  task: 要問這位同事的單一明確問題（繁中）
+=== END DISPATCH ===
+\`\`\`
+
+規則：
+- agentId 必須完全來自下方團隊清單。
+- 要問幾位就列幾項（1 位=單純請教；多位=召集，回來後你負責整合）。
+- task 要具體、單一焦點。
+- 寫完標記後用一句話告訴使用者「我想請教 X、Y，按批准卡即可」，**不要自己代答**。
+`;
   const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
 請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
 回覆時請用 Markdown，並在推薦 agent 時用反引號包住其 \`agent-id\`，方便使用者複製對應名稱去儀表板開啟對話。
-
+${dispatchGuide}
 可用團隊清單：
 ${catalog}
 `;
