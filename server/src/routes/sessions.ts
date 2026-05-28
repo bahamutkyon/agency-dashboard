@@ -10,6 +10,12 @@ import {
 import { distillAgentMemory } from "../memoryDistiller.js";
 import { isCodexAvailable } from "../codexProcess.js";
 import { isGeminiAvailable } from "../geminiProcess.js";
+import { runConsult } from "../dispatchRunner.js";
+import type { DispatchItem } from "../dispatchParser.js";
+
+const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
+const CONSULT_TIMEOUT_MS = 120_000;      // 單項諮詢逾時
+const CONSULT_FEEDBACK_SENTINEL = "[[CONSULT_RESULTS]]"; // 前端據此摺疊餵回訊息
 
 export const sessionsRouter = Router();
 
@@ -325,4 +331,38 @@ ${catalog}
   const standing = getWorkspace(wsId)?.standingContext || "";
   const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId, false);
   res.json({ id: session.id });
+});
+
+// PM 派工 — 接收已批准的計畫，實際跑子 agent。切片① 僅 consult（execute 見切片②）。
+sessionsRouter.post("/orchestrator/:sessionId/dispatch", async (req, res) => {
+  const pmSessionId = req.params.sessionId;
+  const pm = getSession(pmSessionId);
+  if (!pm) return res.status(404).json({ error: "PM session 不存在，請重開專案經理對話" });
+  const items: DispatchItem[] = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (items.length === 0) return res.status(400).json({ error: "items 不可為空" });
+
+  const validIds = new Set(loadAgentsImpl().map((a) => a.id));
+  const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
+  const executeIgnored = items.filter((i) => i.mode === "execute");
+  if (consult.length === 0) {
+    return res.status(400).json({ error: "沒有有效的 consult 項（execute 尚未支援，見切片②）" });
+  }
+
+  try {
+    const results = await runConsult(consult, pm.workspaceId, {
+      concurrency: DISPATCH_CONCURRENCY,
+      perItemTimeoutMs: CONSULT_TIMEOUT_MS,
+    });
+    // 組彙整訊息餵回 PM（PM 串流經既有 session-room forward 自動到前端）。
+    // 前綴 sentinel，讓前端把這則「使用者訊息」摺疊起來，保持對話乾淨。
+    const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
+    const labelled = results
+      .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
+      .join("\n\n");
+    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆，請**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼；逾時/錯誤的同事就說明未能取得）：\n\n${labelled.slice(0, 25000)}`;
+    agentManager.send(pmSessionId, feedback);
+    res.json({ consulted: results, executeIgnored: executeIgnored.map((i) => i.agentId) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
 });
