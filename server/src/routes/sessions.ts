@@ -16,6 +16,9 @@ import type { DispatchItem } from "../dispatchParser.js";
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
 const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
 const CONSULT_FEEDBACK_SENTINEL = "[[CONSULT_RESULTS]]"; // 前端據此摺疊餵回訊息
+// 派工開的子 session 標題前綴——從主歷史列表隱藏（仍存 DB、仍餵學習，只是不混進你的對話歷史）。
+// auto-titler 會跳過非預設標題，所以這些前綴是 durable 的。
+const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
 
 export const sessionsRouter = Router();
 
@@ -32,7 +35,8 @@ sessionsRouter.get("/sessions", (req, res) => {
   const out = listSessionsWithCounts(ws(req)).map((s) => ({
     ...s,
     status: agentManager.liveStatus(s.id),
-  })).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting");
+  })).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting")
+    .filter((s) => !DISPATCH_SUB_TITLE_PREFIXES.some((p) => s.title.startsWith(p)));
   res.json(out);
 });
 
