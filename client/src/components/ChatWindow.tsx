@@ -4,6 +4,7 @@ import { api, type Note, type PromptTemplate, type SessionRecord } from "../lib/
 import { notify } from "../lib/notifications";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
+import { DispatchApprovalCard } from "./DispatchApprovalCard";
 
 interface Props {
   sessionId: string;
@@ -414,6 +415,48 @@ export function ChatWindow({
     return null;
   }, [messages]);
 
+  // 與 server/src/dispatchParser.ts 同格式的就地解析（client 不跨引 server 模組）
+  const detectedDispatch = useMemo(() => {
+    if (agentId !== "agents-orchestrator") return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== "assistant") continue;
+      const m = messages[i].content.match(/=== DISPATCH ===\s*\n([\s\S]*?)\n=== END DISPATCH ===/);
+      if (!m) continue;
+      const items: { agentId: string; mode: "consult" | "execute"; task: string }[] = [];
+      let cur: any = null;
+      const flush = () => { if (cur?.agentId && cur?.task) items.push({ agentId: cur.agentId, mode: cur.mode || "consult", task: cur.task }); };
+      for (const raw of m[1].split(/\r?\n/)) {
+        const line = raw.trim();
+        const id = line.match(/^-\s*agentId:\s*(.+)$/);
+        if (id) { flush(); cur = { agentId: id[1].trim(), mode: "consult" }; continue; }
+        if (!cur) continue;
+        const mo = line.match(/^mode:\s*(\S+)/i); if (mo) { cur.mode = mo[1].toLowerCase() === "execute" ? "execute" : "consult"; continue; }
+        const ta = line.match(/^task:\s*(.+)$/); if (ta) { cur.task = ta[1].trim(); continue; }
+      }
+      flush();
+      return items.length ? items : null;
+    }
+    return null;
+  }, [messages, agentId]);
+
+  const [dispatchBusy, setDispatchBusy] = useState(false);
+  const [dispatched, setDispatched] = useState(false);
+  const [consultRaw, setConsultRaw] = useState<{ agentId: string; task: string; output: string; status: string }[] | null>(null);
+
+  const approveDispatch = async () => {
+    if (!detectedDispatch) return;
+    setDispatchBusy(true);
+    try {
+      const r = await api.dispatch(sessionId, detectedDispatch);
+      setConsultRaw(r.consulted);
+      setDispatched(true);
+    } catch (e: any) {
+      alert("派工失敗：" + (e?.message || e));
+    } finally {
+      setDispatchBusy(false);
+    }
+  };
+
   const [applyingWf, setApplyingWf] = useState(false);
   const [appliedWf, setAppliedWf] = useState(false);
 
@@ -704,6 +747,31 @@ export function ChatWindow({
           </button>
         </div>
       )}
+      {detectedDispatch && !dispatched && (
+        <div className="px-4 py-2 border-b border-sky-700/30">
+          <DispatchApprovalCard
+            items={detectedDispatch}
+            busy={dispatchBusy}
+            onApprove={approveDispatch}
+            onCancel={() => setDispatched(true)}
+          />
+        </div>
+      )}
+      {consultRaw && consultRaw.length > 0 && (
+        <div className="px-4 py-2 border-b border-zinc-700/30">
+          <details className="mb-2 rounded border border-zinc-700 bg-zinc-900/50 p-2 text-xs">
+            <summary className="cursor-pointer text-zinc-300">🔍 同事原始回覆（{consultRaw.length} 位）</summary>
+            <div className="mt-2 space-y-2">
+              {consultRaw.map((c, i) => (
+                <div key={i}>
+                  <div className="text-zinc-400">{c.agentId}（{c.status}）</div>
+                  <pre className="whitespace-pre-wrap text-zinc-300">{c.output || "（未取得回覆）"}</pre>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
       {autoInjectedNotes.length > 0 && (
         <div className="px-4 py-2 bg-emerald-950/30 border-b border-emerald-700/30 text-xs text-emerald-300">
           📚 已自動參考筆記:{autoInjectedNotes.map((n) => n.title).join(" · ")}
@@ -727,6 +795,9 @@ export function ChatWindow({
           </div>
         )}
         {messages.map((m, i) => {
+          if (m.role === "user" && m.content.startsWith("[[CONSULT_RESULTS]]")) {
+            return <div key={i} className="my-1 text-[11px] text-zinc-600">（已將同事回覆交給專案經理整合）</div>;
+          }
           const fork = m.role === "assistant" && !m.partial ? parseFork(m.content) : null;
           const cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;
           return (
