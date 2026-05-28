@@ -10,7 +10,7 @@ import {
   DEFAULT_WORKSPACE_ID,
 } from "../store.js";
 import { scheduler } from "../scheduler.js";
-import { launchWorkspaceChrome } from "../chromeLauncher.js";
+import { launchWorkspaceChrome, stopWorkspaceChrome, findPortConflict } from "../chromeLauncher.js";
 import { v4 as uuid } from "uuid";
 
 /** Helper: extract workspace id from request query or header */
@@ -46,8 +46,38 @@ workspacesRouter.post("/:id/launch-chrome", async (req, res) => {
   if (!w.chromeCdpPort) {
     return res.status(400).json({ error: "此工作區尚未設定 Chrome CDP port，請先在設定填一個（例如 9333）" });
   }
+  // #3 撞 port 檢查：兩個工作區用同一個 port，第二個會靜默沿用第一個的 Chrome
+  // （= 連到錯的登入帳號）。直接擋下，要求改 port。
+  const conflict = findPortConflict(listWorkspaces(), w.chromeCdpPort, w.id);
+  if (conflict) {
+    return res.status(409).json({
+      ok: false,
+      error: `port ${w.chromeCdpPort} 已被工作區「${conflict.name}」使用。請改一個不同的 port，否則兩個工作區會連到同一個 Chrome、用錯帳號。`,
+    });
+  }
   try {
     const result = await launchWorkspaceChrome(w.id, w.chromeCdpPort);
+    // #4 提醒：Chrome 開好不代表 agent 用得到 —— 還要這個工作區有勾 playwright MCP。
+    const playwrightEnabled = (w.enabledMcps || []).includes("playwright");
+    res.json({
+      ...result,
+      playwrightEnabled,
+      ...(result.ok && !playwrightEnabled
+        ? { warning: "Chrome 開好了，但這個工作區沒勾 playwright MCP，agent 還是用不到瀏覽器。請在上面把 playwright 勾起來並儲存。" }
+        : {}),
+    });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+// 關閉此工作區的專屬 Chrome（依其 CDP port）。冪等：那 port 上沒東西也回 ok。
+workspacesRouter.post("/:id/stop-chrome", async (req, res) => {
+  const w = getWorkspace(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  if (!w.chromeCdpPort) return res.status(400).json({ error: "此工作區沒有設定 Chrome CDP port" });
+  try {
+    const result = await stopWorkspaceChrome(w.chromeCdpPort);
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e?.message || String(e) });

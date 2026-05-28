@@ -72,7 +72,10 @@ export const api = {
   deleteWorkspace: (id: string) => fetch(`/api/workspaces/${id}`, { method: "DELETE" }).then(j),
   launchWorkspaceChrome: (id: string) =>
     fetch(`/api/workspaces/${id}/launch-chrome`, { method: "POST" })
-      .then(j<{ ok: boolean; alreadyRunning?: boolean; port: number; profileDir?: string; error?: string }>),
+      .then(j<{ ok: boolean; alreadyRunning?: boolean; port: number; profileDir?: string; error?: string; warning?: string; playwrightEnabled?: boolean }>),
+  stopWorkspaceChrome: (id: string) =>
+    fetch(`/api/workspaces/${id}/stop-chrome`, { method: "POST" })
+      .then(j<{ ok: boolean; port: number; killed: boolean; error?: string }>),
   exportWorkspaceUrl: (id: string) => `/api/workspaces/${id}/export`,
   importWorkspace: (bundle: any) =>
     fetch("/api/workspaces/import", {

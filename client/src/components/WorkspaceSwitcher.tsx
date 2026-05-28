@@ -241,8 +241,12 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                           await api.updateWorkspace(editingId, draft);
                           const r = await api.launchWorkspaceChrome(editingId);
                           if (!r.ok) setChromeStatus("❌ " + (r.error || "啟動失敗"));
-                          else if (r.alreadyRunning) setChromeStatus(`✅ 已在跑（port ${r.port}），沿用同一個`);
-                          else setChromeStatus(`✅ 已啟動（port ${r.port}）→ 去登入此工作區要用的帳號`);
+                          else {
+                            const base = r.alreadyRunning
+                              ? `✅ 已在跑（port ${r.port}），沿用同一個`
+                              : `✅ 已啟動（port ${r.port}）→ 去登入此工作區要用的帳號`;
+                            setChromeStatus(r.warning ? `${base}\n⚠️ ${r.warning}` : base);
+                          }
                         } catch (e: any) {
                           setChromeStatus("❌ " + (e?.message || "啟動失敗"));
                         }
@@ -251,8 +255,26 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                     >
                       🌐 啟動專屬 Chrome
                     </button>
+                    <button
+                      type="button"
+                      disabled={!draft.chromeCdpPort}
+                      onClick={async () => {
+                        if (!editingId || editingId === "new" || !draft.chromeCdpPort) return;
+                        setChromeStatus("關閉中…");
+                        try {
+                          const r = await api.stopWorkspaceChrome(editingId);
+                          if (!r.ok) setChromeStatus("❌ " + (r.error || "關閉失敗"));
+                          else setChromeStatus(r.killed ? `🛑 已關閉（port ${r.port}）` : `（port ${r.port} 上沒有在跑的 Chrome）`);
+                        } catch (e: any) {
+                          setChromeStatus("❌ " + (e?.message || "關閉失敗"));
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-white text-xs disabled:opacity-40 whitespace-nowrap"
+                    >
+                      🛑 關閉
+                    </button>
                   </div>
-                  {chromeStatus && <p className="mt-1 text-[11px] text-zinc-400">{chromeStatus}</p>}
+                  {chromeStatus && <p className="mt-1 text-[11px] text-zinc-400 whitespace-pre-line">{chromeStatus}</p>}
                   <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed">
                     設一個專屬 port（如 9333，每工作區不同）。啟動後在那個 Chrome 登入此工作區要用的帳號，
                     並在上方勾選 <span className="font-mono">playwright</span> MCP。

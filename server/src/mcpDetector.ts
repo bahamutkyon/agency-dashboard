@@ -63,6 +63,22 @@ export function isBaselineMcp(name: string): boolean {
 }
 
 /**
+ * 把一個 playwright MCP 設定改成「連上指定 CDP endpoint」而不是自己開瀏覽器。
+ * 只丟掉 --isolated（跟 CDP 連線互斥）與舊的 --cdp-endpoint（避免殘留重複），
+ * 其餘使用者自訂的 args（如 --viewport-size、--browser）一律保留。純函式好測。
+ */
+export function applyCdpEndpoint(playwrightCfg: any, port: number): any {
+  const prev: string[] = Array.isArray(playwrightCfg?.args) ? playwrightCfg.args : [];
+  const cleaned: string[] = [];
+  for (let i = 0; i < prev.length; i++) {
+    if (prev[i] === "--isolated") continue;
+    if (prev[i] === "--cdp-endpoint") { i++; continue; } // 連同它的值一起略過
+    cleaned.push(prev[i]);
+  }
+  return { ...playwrightCfg, args: [...cleaned, "--cdp-endpoint", `http://localhost:${port}`] };
+}
+
+/**
  * Build an --mcp-config JSON string for a workspace. Always includes baseline
  * MCPs (shellward) plus any workspace-opted-in servers. Returns null if no
  * servers would end up in the config (so caller can omit the flag).
@@ -93,10 +109,7 @@ export function buildMCPConfigForWorkspace(
     // Each workspace → its own port → its own persistent Chrome window/profile,
     // so switching workspaces never disrupts another's browser session.
     if (chromeCdpPort && subset.playwright) {
-      subset.playwright = {
-        ...subset.playwright,
-        args: ["--cdp-endpoint", `http://localhost:${chromeCdpPort}`],
-      };
+      subset.playwright = applyCdpEndpoint(subset.playwright, chromeCdpPort);
     }
 
     if (Object.keys(subset).length === 0) return null;
