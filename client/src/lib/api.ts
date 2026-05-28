@@ -70,6 +70,9 @@ export const api = {
       body: JSON.stringify(patch),
     }).then(j<Workspace>),
   deleteWorkspace: (id: string) => fetch(`/api/workspaces/${id}`, { method: "DELETE" }).then(j),
+  launchWorkspaceChrome: (id: string) =>
+    fetch(`/api/workspaces/${id}/launch-chrome`, { method: "POST" })
+      .then(j<{ ok: boolean; alreadyRunning?: boolean; port: number; profileDir?: string; error?: string }>),
   exportWorkspaceUrl: (id: string) => `/api/workspaces/${id}/export`,
   importWorkspace: (bundle: any) =>
     fetch("/api/workspaces/import", {
@@ -218,6 +221,7 @@ export interface Workspace {
   standingContext: string;
   memory: string;
   enabledMcps: string[];
+  chromeCdpPort?: number;
   createdAt: number;
 }
 

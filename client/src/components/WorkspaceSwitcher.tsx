@@ -14,8 +14,9 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const [active, setActive] = useState<string>(getActiveWorkspace());
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] as string[] });
+  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] as string[], chromeCdpPort: undefined as number | undefined });
   const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
+  const [chromeStatus, setChromeStatus] = useState<string>("");
 
   useEffect(() => {
     api.mcpServers().then(setMcpServers).catch(() => {});
@@ -37,15 +38,18 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
 
   const startNew = () => {
     setEditingId("new");
-    setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] });
+    setChromeStatus("");
+    setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [], chromeCdpPort: undefined });
   };
 
   const startEdit = (w: Workspace) => {
     setEditingId(w.id);
+    setChromeStatus("");
     setDraft({
       name: w.name, description: w.description,
       standingContext: w.standingContext, memory: w.memory || "",
       enabledMcps: w.enabledMcps || [],
+      chromeCdpPort: w.chromeCdpPort,
     });
   };
 
@@ -213,6 +217,47 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                       </label>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {editingId !== "new" && (
+                <div>
+                  <label className="text-xs text-zinc-400">🌐 專屬 Chrome（瀏覽器自動化用）</label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="number"
+                      className="w-24 bg-zinc-900 px-2 py-1.5 rounded text-xs"
+                      placeholder="port"
+                      value={draft.chromeCdpPort ?? ""}
+                      onChange={(e) => setDraft({ ...draft, chromeCdpPort: e.target.value ? Number(e.target.value) : undefined })}
+                    />
+                    <button
+                      type="button"
+                      disabled={!draft.chromeCdpPort}
+                      onClick={async () => {
+                        if (!editingId || editingId === "new" || !draft.chromeCdpPort) return;
+                        setChromeStatus("儲存設定 + 啟動中…");
+                        try {
+                          await api.updateWorkspace(editingId, draft);
+                          const r = await api.launchWorkspaceChrome(editingId);
+                          if (!r.ok) setChromeStatus("❌ " + (r.error || "啟動失敗"));
+                          else if (r.alreadyRunning) setChromeStatus(`✅ 已在跑（port ${r.port}），沿用同一個`);
+                          else setChromeStatus(`✅ 已啟動（port ${r.port}）→ 去登入此工作區要用的帳號`);
+                        } catch (e: any) {
+                          setChromeStatus("❌ " + (e?.message || "啟動失敗"));
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs disabled:opacity-40 whitespace-nowrap"
+                    >
+                      🌐 啟動專屬 Chrome
+                    </button>
+                  </div>
+                  {chromeStatus && <p className="mt-1 text-[11px] text-zinc-400">{chromeStatus}</p>}
+                  <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed">
+                    設一個專屬 port（如 9333，每工作區不同）。啟動後在那個 Chrome 登入此工作區要用的帳號，
+                    並在上方勾選 <span className="font-mono">playwright</span> MCP。
+                    ⚠️ 只登賣場/社群帳號,勿登 Gmail/網銀（agent 能用此 Chrome 全部登入）。
+                  </p>
                 </div>
               )}
 
