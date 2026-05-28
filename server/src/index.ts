@@ -183,7 +183,9 @@ server.on("error", (err: any) => {
   process.exit(1);
 });
 
-server.listen(PORT, REMOTE_CFG.bindHost, () => {
+// vitest 測試時不啟動 listen（scheduler.init / resume 等都在此 callback 內，連帶不會跑）
+// ——讓 app.test.ts 能 import app、用 ephemeral 埠打端點，不撞正在跑的 dev server。
+if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   if (REMOTE_CFG.enabled) {
     console.log(`[agency-dashboard] 🌐 listening on http://${REMOTE_CFG.bindHost}:${PORT} (REMOTE ACCESS ENABLED)`);
     console.log(`[agency-dashboard]    allowed ranges: ${REMOTE_CFG.allowRanges.join(", ")}`);
@@ -206,3 +208,6 @@ server.listen(PORT, REMOTE_CFG.bindHost, () => {
     if (r) io.emit("workflow:update", r);
   });
 });
+
+// 給測試用：app.test.ts import 這個 app，用 ephemeral 埠打端點（見上方 VITEST 守衛）。
+export { app };
