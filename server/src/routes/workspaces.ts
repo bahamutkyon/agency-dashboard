@@ -10,6 +10,7 @@ import {
   DEFAULT_WORKSPACE_ID,
 } from "../store.js";
 import { scheduler } from "../scheduler.js";
+import { launchWorkspaceChrome } from "../chromeLauncher.js";
 import { v4 as uuid } from "uuid";
 
 /** Helper: extract workspace id from request query or header */
@@ -35,6 +36,22 @@ workspacesRouter.patch("/:id", (req, res) => {
   const updated = updateWorkspace(req.params.id, req.body || {});
   if (!updated) return res.status(404).json({ error: "not found" });
   res.json(updated);
+});
+
+// 啟動此工作區專屬的 Chrome（用工作區設定的 CDP port + 獨立 profile）。
+// 已在跑就直接沿用、不重開。playwright MCP 會用 --cdp-endpoint 連上它。
+workspacesRouter.post("/:id/launch-chrome", async (req, res) => {
+  const w = getWorkspace(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  if (!w.chromeCdpPort) {
+    return res.status(400).json({ error: "此工作區尚未設定 Chrome CDP port，請先在設定填一個（例如 9333）" });
+  }
+  try {
+    const result = await launchWorkspaceChrome(w.id, w.chromeCdpPort);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
 });
 
 workspacesRouter.delete("/:id", (req, res) => {

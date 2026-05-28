@@ -180,7 +180,7 @@ kind 四選一：
     }
 
     const ws = getWorkspace(wsId);
-    const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || []) : null;
+    const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort) : null;
     if (mcpConfig) {
       const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
       console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=${names.join(",")}`);
@@ -216,7 +216,7 @@ kind 四選一：
     // Re-build MCP config so baseline (shellward) gets re-injected. Without
     // this, resumed Claude sessions skipped baseline guards entirely.
     const ws = getWorkspace(rec.workspaceId);
-    const mcpConfig = rec.provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || []) : null;
+    const mcpConfig = rec.provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort) : null;
     if (mcpConfig) {
       const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
       console.log(`[agentManager] reattach session=${rec.agentId} provider=${rec.provider} mcp=${names.join(",")}`);
@@ -246,7 +246,7 @@ kind 四選一：
     const wsIdForMcp = (s as any).workspaceId as string | undefined;
     if (s.provider === "claude" && wsIdForMcp) {
       const ws = getWorkspace(wsIdForMcp);
-      const fresh = buildMCPConfigForWorkspace(ws?.enabledMcps || []);
+      const fresh = buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort);
       if (fresh !== s.mcpConfigJson) {
         const oldNames = s.mcpConfigJson ? Object.keys(JSON.parse(s.mcpConfigJson).mcpServers || {}) : [];
         const newNames = fresh ? Object.keys(JSON.parse(fresh).mcpServers || {}) : [];

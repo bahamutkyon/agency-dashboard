@@ -67,7 +67,10 @@ export function isBaselineMcp(name: string): boolean {
  * MCPs (shellward) plus any workspace-opted-in servers. Returns null if no
  * servers would end up in the config (so caller can omit the flag).
  */
-export function buildMCPConfigForWorkspace(enabledNames: string[]): string | null {
+export function buildMCPConfigForWorkspace(
+  enabledNames: string[],
+  chromeCdpPort?: number,
+): string | null {
   if (!fs.existsSync(USER_CONFIG)) return null;
   try {
     const raw = JSON.parse(fs.readFileSync(USER_CONFIG, "utf8"));
@@ -82,6 +85,18 @@ export function buildMCPConfigForWorkspace(enabledNames: string[]): string | nul
     // Workspace opt-ins layered on top.
     for (const n of enabledNames || []) {
       if (allServers[n]) subset[n] = allServers[n];
+    }
+
+    // Per-workspace dedicated Chrome: if this workspace has a CDP port set and
+    // playwright is enabled, override playwright's args to connect to THAT
+    // workspace's Chrome (instead of the global --isolated throwaway browser).
+    // Each workspace → its own port → its own persistent Chrome window/profile,
+    // so switching workspaces never disrupts another's browser session.
+    if (chromeCdpPort && subset.playwright) {
+      subset.playwright = {
+        ...subset.playwright,
+        args: ["--cdp-endpoint", `http://localhost:${chromeCdpPort}`],
+      };
     }
 
     if (Object.keys(subset).length === 0) return null;

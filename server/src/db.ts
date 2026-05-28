@@ -212,6 +212,10 @@ try {
     db.exec("ALTER TABLE workspaces ADD COLUMN enabled_mcps TEXT DEFAULT '[]'");
     console.log("[db] migration: added workspaces.enabled_mcps column");
   }
+  if (!cols.some((c) => c.name === "chrome_cdp_port")) {
+    db.exec("ALTER TABLE workspaces ADD COLUMN chrome_cdp_port INTEGER");
+    console.log("[db] migration: added workspaces.chrome_cdp_port column");
+  }
   // workflow_runs.step_outputs migration
   const runCols = db.prepare("PRAGMA table_info(workflow_runs)").all() as any[];
   if (runCols.length > 0 && !runCols.some((c) => c.name === "step_outputs")) {

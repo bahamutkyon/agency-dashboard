@@ -70,6 +70,7 @@ export interface Workspace {
   standingContext: string;
   memory: string;
   enabledMcps: string[];   // names of MCP servers enabled for this workspace
+  chromeCdpPort?: number;  // 此工作區專屬 Chrome 的 CDP port（playwright MCP 連這個）
   createdAt: number;
 }
 
@@ -185,6 +186,7 @@ function rowToWorkspace(r: any): Workspace {
     standingContext: r.standing_context || "",
     memory: r.memory || "",
     enabledMcps: parseTags(r.enabled_mcps),
+    chromeCdpPort: r.chrome_cdp_port ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -210,16 +212,17 @@ export function createWorkspace(input: { name: string; description?: string; sta
   return getWorkspace(id)!;
 }
 
-export function updateWorkspace(id: string, patch: Partial<Pick<Workspace, "name" | "description" | "standingContext" | "memory" | "enabledMcps">>): Workspace | undefined {
+export function updateWorkspace(id: string, patch: Partial<Pick<Workspace, "name" | "description" | "standingContext" | "memory" | "enabledMcps" | "chromeCdpPort">>): Workspace | undefined {
   const cur = getWorkspace(id);
   if (!cur) return undefined;
   const next = { ...cur, ...patch };
   db.prepare(`
-    UPDATE workspaces SET name = ?, description = ?, standing_context = ?, memory = ?, enabled_mcps = ?
+    UPDATE workspaces SET name = ?, description = ?, standing_context = ?, memory = ?, enabled_mcps = ?, chrome_cdp_port = ?
     WHERE id = ?
   `).run(
     next.name, next.description, next.standingContext, next.memory || "",
     JSON.stringify(next.enabledMcps || []),
+    next.chromeCdpPort ?? null,
     id,
   );
   return getWorkspace(id);
