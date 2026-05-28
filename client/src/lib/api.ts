@@ -76,6 +76,11 @@ export const api = {
   stopWorkspaceChrome: (id: string) =>
     fetch(`/api/workspaces/${id}/stop-chrome`, { method: "POST" })
       .then(j<{ ok: boolean; port: number; killed: boolean; error?: string }>),
+  dispatch: (sessionId: string, items: { agentId: string; mode: "consult" | "execute"; task: string }[]) =>
+    fetch(`/api/orchestrator/${sessionId}/dispatch`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    }).then(j<{ consulted: { agentId: string; task: string; output: string; status: "ok" | "timeout" | "error" }[]; executeIgnored?: string[] }>),
   exportWorkspaceUrl: (id: string) => `/api/workspaces/${id}/export`,
   importWorkspace: (bundle: any) =>
     fetch("/api/workspaces/import", {
