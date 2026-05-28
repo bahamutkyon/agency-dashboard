@@ -697,7 +697,7 @@ export function ChatWindow({
           onBlur={addTag}
         />
       </div>
-      {recommendedAgents.length > 0 && onOpenAgentById && (
+      {recommendedAgents.length > 0 && onOpenAgentById && !detectedDispatch && (
         <div className="px-4 py-2 bg-gradient-to-r from-accent/20 to-violet-500/20 border-b border-accent/30 flex items-center justify-between gap-3">
           <div className="text-xs">
             <span className="text-zinc-300">專案經理推薦團隊({recommendedAgents.length} 位):</span>
@@ -799,7 +799,9 @@ export function ChatWindow({
             return <div key={i} className="my-1 text-[11px] text-zinc-600">（已將同事回覆交給專案經理整合）</div>;
           }
           const fork = m.role === "assistant" && !m.partial ? parseFork(m.content) : null;
-          const cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;
+          let cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;
+          // 隱藏 DISPATCH 標記原文（批准卡已呈現），避免泡泡出現醜的 === DISPATCH === 區塊
+          if (m.role === "assistant") cleanContent = cleanContent.replace(/=== DISPATCH ===[\s\S]*?=== END DISPATCH ===/g, "").trim();
           return (
           <div
             key={i}
