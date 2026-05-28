@@ -233,7 +233,8 @@ class WorkflowRunner extends EventEmitter {
             iterations[decision.loopTo] = cnt;
             console.log(`[workflow] loop back to ${decision.loopTo} (iteration ${cnt})`);
             rewindFrom(decision.loopTo);
-            updateRun(runId, { status: "running", iterations });
+            // iterations 為單次執行的記憶體迴圈計數，DB 層未設此欄、不持久化。
+            updateRun(runId, { status: "running" });
             this.emit("update", runId);
             return; // skip running THIS step; scheduler will pick up the rewound chain
           }

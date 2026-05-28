@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "mcp": "tsx src/mcpServer.ts",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

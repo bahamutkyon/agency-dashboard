@@ -144,7 +144,7 @@ class Scheduler {
     const parts = expr.split(/\s+/);
     if (parts.length !== 5) return;
     const [m, h, dom, mon, dow] = parts;
-    const matches = (n: number, range: string, max: number) => {
+    const matches = (n: number, range: string, max: number): boolean => {
       if (range === "*") return true;
       // step like */15
       const stepMatch = range.match(/^\*\/(\d+)$/);

@@ -97,11 +97,11 @@ ${transcript.slice(0, 12000)}
     ]);
 
     let out = "";
-    child.stdout.on("data", (d) => { out += String(d); });
-    child.stderr.on("data", () => {});
-    child.stdout.setEncoding("utf8");
-    child.stdin.write(Buffer.from(prompt, "utf8"));
-    child.stdin.end();
+    child.stdout!.on("data", (d) => { out += String(d); });
+    child.stderr!.on("data", () => {});
+    child.stdout!.setEncoding("utf8");
+    child.stdin!.write(Buffer.from(prompt, "utf8"));
+    child.stdin!.end();
 
     child.on("close", (code) => {
       if (code !== 0) {
