@@ -172,6 +172,17 @@ io.on("connection", (socket) => {
   });
 });
 
+// 友善處理埠占用：別讓 EADDRINUSE 變成 unhandled 'error' 事件直接 crash。
+server.on("error", (err: any) => {
+  if (err?.code === "EADDRINUSE") {
+    console.error(`[agency-dashboard] ❌ 埠 ${PORT} 已被占用 —— dashboard 可能已在別處執行，或上次未關乾淨。`);
+    console.error(`[agency-dashboard]    解法：關掉占用該埠的程序，或用環境變數 PORT=其他埠 重新啟動。`);
+  } else {
+    console.error(`[agency-dashboard] server error:`, err);
+  }
+  process.exit(1);
+});
+
 server.listen(PORT, REMOTE_CFG.bindHost, () => {
   if (REMOTE_CFG.enabled) {
     console.log(`[agency-dashboard] 🌐 listening on http://${REMOTE_CFG.bindHost}:${PORT} (REMOTE ACCESS ENABLED)`);
