@@ -36,21 +36,24 @@ async function runOneConsult(
   return new Promise<ConsultResult>((resolve) => {
     // enableAutoFork=false：子諮詢不該再外掛 FORK 能力。
     const session = agentManager.start(item.agentId, `🤝 受派諮詢：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
-    let collected = "";
+    let collected = "";   // 最終 message 事件的權威全文
+    let streamed = "";    // 累積的 delta 串流——逾時時用它救回「部分內容」而非空白
     let settled = false;
     const finish = (status: ConsultResult["status"]) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       session.removeListener("event", onEvent);
-      resolve({ agentId: item.agentId, task: item.task, output: collected.trim(), status });
+      // 有完整 message 用它；否則退而用串流到一半的內容（逾時仍給部分價值）。
+      resolve({ agentId: item.agentId, task: item.task, output: (collected || streamed).trim(), status });
     };
     const onEvent = (evt: any) => {
-      if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
-      else if (evt.type === "result") finish(collected ? "ok" : "error");
-      else if (evt.type === "error" && !collected) { /* 暫存，等 result/timeout 決定 */ }
+      if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
+      else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
+      else if (evt.type === "result") finish((collected || streamed) ? "ok" : "error");
     };
-    const timer = setTimeout(() => finish(collected ? "ok" : "timeout"), perItemTimeoutMs);
+    // 逾時：若已串流到部分內容，仍回 timeout 狀態但帶回那段內容（不再是空白）。
+    const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
     agentManager.send(session.id, item.task);
   });

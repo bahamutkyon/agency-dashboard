@@ -14,7 +14,7 @@ import { runConsult } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
-const CONSULT_TIMEOUT_MS = 120_000;      // 單項諮詢逾時
+const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
 const CONSULT_FEEDBACK_SENTINEL = "[[CONSULT_RESULTS]]"; // 前端據此摺疊餵回訊息
 
 export const sessionsRouter = Router();
