@@ -703,7 +703,7 @@ export function ChatWindow({
           onBlur={addTag}
         />
       </div>
-      {recommendedAgents.length > 0 && onOpenAgentById && !detectedDispatch && (
+      {recommendedAgents.length > 0 && onOpenAgentById && !detectedDispatch && !detectedWorkflow && (
         <div className="px-4 py-2 bg-gradient-to-r from-accent/20 to-violet-500/20 border-b border-accent/30 flex items-center justify-between gap-3">
           <div className="text-xs">
             <span className="text-zinc-300">專案經理推薦團隊({recommendedAgents.length} 位):</span>
