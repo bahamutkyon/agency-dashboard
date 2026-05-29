@@ -599,6 +599,7 @@ ${message}
                   onboardingTargetWorkspaceId={tab.onboardingTargetWorkspaceId}
                   onMemoApplied={onMemoApplied}
                   onAcceptFork={handoff}
+                  onOpenSession={openHistorySession}
                 />
               </Suspense>
             ) : null;

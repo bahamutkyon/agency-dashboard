@@ -10,7 +10,7 @@ import {
 import { distillAgentMemory } from "../memoryDistiller.js";
 import { isCodexAvailable } from "../codexProcess.js";
 import { isGeminiAvailable } from "../geminiProcess.js";
-import { runConsult } from "../dispatchRunner.js";
+import { runConsult, startExecute } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
@@ -342,6 +342,24 @@ sessionsRouter.post("/orchestrator", (req, res) => {
 - 要問幾位就列幾項（1 位=單純請教；多位=召集，回來後你負責整合）。
 - task 要具體、單一焦點。
 - 寫完標記後用一句話告訴使用者「我想請教 X、Y，按批准卡即可」，**不要自己代答**。
+
+## 重複性多步流程 → 提議排成 Workflow（而非 DISPATCH）
+
+若需求是「會一直重複跑的多步流程」（例：每週多平台內容生產、每個新客戶的提案流程），不要用 DISPATCH，而是提議排成可存可重跑的 workflow：輸出一個 \`\`\`workflow 程式碼區塊（JSON），系統會跳出「套用為 Workflow」按鈕。範例：
+
+\`\`\`workflow
+{
+  "name": "每週內容生產",
+  "description": "一句話用途",
+  "maxConcurrency": 2,
+  "steps": [
+    { "id": "research", "agentId": "marketing-trend-researcher", "prompt": "本週選題研究" },
+    { "id": "ig", "agentId": "marketing-content-creator", "dependsOn": ["research"], "prompt": "把這些選題改寫成 IG 貼文：{{research.out}}" }
+  ]
+}
+\`\`\`
+
+判斷準則：一次性/臨場（請教或交辦）→ DISPATCH；會重複的多步流程 → workflow。step 的 agentId 必須來自下方團隊清單。
 `;
   const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
 請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
@@ -366,25 +384,44 @@ sessionsRouter.post("/orchestrator/:sessionId/dispatch", async (req, res) => {
 
   const validIds = new Set(loadAgentsImpl().map((a) => a.id));
   const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
-  const executeIgnored = items.filter((i) => i.mode === "execute");
-  if (consult.length === 0) {
-    return res.status(400).json({ error: "沒有有效的 consult 項（execute 尚未支援，見切片②）" });
+  const execute = items.filter((i) => i.mode === "execute" && validIds.has(i.agentId) && i.task);
+  if (consult.length === 0 && execute.length === 0) {
+    return res.status(400).json({ error: "沒有有效的派工項（agentId 須在團隊清單內、且要有 task）" });
   }
 
+  const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
+  const io = req.app.get("io");
+
   try {
-    const results = await runConsult(consult, pm.workspaceId, {
-      concurrency: DISPATCH_CONCURRENCY,
-      perItemTimeoutMs: CONSULT_TIMEOUT_MS,
-    });
-    // 組彙整訊息餵回 PM（PM 串流經既有 session-room forward 自動到前端）。
-    // 前綴 sentinel，讓前端把這則「使用者訊息」摺疊起來，保持對話乾淨。
-    const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
-    const labelled = results
-      .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
-      .join("\n\n");
-    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆，請**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼；逾時/錯誤的同事就說明未能取得）：\n\n${labelled.slice(0, 25000)}`;
-    agentManager.send(pmSessionId, feedback);
-    res.json({ consulted: results, executeIgnored: executeIgnored.map((i) => i.agentId) });
+    // execute：背景跑、不等完成；完成時把結果餵回 PM（PM 貼回報）+ socket 通知前端 toast。
+    let executing: { subSessionId: string; agentId: string }[] = [];
+    if (execute.length > 0) {
+      executing = startExecute(execute, pm.workspaceId, pmSessionId, (d) => {
+        const label = nameOf.get(d.agentId) ?? d.agentId;
+        const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n請用一句話向使用者轉達此回報。`;
+        agentManager.send(d.pmSessionId, report);
+        io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
+      });
+    }
+
+    // consult：同步並行跑、收齊後餵回 PM 整合（PM 串流經既有 session-room forward 自動到前端）。
+    let consulted: Awaited<ReturnType<typeof runConsult>> = [];
+    if (consult.length > 0) {
+      consulted = await runConsult(consult, pm.workspaceId, {
+        concurrency: DISPATCH_CONCURRENCY,
+        perItemTimeoutMs: CONSULT_TIMEOUT_MS,
+      });
+      const labelled = consulted
+        .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
+        .join("\n\n");
+      const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆，請**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼；逾時/錯誤的同事就說明未能取得）：\n\n${labelled.slice(0, 25000)}`;
+      agentManager.send(pmSessionId, feedback);
+    } else if (execute.length > 0) {
+      // 只有 execute：請 PM 先回一句「已交辦」。
+      agentManager.send(pmSessionId, `[[EXEC_ACK]]\n你已把 ${execute.length} 件外包任務交辦出去（背景進行中），請用一句話告訴使用者「已交辦，完成會回報」。`);
+    }
+
+    res.json({ consulted, executing });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });
   }

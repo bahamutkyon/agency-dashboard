@@ -19,6 +19,7 @@ interface Props {
   onboardingTargetWorkspaceId?: string;
   onMemoApplied?: () => void;
   onAcceptFork?: (toAgentId: string, message: string, fromAgentName: string) => void;
+  onOpenSession?: (sessionId: string, agentId: string, title: string) => void;
 }
 
 interface Msg {
@@ -197,7 +198,7 @@ function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
 
 export function ChatWindow({
   sessionId, agentId, agentName, provider, onStatusChange, onOpenAgentById, onHandoff,
-  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork,
+  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork, onOpenSession,
 }: Props) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -353,6 +354,11 @@ export function ChatWindow({
           setTimeout(() => setAutoInjectedNotes([]), 8000);
           break;
         }
+        case "dispatch:done": {
+          const ok = evt.payload?.status === "ok";
+          notify(`外包任務${ok ? "完成" : "結束"}`, `${evt.payload?.agentId || "同事"} 已回報,專案經理整理中`, { tag: sessionId });
+          break;
+        }
       }
     };
     sock.on("session:event", handler);
@@ -441,7 +447,7 @@ export function ChatWindow({
 
   const [dispatchBusy, setDispatchBusy] = useState(false);
   const [dispatched, setDispatched] = useState(false);
-  const [consultRaw, setConsultRaw] = useState<{ agentId: string; task: string; output: string; status: string }[] | null>(null);
+  const [consultRaw, setConsultRaw] = useState<{ agentId: string; task: string; output: string; status: string; subSessionId: string }[] | null>(null);
 
   const approveDispatch = async () => {
     if (!detectedDispatch) return;
@@ -764,7 +770,15 @@ export function ChatWindow({
             <div className="mt-2 space-y-2">
               {consultRaw.map((c, i) => (
                 <div key={i}>
-                  <div className="text-zinc-400">{c.agentId}（{c.status}）</div>
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <span>{c.agentId}（{c.status}）</span>
+                    {c.subSessionId && onOpenSession && (
+                      <button
+                        onClick={() => onOpenSession(c.subSessionId, c.agentId, `🤝 受派諮詢：${c.task.slice(0, 20)}`)}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200"
+                      >開啟對話</button>
+                    )}
+                  </div>
                   <pre className="whitespace-pre-wrap text-zinc-300">{c.output || "（未取得回覆）"}</pre>
                 </div>
               ))}
@@ -795,8 +809,11 @@ export function ChatWindow({
           </div>
         )}
         {messages.map((m, i) => {
-          if (m.role === "user" && m.content.startsWith("[[CONSULT_RESULTS]]")) {
-            return <div key={i} className="my-1 text-[11px] text-zinc-600">（已將同事回覆交給專案經理整合）</div>;
+          if (m.role === "user" && (m.content.startsWith("[[CONSULT_RESULTS]]") || m.content.startsWith("[[EXEC_REPORT]]") || m.content.startsWith("[[EXEC_ACK]]"))) {
+            const label = m.content.startsWith("[[EXEC_ACK]]") ? "（已交辦背景任務給專案經理）"
+              : m.content.startsWith("[[EXEC_REPORT]]") ? "（外包任務回報已交給專案經理）"
+              : "（已將同事回覆交給專案經理整合）";
+            return <div key={i} className="my-1 text-[11px] text-zinc-600">{label}</div>;
           }
           const fork = m.role === "assistant" && !m.partial ? parseFork(m.content) : null;
           let cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;

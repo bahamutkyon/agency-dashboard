@@ -80,7 +80,7 @@ export const api = {
     fetch(`/api/orchestrator/${sessionId}/dispatch`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
-    }).then(j<{ consulted: { agentId: string; task: string; output: string; status: "ok" | "timeout" | "error" }[]; executeIgnored?: string[] }>),
+    }).then(j<{ consulted: { agentId: string; task: string; output: string; status: "ok" | "timeout" | "error"; subSessionId: string }[]; executing?: { subSessionId: string; agentId: string }[] }>),
   exportWorkspaceUrl: (id: string) => `/api/workspaces/${id}/export`,
   importWorkspace: (bundle: any) =>
     fetch("/api/workspaces/import", {
