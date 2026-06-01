@@ -135,6 +135,28 @@ export class AgentManager {
       agentMemoryBlock = `\n\n# 你對這位使用者的個人理解(同事記憶)\n以下是你跟這位使用者過去合作中累積的關鍵理解 — 包含他是誰、進行中的專案、他的偏好、過去的關鍵決定。請以此為基礎繼續合作,**不要每次都重新自我介紹或重新詢問同樣的事**:\n\n${agentMem.content.trim()}\n`;
     }
 
+    // 工作區若有專屬登入 Chrome（chromeCdpPort + 勾了 playwright），明確告訴 agent：
+    // playwright 已自動連到那個 Chrome、直接用工具操作，**不要自己拿 shell 開新 chrome**。
+    // 起因：agent 有 bash 工具 + bypassPermissions，會自作聰明 spawn 一個新 profile 的
+    // chrome，結果使用者要再登一次（明明已經登好了）。這段是治本。
+    let chromeBrowserBlock = "";
+    const wsRecForChrome = getWorkspace(wsId);
+    if (wsRecForChrome?.chromeCdpPort && (wsRecForChrome.enabledMcps || []).includes("playwright")) {
+      chromeBrowserBlock = `\n\n# 🌐 本工作區已備好專屬瀏覽器（已登入）—— 直接用 playwright，不要自己開
+
+使用者已經在本工作區啟動一個專屬 Chrome（CDP port ${wsRecForChrome.chromeCdpPort}）並登入相關帳號（例如 露天/蝦皮/FB Marketplace/IG 等）。**\`playwright\` MCP 已透過 \`--cdp-endpoint\` 自動連到那個 Chrome**——零設定。
+
+**要操作瀏覽器時**：直接呼叫 \`playwright\` 提供的工具（\`browser_navigate\`、\`browser_snapshot\`、\`browser_click\`、\`browser_type\` 等），它會操作那個**已登入**的視窗。
+
+⚠️ **嚴禁**：
+- 不要用 bash/shell/cmd 自己跑 \`chrome.exe\`、不要設新的 \`--user-data-dir\` 或 \`--remote-debugging-port\`
+- 不要呼叫 playwright 的 \`launch\` 類工具開新瀏覽器
+- 不要假設要重新登入——使用者已經登入好了；你直接 navigate 過去就會看到已登入狀態
+
+若 playwright 工具回錯（例如「未連線」），請直接告訴使用者：「專屬 Chrome 可能未啟動，請到工作區設定按『🌐 啟動專屬 Chrome』」，**不要自己嘗試啟動**。
+`;
+    }
+
     // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
     // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
     const skillPrimingBlock = buildSkillPrimingBlock(agentId);
@@ -168,7 +190,7 @@ kind 四選一：
 規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
 `;
 
-    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
+    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + chromeBrowserBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.
