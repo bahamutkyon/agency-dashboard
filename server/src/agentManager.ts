@@ -6,8 +6,8 @@ import {
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
 import { parseLearnMarkers } from "./learningCapture.js";
-import { createProposal, getCraftMemory, getCategoryMemory } from "./learningStore.js";
-import { buildCapabilityBlock } from "./learningInjector.js";
+import { createProposal, getCraftMemoryFor, getCategoryMemoryFor } from "./learningStore.js";
+import { buildCapabilityBlockFor } from "./learningInjector.js";
 import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
@@ -160,13 +160,15 @@ export class AgentManager {
     // Skill priming:從 agent-skill-map.json 拿這位 agent 應該特別善用的 3-5
     // 個 skill,在 system prompt 開頭點名讓 LLM 更容易觸發。
     const skillPrimingBlock = buildSkillPrimingBlock(agentId);
-    // 手藝記憶是 agent-global(跨工作區),所以只用 agentId、不帶 wsId。
+    // v2：手藝記憶與類能力記憶現在是 workspace-aware。
+    // - global / legacy-global 條目：跨工作區可見（legacy 是遷移前的全域記憶，待使用者重審）
+    // - workspace 條目：只對該工作區的 agent 可見
     // 注意:craftBlock 與下方的 memoryBlock/agentMemoryBlock 都只在 start()
     // (新開對話)注入。reattach() 喚醒既有對話時不會重建 system prompt,
     // 因此批准後的學習成果只對「之後新開的對話」生效,進行中的舊對話需新開才看得到。
-    const craftBlock = buildCapabilityBlock(
-      getCategoryMemory(categoryFor(agentId)),
-      getCraftMemory(agentId),
+    const craftBlock = buildCapabilityBlockFor(
+      getCategoryMemoryFor(categoryFor(agentId), wsId),
+      getCraftMemoryFor(agentId, wsId),
     );
 
     const learningCapability = `
@@ -181,11 +183,14 @@ export class AgentManager {
 === END LEARN ===
 \`\`\`
 
-kind 四選一：
-- \`fact\` — 關於使用者的事實（他是誰、專案背景、品牌規則）
-- \`craft\` — 你的工作手藝改進（下次該怎麼做更好）
-- \`domain\` — 你專業領域的最新動態 / 新知識
-- \`calibration\` — 使用者對你的回饋（讚 / 改 / 否定）轉成的行為準則
+kind 四選一（直接影響該條會落到哪個範圍）：
+- \`fact\` — 關於使用者的事實（他是誰、專案背景、品牌規則）→ **限本工作區**
+- \`craft\` — 你的工作手藝改進（下次該怎麼做更好）→ **預設限本工作區**（會綁定當下對話的工作區）
+- \`domain\` — 你專業領域的**通用**新知識／演算法／趨勢（與任何客戶/專案無關）→ **跨工作區共享**
+- \`calibration\` — 使用者對你的回饋（讚 / 改 / 否定）轉成的行為準則 → **限本工作區**
+
+**重要**：含**具體客戶名、品牌名、專案名、產品名**的條目絕對不可標 \`domain\`（會跨工作區汙染其他客戶的對話）。
+這類條目請用 \`fact\` 或 \`craft\`，系統會自動鎖到當下工作區。
 
 規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
 `;

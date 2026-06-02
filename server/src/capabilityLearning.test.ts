@@ -85,7 +85,7 @@ describe("approve 類層提案 → 寫進類記憶", () => {
     // 模擬 approve 路由的副作用分支
     const categoryId = parseCategoryAgentId(p.agentId);
     expect(categoryId).toBe(CAT2);
-    appendCategoryMemory(categoryId!, p.content);
+    appendCategoryMemory(categoryId!, p.content, "global");
     expect(getCategoryMemory(CAT2)).toContain("批准測試能力");
   });
 });
@@ -275,27 +275,27 @@ describe("setCategoryMemory 直接覆蓋", () => {
   });
 
   it("新增：寫入後 getCategoryMemory 回傳相同內容", () => {
-    setCategoryMemory(CAT_SET, "初始內容");
+    setCategoryMemory(CAT_SET, "初始內容", "global");
     expect(getCategoryMemory(CAT_SET)).toBe("初始內容");
   });
 
   it("覆蓋：再次呼叫會完全取代舊內容", () => {
-    setCategoryMemory(CAT_SET, "初始內容");
-    setCategoryMemory(CAT_SET, "更新後的內容");
+    setCategoryMemory(CAT_SET, "初始內容", "global");
+    setCategoryMemory(CAT_SET, "更新後的內容", "global");
     expect(getCategoryMemory(CAT_SET)).toBe("更新後的內容");
   });
 
   it("清除：傳入空字串後 getCategoryMemory 回傳空字串", () => {
-    setCategoryMemory(CAT_SET, "有內容");
-    setCategoryMemory(CAT_SET, "");
+    setCategoryMemory(CAT_SET, "有內容", "global");
+    setCategoryMemory(CAT_SET, "", "global");
     expect(getCategoryMemory(CAT_SET)).toBe("");
   });
 
   it("不影響其他類別的記憶", () => {
     const OTHER = "test-set-other-cat";
     try {
-      appendCategoryMemory(OTHER, "別的類別條目");
-      setCategoryMemory(CAT_SET, "A 改了");
+      appendCategoryMemory(OTHER, "別的類別條目", "global");
+      setCategoryMemory(CAT_SET, "A 改了", "global");
       expect(getCategoryMemory(OTHER)).toContain("別的類別條目");
     } finally {
       db.prepare("DELETE FROM category_capability_memory WHERE category = ?").run(OTHER);
@@ -310,21 +310,21 @@ describe("setCraftMemory 直接覆蓋", () => {
   });
 
   it("新增：寫入後 getCraftMemory 回傳相同內容", () => {
-    setCraftMemory(AGENT_SET, "手藝初始");
+    setCraftMemory(AGENT_SET, "手藝初始", "global");
     expect(getCraftMemory(AGENT_SET)).toBe("手藝初始");
   });
 
   it("覆蓋：再次呼叫會完全取代舊內容（不是追加）", () => {
-    setCraftMemory(AGENT_SET, "手藝初始");
-    setCraftMemory(AGENT_SET, "手藝更新");
+    setCraftMemory(AGENT_SET, "手藝初始", "global");
+    setCraftMemory(AGENT_SET, "手藝更新", "global");
     const content = getCraftMemory(AGENT_SET);
     expect(content).toBe("手藝更新");
     expect(content).not.toContain("手藝初始");
   });
 
   it("清除：傳入空字串後 getCraftMemory 回傳空字串", () => {
-    setCraftMemory(AGENT_SET, "有手藝");
-    setCraftMemory(AGENT_SET, "");
+    setCraftMemory(AGENT_SET, "有手藝", "global");
+    setCraftMemory(AGENT_SET, "", "global");
     expect(getCraftMemory(AGENT_SET)).toBe("");
   });
 });
@@ -360,7 +360,7 @@ describe("bulk-approve 邏輯（直接呼叫 store 函式模擬）", () => {
       const catId = parseCategoryAgentId(p.agentId);
       if (!catId) { fail++; continue; }
       if (!setProposalStatus(p.id, "approved")) { fail++; continue; }
-      appendCategoryMemory(catId, p.content);
+      appendCategoryMemory(catId, p.content, "global");
       ok++;
     }
     expect(ok).toBeGreaterThanOrEqual(2);

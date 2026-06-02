@@ -296,9 +296,19 @@ export function MemoryEditor() {
         </div>
 
         {/* Warning */}
-        <div className="bg-amber-950/30 border border-amber-800/40 rounded-lg px-4 py-3 mb-5 text-xs text-amber-300/80">
+        <div className="bg-amber-950/30 border border-amber-800/40 rounded-lg px-4 py-3 mb-3 text-xs text-amber-300/80">
           <span className="font-medium">注意：</span>
           此介面直接覆蓋記憶內容（非追加），請謹慎操作。建議上限 {MAX_CHARS} 字，超過時 agent 注入效果可能下降。
+        </div>
+        {/* v2 scope explanation */}
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg px-4 py-3 mb-5 text-xs text-zinc-400 leading-relaxed">
+          <div className="font-medium text-zinc-300 mb-1">📌 v2 記憶分三種 scope</div>
+          <ul className="space-y-1 list-disc list-inside">
+            <li><span className="text-violet-300">🌐 全域</span>：跨工作區通用方法論。**此編輯器存的就是這層**（儲存時覆寫全域 scope 條目）。</li>
+            <li><span className="text-cyan-300">📦 工作區</span>：限該工作區的情境性記憶，由批准學習提議時自動分配。</li>
+            <li><span className="text-amber-300">⚠️ Legacy</span>：v2 遷移前累積的全域記憶，請去「⚠️ Legacy 重審」面板逐條處理。</li>
+          </ul>
+          <div className="mt-2 text-zinc-500">下方顯示的「字數」= 全域 + legacy + 當前工作區 的聚合長度。</div>
         </div>
 
         {/* Tab switcher */}

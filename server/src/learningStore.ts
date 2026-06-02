@@ -88,64 +88,306 @@ export function setProposalStatus(id: string, status: "approved" | "rejected"): 
   return Number(r.changes) > 0;
 }
 
-// --- Agent 手藝記憶（全域，跨工作區）---
+// --- Agent 手藝記憶（workspace-aware）---
 
 const CRAFT_CAP = 4000;
 
-export function getCraftMemory(agentId: string): string {
-  const r = db.prepare("SELECT content FROM agent_craft_memory WHERE agent_id = ?").get(agentId) as any;
-  return r?.content || "";
+/**
+ * scope 三種：
+ *   - 'global'        : 全域（跨工作區共享，給通用方法論用）。workspace_id = ''。
+ *   - 'workspace'     : 該工作區專屬。workspace_id = 真實 ws id。
+ *   - 'legacy-global' : 遷移前累積的全域記憶，待使用者重審決定升 global / 改 workspace / 刪。
+ *                       workspace_id = ''。注入時仍當全域用。
+ */
+export type MemoryScope = "global" | "workspace" | "legacy-global";
+
+export interface CraftMemoryEntry {
+  agentId: string;
+  workspaceId: string;     // '' 代表全域
+  scope: MemoryScope;
+  content: string;
+  updatedAt: number;
 }
 
-export function appendCraftMemory(agentId: string, entry: string): void {
-  const cur = getCraftMemory(agentId).trim();
+export interface CraftMemoryBundle {
+  global: string;       // scope='global' 的內容
+  workspace: string;    // scope='workspace' 對指定 ws 的內容
+  legacyGlobal: string; // scope='legacy-global' 的內容
+}
+
+/**
+ * 取得指定 agent 對指定 workspace 的所有可見手藝記憶（global + 該 ws + legacy-global）。
+ * 注入 system prompt 時應用此函式。
+ */
+export function getCraftMemoryFor(agentId: string, workspaceId: string): CraftMemoryBundle {
+  const rows = db.prepare(`
+    SELECT scope, content FROM agent_craft_memory
+    WHERE agent_id = ? AND (workspace_id = '' OR workspace_id = ?)
+  `).all(agentId, workspaceId) as { scope: MemoryScope; content: string }[];
+  const bundle: CraftMemoryBundle = { global: "", workspace: "", legacyGlobal: "" };
+  for (const r of rows) {
+    if (r.scope === "global") bundle.global = r.content || "";
+    else if (r.scope === "workspace") bundle.workspace = r.content || "";
+    else if (r.scope === "legacy-global") bundle.legacyGlobal = r.content || "";
+  }
+  return bundle;
+}
+
+/**
+ * 列出該 agent 所有 craft 記憶條目（含所有 workspace + 全域），供 UI 管理用。
+ */
+export function listCraftMemoryEntries(agentId: string): CraftMemoryEntry[] {
+  const rows = db.prepare(`
+    SELECT agent_id, workspace_id, scope, content, updated_at
+    FROM agent_craft_memory WHERE agent_id = ?
+    ORDER BY workspace_id, scope
+  `).all(agentId) as any[];
+  return rows.map((r) => ({
+    agentId: r.agent_id, workspaceId: r.workspace_id, scope: r.scope,
+    content: r.content, updatedAt: r.updated_at,
+  }));
+}
+
+/** 列出所有 legacy-global 的 craft 條目，供「Legacy 重審」UI 用。 */
+export function listLegacyCraftEntries(): CraftMemoryEntry[] {
+  const rows = db.prepare(`
+    SELECT agent_id, workspace_id, scope, content, updated_at
+    FROM agent_craft_memory WHERE scope = 'legacy-global'
+    ORDER BY agent_id
+  `).all() as any[];
+  return rows.map((r) => ({
+    agentId: r.agent_id, workspaceId: r.workspace_id, scope: r.scope,
+    content: r.content, updatedAt: r.updated_at,
+  }));
+}
+
+/**
+ * 追加一條 craft 記憶到指定 (agent, workspace, scope) 槽位。
+ * workspaceId 為 '' 表示全域（scope 必須是 'global' 或 'legacy-global'）。
+ */
+export function appendCraftMemory(
+  agentId: string,
+  entry: string,
+  scope: MemoryScope = "workspace",
+  workspaceId: string = "",
+): void {
+  if (scope === "workspace" && !workspaceId) {
+    throw new Error("appendCraftMemory: scope='workspace' 需指定 workspaceId");
+  }
+  if ((scope === "global" || scope === "legacy-global") && workspaceId) {
+    throw new Error(`appendCraftMemory: scope='${scope}' 不可指定 workspaceId`);
+  }
+  const wsKey = scope === "workspace" ? workspaceId : "";
+  const r = db.prepare("SELECT content FROM agent_craft_memory WHERE agent_id = ? AND workspace_id = ? AND scope = ?")
+    .get(agentId, wsKey, scope) as { content: string } | undefined;
+  const cur = (r?.content || "").trim();
   const ts = new Date().toISOString().slice(0, 10);
   const line = `- [${ts}] ${entry.trim()}`;
   let next = cur ? `${cur}\n${line}` : line;
   if (next.length > CRAFT_CAP) next = "(舊手藝記憶已壓縮)\n" + next.slice(-(CRAFT_CAP - 200));
   db.prepare(`
-    INSERT INTO agent_craft_memory (agent_id, content, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(agent_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
-  `).run(agentId, next, Date.now());
+    INSERT INTO agent_craft_memory (agent_id, workspace_id, scope, content, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(agent_id, workspace_id, scope) DO UPDATE SET
+      content = excluded.content,
+      scope = excluded.scope,
+      updated_at = excluded.updated_at
+  `).run(agentId, wsKey, scope, next, Date.now());
 }
 
-// --- 類層能力記憶（category-global，跨工作區，同類 agent 共享）---
-
-export function getCategoryMemory(categoryId: string): string {
-  const r = db.prepare("SELECT content FROM category_capability_memory WHERE category = ?").get(categoryId) as any;
-  return r?.content || "";
+/**
+ * 直接覆蓋 (agent, workspace, scope) 槽位。空字串 → 刪除該條目。
+ */
+export function setCraftMemory(
+  agentId: string,
+  content: string,
+  scope: MemoryScope = "workspace",
+  workspaceId: string = "",
+): void {
+  if (scope === "workspace" && !workspaceId) {
+    throw new Error("setCraftMemory: scope='workspace' 需指定 workspaceId");
+  }
+  if ((scope === "global" || scope === "legacy-global") && workspaceId) {
+    throw new Error(`setCraftMemory: scope='${scope}' 不可指定 workspaceId`);
+  }
+  const wsKey = scope === "workspace" ? workspaceId : "";
+  if (!content || !content.trim()) {
+    db.prepare("DELETE FROM agent_craft_memory WHERE agent_id = ? AND workspace_id = ? AND scope = ?").run(agentId, wsKey, scope);
+    return;
+  }
+  db.prepare(`
+    INSERT INTO agent_craft_memory (agent_id, workspace_id, scope, content, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(agent_id, workspace_id, scope) DO UPDATE SET
+      content = excluded.content,
+      scope = excluded.scope,
+      updated_at = excluded.updated_at
+  `).run(agentId, wsKey, scope, content, Date.now());
 }
 
-export function appendCategoryMemory(categoryId: string, entry: string): void {
-  const cur = getCategoryMemory(categoryId).trim();
+/**
+ * 重新指派一個 craft 條目的 scope（用於 legacy 重審：legacy-global → global / workspace）。
+ * 從來源槽位刪除，寫到目標槽位。
+ */
+export function promoteCraftMemory(
+  agentId: string,
+  fromScope: MemoryScope,
+  fromWorkspaceId: string,
+  toScope: MemoryScope,
+  toWorkspaceId: string,
+): void {
+  const src = db.prepare("SELECT content FROM agent_craft_memory WHERE agent_id = ? AND workspace_id = ? AND scope = ?")
+    .get(agentId, fromWorkspaceId, fromScope) as { content: string } | undefined;
+  if (!src) return;
+  db.prepare("BEGIN").run();
+  try {
+    db.prepare("DELETE FROM agent_craft_memory WHERE agent_id = ? AND workspace_id = ? AND scope = ?")
+      .run(agentId, fromWorkspaceId, fromScope);
+    setCraftMemory(agentId, src.content, toScope, toWorkspaceId);
+    db.prepare("COMMIT").run();
+  } catch (e) {
+    db.prepare("ROLLBACK").run();
+    throw e;
+  }
+}
+
+/**
+ * @deprecated 為向後相容保留：回傳「全域 + legacy-global」聚合內容（行為近似舊版）。
+ * 新程式碼請改用 getCraftMemoryFor(agentId, workspaceId)。
+ */
+export function getCraftMemory(agentId: string): string {
+  const b = getCraftMemoryFor(agentId, "");
+  return [b.legacyGlobal, b.global].filter((s) => s.trim()).join("\n");
+}
+
+// --- 類層能力記憶（workspace-aware）---
+
+export interface CategoryMemoryEntry {
+  category: string;
+  workspaceId: string;
+  scope: MemoryScope;
+  content: string;
+  updatedAt: number;
+}
+
+export interface CategoryMemoryBundle {
+  global: string;
+  workspace: string;
+  legacyGlobal: string;
+}
+
+export function getCategoryMemoryFor(categoryId: string, workspaceId: string): CategoryMemoryBundle {
+  const rows = db.prepare(`
+    SELECT scope, content FROM category_capability_memory
+    WHERE category = ? AND (workspace_id = '' OR workspace_id = ?)
+  `).all(categoryId, workspaceId) as { scope: MemoryScope; content: string }[];
+  const bundle: CategoryMemoryBundle = { global: "", workspace: "", legacyGlobal: "" };
+  for (const r of rows) {
+    if (r.scope === "global") bundle.global = r.content || "";
+    else if (r.scope === "workspace") bundle.workspace = r.content || "";
+    else if (r.scope === "legacy-global") bundle.legacyGlobal = r.content || "";
+  }
+  return bundle;
+}
+
+export function listLegacyCategoryEntries(): CategoryMemoryEntry[] {
+  const rows = db.prepare(`
+    SELECT category, workspace_id, scope, content, updated_at
+    FROM category_capability_memory WHERE scope = 'legacy-global'
+    ORDER BY category
+  `).all() as any[];
+  return rows.map((r) => ({
+    category: r.category, workspaceId: r.workspace_id, scope: r.scope,
+    content: r.content, updatedAt: r.updated_at,
+  }));
+}
+
+export function appendCategoryMemory(
+  categoryId: string,
+  entry: string,
+  scope: MemoryScope = "workspace",
+  workspaceId: string = "",
+): void {
+  if (scope === "workspace" && !workspaceId) {
+    throw new Error("appendCategoryMemory: scope='workspace' 需指定 workspaceId");
+  }
+  if ((scope === "global" || scope === "legacy-global") && workspaceId) {
+    throw new Error(`appendCategoryMemory: scope='${scope}' 不可指定 workspaceId`);
+  }
+  const wsKey = scope === "workspace" ? workspaceId : "";
+  const r = db.prepare("SELECT content FROM category_capability_memory WHERE category = ? AND workspace_id = ? AND scope = ?")
+    .get(categoryId, wsKey, scope) as { content: string } | undefined;
+  const cur = (r?.content || "").trim();
   const ts = new Date().toISOString().slice(0, 10);
   const line = `- [${ts}] ${entry.trim()}`;
   let next = cur ? `${cur}\n${line}` : line;
   if (next.length > CRAFT_CAP) next = "(舊能力記憶已壓縮)\n" + next.slice(-(CRAFT_CAP - 200));
   db.prepare(`
-    INSERT INTO category_capability_memory (category, content, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(category) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
-  `).run(categoryId, next, Date.now());
+    INSERT INTO category_capability_memory (category, workspace_id, scope, content, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(category, workspace_id, scope) DO UPDATE SET
+      content = excluded.content,
+      scope = excluded.scope,
+      updated_at = excluded.updated_at
+  `).run(categoryId, wsKey, scope, next, Date.now());
 }
 
-/** 直接覆蓋類層能力記憶（供編輯 UI 用，不追加時間戳記）。空字串視為清除。 */
-export function setCategoryMemory(categoryId: string, content: string): void {
+export function setCategoryMemory(
+  categoryId: string,
+  content: string,
+  scope: MemoryScope = "workspace",
+  workspaceId: string = "",
+): void {
+  if (scope === "workspace" && !workspaceId) {
+    throw new Error("setCategoryMemory: scope='workspace' 需指定 workspaceId");
+  }
+  if ((scope === "global" || scope === "legacy-global") && workspaceId) {
+    throw new Error(`setCategoryMemory: scope='${scope}' 不可指定 workspaceId`);
+  }
+  const wsKey = scope === "workspace" ? workspaceId : "";
+  if (!content || !content.trim()) {
+    db.prepare("DELETE FROM category_capability_memory WHERE category = ? AND workspace_id = ? AND scope = ?").run(categoryId, wsKey, scope);
+    return;
+  }
   db.prepare(`
-    INSERT INTO category_capability_memory (category, content, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(category) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
-  `).run(categoryId, content, Date.now());
+    INSERT INTO category_capability_memory (category, workspace_id, scope, content, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(category, workspace_id, scope) DO UPDATE SET
+      content = excluded.content,
+      scope = excluded.scope,
+      updated_at = excluded.updated_at
+  `).run(categoryId, wsKey, scope, content, Date.now());
 }
 
-/** 直接覆蓋 agent 手藝記憶（供編輯 UI 用，不追加時間戳記）。空字串視為清除。 */
-export function setCraftMemory(agentId: string, content: string): void {
-  db.prepare(`
-    INSERT INTO agent_craft_memory (agent_id, content, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(agent_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
-  `).run(agentId, content, Date.now());
+export function promoteCategoryMemory(
+  categoryId: string,
+  fromScope: MemoryScope,
+  fromWorkspaceId: string,
+  toScope: MemoryScope,
+  toWorkspaceId: string,
+): void {
+  const src = db.prepare("SELECT content FROM category_capability_memory WHERE category = ? AND workspace_id = ? AND scope = ?")
+    .get(categoryId, fromWorkspaceId, fromScope) as { content: string } | undefined;
+  if (!src) return;
+  db.prepare("BEGIN").run();
+  try {
+    db.prepare("DELETE FROM category_capability_memory WHERE category = ? AND workspace_id = ? AND scope = ?")
+      .run(categoryId, fromWorkspaceId, fromScope);
+    setCategoryMemory(categoryId, src.content, toScope, toWorkspaceId);
+    db.prepare("COMMIT").run();
+  } catch (e) {
+    db.prepare("ROLLBACK").run();
+    throw e;
+  }
+}
+
+/**
+ * @deprecated 為向後相容保留：回傳「全域 + legacy-global」聚合內容。
+ * 新程式碼請改用 getCategoryMemoryFor(categoryId, workspaceId)。
+ */
+export function getCategoryMemory(categoryId: string): string {
+  const b = getCategoryMemoryFor(categoryId, "");
+  return [b.legacyGlobal, b.global].filter((s) => s.trim()).join("\n");
 }
 
 // --- 能力學習排程（時間驅動）---

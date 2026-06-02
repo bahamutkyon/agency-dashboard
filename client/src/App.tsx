@@ -39,6 +39,9 @@ const LearningQueuePanel = lazy(() =>
 const CapabilityLearningPanel = lazy(() =>
   import("./components/CapabilityLearningPanel").then((m) => ({ default: m.CapabilityLearningPanel }))
 );
+const LegacyReviewPanel = lazy(() =>
+  import("./components/LegacyReviewPanel").then((m) => ({ default: m.LegacyReviewPanel }))
+);
 const MemoryEditor = lazy(() =>
   import("./components/MemoryEditor").then((m) => ({ default: m.MemoryEditor }))
 );
@@ -66,6 +69,7 @@ type View =
   | { kind: "learning" }
   | { kind: "capability-learning" }
   | { kind: "memory-editor" }
+  | { kind: "legacy-review" }
   | { kind: "workflows" }
   | { kind: "meeting-room"; agentId: string };
 
@@ -219,6 +223,7 @@ export default function App() {
   const openLearning = useCallback(() => setView({ kind: "learning" }), []);
   const openCapabilityLearning = useCallback(() => setView({ kind: "capability-learning" }), []);
   const openMemoryEditor = useCallback(() => setView({ kind: "memory-editor" }), []);
+  const openLegacyReview = useCallback(() => setView({ kind: "legacy-review" }), []);
   const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
@@ -375,6 +380,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openMemoryEditor, toggleSidebar]);
 
+  const onOpenLegacyReviewMobile = useCallback(() => {
+    openLegacyReview();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openLegacyReview, toggleSidebar]);
+
   const onOpenWorkflowsMobile = useCallback(() => {
     openWorkflows();
     if (window.innerWidth < 768) toggleSidebar();
@@ -435,6 +445,7 @@ ${message}
               onOpenLearning={onOpenLearningMobile}
               onOpenCapabilityLearning={onOpenCapabilityLearningMobile}
               onOpenMemoryEditor={onOpenMemoryEditorMobile}
+              onOpenLegacyReview={onOpenLegacyReviewMobile}
               onOpenWorkflows={onOpenWorkflowsMobile}
               providersAvail={providersAvail}
             />
@@ -569,6 +580,11 @@ ${message}
           {isView("memory-editor") && (
             <Suspense fallback={LazyFallback}>
               <MemoryEditor key={`me-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("legacy-review") && (
+            <Suspense fallback={LazyFallback}>
+              <LegacyReviewPanel key={`lr-${reloadKey}`} />
             </Suspense>
           )}
           {isView("workflows") && (

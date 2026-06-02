@@ -216,11 +216,46 @@ export const api = {
       body: JSON.stringify({ sessionId, workspaceId, workflow }),
     }).then(j<Workflow>),
   learningProposals: () => fetch(withWorkspace("/api/learning/proposals")).then(j<LearningProposal[]>),
-  approveLearning: (id: string) =>
-    fetch(`/api/learning/proposals/${id}/approve`, { method: "POST" }).then(j),
+  approveLearning: (id: string, override?: "global" | "workspace") =>
+    fetch(`/api/learning/proposals/${id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(override ? { asScope: override } : {}),
+    }).then(j),
   rejectLearning: (id: string) =>
     fetch(`/api/learning/proposals/${id}/reject`, { method: "POST" }).then(j),
+
+  // === Legacy 重審 ===
+  legacyCraft: () => fetch("/api/learning/legacy/craft").then(j<LegacyMemoryEntry[]>),
+  legacyCategory: () => fetch("/api/learning/legacy/category").then(j<LegacyMemoryEntry[]>),
+  promoteLegacyCraft: (agentId: string, toScope: "global" | "workspace", toWorkspaceId?: string) =>
+    fetch(`/api/learning/legacy/craft/${encodeURIComponent(agentId)}/promote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toScope, toWorkspaceId: toWorkspaceId || "" }),
+    }).then(j),
+  promoteLegacyCategory: (category: string, toScope: "global" | "workspace", toWorkspaceId?: string) =>
+    fetch(`/api/learning/legacy/category/${encodeURIComponent(category)}/promote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toScope, toWorkspaceId: toWorkspaceId || "" }),
+    }).then(j),
+  deleteLegacyCraft: (agentId: string) =>
+    fetch(`/api/learning/legacy/craft/${encodeURIComponent(agentId)}`, { method: "DELETE" }).then(j),
+  deleteLegacyCategory: (category: string) =>
+    fetch(`/api/learning/legacy/category/${encodeURIComponent(category)}`, { method: "DELETE" }).then(j),
 };
+
+export interface LegacyMemoryEntry {
+  // craft: agentId + workspaceId='' + scope='legacy-global'
+  // category: category + workspaceId='' + scope='legacy-global'
+  agentId?: string;
+  category?: string;
+  workspaceId: string;
+  scope: "legacy-global";
+  content: string;
+  updatedAt: number;
+}
 
 export interface Workspace {
   id: string;

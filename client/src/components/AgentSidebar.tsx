@@ -19,6 +19,7 @@ interface Props {
   onOpenLearning: () => void;
   onOpenCapabilityLearning: () => void;
   onOpenMemoryEditor: () => void;
+  onOpenLegacyReview: () => void;
   onOpenWorkflows: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
@@ -104,7 +105,7 @@ function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenMemoryEditor, onOpenWorkflows,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -207,6 +208,14 @@ function AgentSidebarInner({
           >
             <span>✏️</span>
             <span>記憶編輯</span>
+          </button>
+          <button
+            onClick={onOpenLegacyReview}
+            className="px-2 py-2 rounded bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5 border border-amber-800/40"
+            title="重審 v2 遷移前累積的全域記憶（legacy-global）"
+          >
+            <span>⚠️</span>
+            <span>Legacy 重審</span>
           </button>
           <button
             onClick={onOpenTemplates}

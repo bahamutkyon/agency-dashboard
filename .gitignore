@@ -21,12 +21,23 @@ server/*.jpg
 server/*.jpeg
 server/x*.json
 server/*-base64.json
+server/fb-*.yml
+server/fb-*.json
 
 # Build 產物(每次 build 都會重生,進 repo 只會製造 diff 噪音)
 client/tsconfig.tsbuildinfo
 
 # Dev server 日誌
 server/dev-output.txt
+.dashboard-logs/
+
+# 早期測試殘留：根目錄 data/ 是廢棄路徑（實際 DB 在 server/data/）
+/data/
+
+# 一次性 dump/log 含使用者 memory 內容，不進 repo
+scripts/legacy-dump.json
+scripts/classify-result.json
+scripts/execute-log.json
 
 # 升級前自動產生的備份檔
 *.pre-awesome.bak

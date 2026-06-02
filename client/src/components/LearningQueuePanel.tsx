@@ -28,11 +28,17 @@ export function LearningQueuePanel({ agents }: { agents: AgentMeta[] }) {
 
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || id;
 
-  const decide = async (p: LearningProposal, action: "approve" | "reject") => {
+  const decide = async (p: LearningProposal, action: "approve" | "reject" | "approve-global" | "approve-workspace") => {
     setBusy(p.id);
     try {
-      if (action === "approve") await api.approveLearning(p.id);
-      else await api.rejectLearning(p.id);
+      if (action === "reject") await api.rejectLearning(p.id);
+      else {
+        const override =
+          action === "approve-global" ? "global" :
+          action === "approve-workspace" ? "workspace" :
+          undefined;
+        await api.approveLearning(p.id, override);
+      }
       setProposals((prev) => prev.filter((x) => x.id !== p.id));
       setSelected((prev) => { const next = new Set(prev); next.delete(p.id); return next; });
     } catch (e: any) {
@@ -40,6 +46,16 @@ export function LearningQueuePanel({ agents }: { agents: AgentMeta[] }) {
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * 預測該提案批准後預設會落到哪個 scope（與後端 deriveDefaultScope 對齊）。
+   * 純前端 hint，給使用者一個視覺提示。後端規則為準。
+   */
+  const predictDefaultScope = (p: LearningProposal): "global" | "workspace" | "workspace-fact" => {
+    if (p.scope === "workspace") return "workspace-fact";
+    if (p.source?.startsWith("capability-learning:")) return "global";
+    return p.kind === "domain" ? "global" : "workspace";
   };
 
   const toggleSelect = (id: string) => {
@@ -171,12 +187,40 @@ export function LearningQueuePanel({ agents }: { agents: AgentMeta[] }) {
                   </div>
                   <div className="text-sm whitespace-pre-wrap break-words">{p.content}</div>
                 </div>
-                <div className="flex flex-col gap-1 flex-shrink-0">
-                  <button
-                    disabled={busy === p.id || bulkBusy}
-                    onClick={() => decide(p, "approve")}
-                    className="text-xs px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white disabled:opacity-50"
-                  >批准</button>
+                <div className="flex flex-col gap-1 flex-shrink-0 min-w-[110px]">
+                  {/* 預設批准 — 後端依規則自動判 scope */}
+                  {(() => {
+                    const def = predictDefaultScope(p);
+                    const defLabel =
+                      def === "global" ? "🌐 全域" :
+                      def === "workspace" ? "📦 本工作區" :
+                      "📌 工作區事實";
+                    return (
+                      <button
+                        disabled={busy === p.id || bulkBusy}
+                        onClick={() => decide(p, "approve")}
+                        title={`預設落到 ${defLabel}`}
+                        className="text-xs px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white disabled:opacity-50"
+                      >批准 → {defLabel}</button>
+                    );
+                  })()}
+                  {/* 強制 scope 覆寫（只對 agent-global / category 提案有效） */}
+                  {(p.scope === "agent-global" || p.scope === "category") && (
+                    <div className="flex gap-1">
+                      <button
+                        disabled={busy === p.id || bulkBusy}
+                        onClick={() => decide(p, "approve-global")}
+                        title="強制：跨工作區共享"
+                        className="flex-1 text-[10px] px-1 py-0.5 bg-violet-900/70 hover:bg-violet-800 rounded text-violet-200 disabled:opacity-50"
+                      >強制全域</button>
+                      <button
+                        disabled={busy === p.id || bulkBusy}
+                        onClick={() => decide(p, "approve-workspace")}
+                        title="強制：只在本工作區"
+                        className="flex-1 text-[10px] px-1 py-0.5 bg-cyan-900/70 hover:bg-cyan-800 rounded text-cyan-200 disabled:opacity-50"
+                      >強制工作區</button>
+                    </div>
+                  )}
                   <button
                     disabled={busy === p.id || bulkBusy}
                     onClick={() => decide(p, "reject")}

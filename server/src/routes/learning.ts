@@ -1,10 +1,14 @@
 import { Router } from "express";
 import {
   listPendingProposals, getProposal, setProposalStatus,
-  getCraftMemory, appendCraftMemory, appendCategoryMemory,
-  getCategoryMemory, setCategoryMemory, setCraftMemory,
+  getCraftMemoryFor, appendCraftMemory, appendCategoryMemory,
+  getCategoryMemoryFor, setCategoryMemory, setCraftMemory,
+  listCraftMemoryEntries, listLegacyCraftEntries, listLegacyCategoryEntries,
+  promoteCraftMemory, promoteCategoryMemory,
+  type MemoryScope,
   listLearningSchedules, getLearningSchedule,
   upsertLearningSchedule, deleteLearningSchedule,
+  type LearningProposal,
 } from "../learningStore.js";
 import { learningScheduler } from "../learningScheduler.js";
 import {
@@ -23,6 +27,58 @@ function ws(req: any): string | undefined {
   return w ? String(w) : undefined;
 }
 
+/**
+ * 依 source / kind / proposal.scope 推斷批准後該寫到哪。
+ *
+ * 推論優先序：
+ *   1. req body `asScope` 覆寫 — 最高優先（使用者手動選）
+ *   2. **source 是 `capability-learning:*`** — 批量能力學習產出本質是跨工作區方法論，
+ *      預設 global，不管 kind 是 craft 還是 domain
+ *   3. kind-based 預設（對話現場觸發的 LEARN 標記）：
+ *      - kind='domain'                      → global
+ *      - kind='craft'/'calibration'/'fact'  → workspace
+ *
+ * proposal.scope 決定落到哪個表：
+ *   - p.scope='workspace'   → workspace_memory（事實記錄到該工作區）
+ *   - p.scope='agent-global'→ agent_craft_memory
+ *   - p.scope='category'    → category_capability_memory
+ */
+type LandingPlan =
+  | { kind: "workspace-fact" }
+  | { kind: "craft"; scope: "global" | "workspace"; workspaceId: string }
+  | { kind: "category"; categoryId: string; scope: "global" | "workspace"; workspaceId: string };
+
+function deriveDefaultScope(p: LearningProposal): "global" | "workspace" {
+  // 批量能力學習的產出 = 跨工作區通用方法論（不綁特定對話/客戶情境）
+  if (p.source.startsWith("capability-learning:")) return "global";
+  // 對話現場觸發 LEARN：依 kind 決定
+  return p.kind === "domain" ? "global" : "workspace";
+}
+
+function decideLanding(p: LearningProposal, override?: "global" | "workspace"): LandingPlan | { error: string } {
+  if (p.scope === "workspace") {
+    return { kind: "workspace-fact" };
+  }
+  const decided = override ?? deriveDefaultScope(p);
+  if (p.scope === "category") {
+    const cat = parseCategoryAgentId(p.agentId);
+    if (!cat) return { error: "類別提案格式異常" };
+    return { kind: "category", categoryId: cat, scope: decided, workspaceId: decided === "global" ? "" : p.workspaceId };
+  }
+  // agent-global
+  return { kind: "craft", scope: decided, workspaceId: decided === "global" ? "" : p.workspaceId };
+}
+
+function applyLanding(plan: LandingPlan, p: LearningProposal): void {
+  if (plan.kind === "workspace-fact") {
+    appendWorkspaceMemory(p.workspaceId, p.content);
+  } else if (plan.kind === "craft") {
+    appendCraftMemory(p.agentId, p.content, plan.scope, plan.workspaceId);
+  } else {
+    appendCategoryMemory(plan.categoryId, p.content, plan.scope, plan.workspaceId);
+  }
+}
+
 learningRouter.get("/proposals", (req, res) => {
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   res.json(listPendingProposals(wsId));
@@ -33,25 +89,18 @@ learningRouter.post("/proposals/:id/approve", (req, res) => {
   if (!p) return res.status(404).json({ error: "找不到提案" });
   if (p.status !== "pending") return res.status(409).json({ error: "提案已處理過" });
 
-  // 類層提案：先驗證 agent_id 前綴格式，格式異常直接拒絕、不搶占。
-  let categoryId: string | null = null;
-  if (p.scope === "category") {
-    categoryId = parseCategoryAgentId(p.agentId);
-    if (!categoryId) return res.status(400).json({ error: "類別提案格式異常" });
-  }
+  const override = req.body?.asScope === "global" || req.body?.asScope === "workspace"
+    ? req.body.asScope as "global" | "workspace"
+    : undefined;
+  const plan = decideLanding(p, override);
+  if ("error" in plan) return res.status(400).json({ error: plan.error });
 
   // 以 CAS 搶占標記，確保並發 / 重送下只有一個請求會執行副作用
   const claimed = setProposalStatus(p.id, "approved");
   if (!claimed) return res.status(409).json({ error: "提案已處理過" });
   try {
-    if (p.scope === "category") {
-      appendCategoryMemory(categoryId!, p.content);
-    } else if (p.scope === "agent-global") {
-      appendCraftMemory(p.agentId, p.content);
-    } else {
-      appendWorkspaceMemory(p.workspaceId, p.content);
-    }
-    res.json({ ok: true });
+    applyLanding(plan, p);
+    res.json({ ok: true, landed: plan });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });
   }
@@ -69,21 +118,19 @@ learningRouter.post("/proposals/:id/reject", (req, res) => {
 learningRouter.post("/proposals/bulk-approve", (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 500) : [];
   if (ids.length === 0) return res.status(400).json({ error: "ids 不可為空" });
+  const override = req.body?.asScope === "global" || req.body?.asScope === "workspace"
+    ? req.body.asScope as "global" | "workspace"
+    : undefined;
   let ok = 0, fail = 0;
   const errs: { id: string; error: string }[] = [];
   for (const id of ids) {
     try {
       const p = getProposal(id);
       if (!p || p.status !== "pending") { fail++; errs.push({ id, error: "找不到或非 pending" }); continue; }
-      let categoryId: string | null = null;
-      if (p.scope === "category") {
-        categoryId = parseCategoryAgentId(p.agentId);
-        if (!categoryId) { fail++; errs.push({ id, error: "類別格式異常" }); continue; }
-      }
+      const plan = decideLanding(p, override);
+      if ("error" in plan) { fail++; errs.push({ id, error: plan.error }); continue; }
       if (!setProposalStatus(p.id, "approved")) { fail++; errs.push({ id, error: "已處理過" }); continue; }
-      if (p.scope === "category") appendCategoryMemory(categoryId!, p.content);
-      else if (p.scope === "agent-global") appendCraftMemory(p.agentId, p.content);
-      else appendWorkspaceMemory(p.workspaceId, p.content);
+      applyLanding(plan, p);
       ok++;
     } catch (e: any) { fail++; errs.push({ id, error: e?.message || String(e) }); }
   }
@@ -103,37 +150,139 @@ learningRouter.post("/proposals/bulk-reject", (req, res) => {
   res.json({ ok, fail });
 });
 
-// 讀取類層能力記憶
+// === Category 記憶讀寫（v2：workspace-aware）===
+
+// 讀取類層能力記憶（回該 category 在指定 workspace 下可見的所有條目）
+// 同時提供舊 client 期待的 `content` 欄位（= 聚合「全域 + 該工作區 + legacy」三段）
 learningRouter.get("/category-memory/:category", (req, res) => {
-  res.json({ category: req.params.category, content: getCategoryMemory(req.params.category) });
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const bundle = getCategoryMemoryFor(req.params.category, wsId);
+  const content = [bundle.legacyGlobal, bundle.global, bundle.workspace].filter((s) => s.trim()).join("\n");
+  res.json({ category: req.params.category, workspaceId: wsId, content, ...bundle });
 });
 
-// 覆蓋類層能力記憶（直接 SET，非追加）
+// 覆蓋類層能力記憶；scope 預設 'global'，可帶 ?scope=workspace 並指定 workspace
 learningRouter.put("/category-memory/:category", (req, res) => {
   const cat = req.params.category;
   const content = String(req.body?.content || "");
-  setCategoryMemory(cat, content);
-  res.json({ ok: true });
+  const scope = (req.body?.scope || "global") as MemoryScope;
+  const wsId = scope === "workspace" ? String(req.body?.workspaceId || ws(req) || "") : "";
+  try {
+    setCategoryMemory(cat, content, scope, wsId);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(400).json({ error: e?.message || String(e) });
+  }
 });
 
-// 讀取個別 agent 手藝記憶（path 參數版，補齊現有的 query string 版）
+// === Craft 記憶讀寫（v2：workspace-aware）===
+
+// 讀取個別 agent 手藝記憶（path 版）；同時提供舊 client 期待的 `content` 聚合欄位
 learningRouter.get("/craft/:agentId", (req, res) => {
-  res.json({ agentId: req.params.agentId, content: getCraftMemory(req.params.agentId) });
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const bundle = getCraftMemoryFor(req.params.agentId, wsId);
+  const content = [bundle.legacyGlobal, bundle.global, bundle.workspace].filter((s) => s.trim()).join("\n");
+  res.json({ agentId: req.params.agentId, workspaceId: wsId, content, ...bundle });
 });
 
-// 覆蓋個別 agent 手藝記憶（直接 SET，非追加）
+// 覆蓋個別 agent 手藝記憶
 learningRouter.put("/craft/:agentId", (req, res) => {
   const aid = req.params.agentId;
   const content = String(req.body?.content || "");
-  setCraftMemory(aid, content);
-  res.json({ ok: true });
+  const scope = (req.body?.scope || "global") as MemoryScope;
+  const wsId = scope === "workspace" ? String(req.body?.workspaceId || ws(req) || "") : "";
+  try {
+    setCraftMemory(aid, content, scope, wsId);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(400).json({ error: e?.message || String(e) });
+  }
 });
 
+// Query string 版（沿用既有 client 呼叫）
 learningRouter.get("/craft", (req, res) => {
   const agentId = String(req.query.agentId || "");
   if (!agentId) return res.status(400).json({ error: "agentId required" });
-  res.json({ agentId, content: getCraftMemory(agentId) });
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const bundle = getCraftMemoryFor(agentId, wsId);
+  const content = [bundle.legacyGlobal, bundle.global, bundle.workspace].filter((s) => s.trim()).join("\n");
+  res.json({ agentId, workspaceId: wsId, content, ...bundle });
 });
+
+// === Legacy 重審介面 ===
+
+// 列出該 agent 所有 craft 條目（含每個 scope/workspace）
+learningRouter.get("/craft-entries/:agentId", (req, res) => {
+  res.json(listCraftMemoryEntries(req.params.agentId));
+});
+
+// 列出所有 legacy-global 的 craft 條目，供「Legacy 重審」UI 用
+learningRouter.get("/legacy/craft", (_req, res) => {
+  res.json(listLegacyCraftEntries());
+});
+
+learningRouter.get("/legacy/category", (_req, res) => {
+  res.json(listLegacyCategoryEntries());
+});
+
+// 把 craft 條目從 legacy-global 推到目標 scope（global / workspace）
+// body: { toScope: 'global' | 'workspace', toWorkspaceId?: string }
+learningRouter.post("/legacy/craft/:agentId/promote", (req, res) => {
+  const aid = req.params.agentId;
+  const toScope = String(req.body?.toScope || "") as MemoryScope;
+  const toWs = String(req.body?.toWorkspaceId || "");
+  if (toScope !== "global" && toScope !== "workspace") {
+    return res.status(400).json({ error: "toScope 必須是 global 或 workspace" });
+  }
+  if (toScope === "workspace" && !toWs) {
+    return res.status(400).json({ error: "toScope=workspace 需指定 toWorkspaceId" });
+  }
+  try {
+    promoteCraftMemory(aid, "legacy-global", "", toScope, toScope === "global" ? "" : toWs);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+learningRouter.post("/legacy/category/:category/promote", (req, res) => {
+  const cat = req.params.category;
+  const toScope = String(req.body?.toScope || "") as MemoryScope;
+  const toWs = String(req.body?.toWorkspaceId || "");
+  if (toScope !== "global" && toScope !== "workspace") {
+    return res.status(400).json({ error: "toScope 必須是 global 或 workspace" });
+  }
+  if (toScope === "workspace" && !toWs) {
+    return res.status(400).json({ error: "toScope=workspace 需指定 toWorkspaceId" });
+  }
+  try {
+    promoteCategoryMemory(cat, "legacy-global", "", toScope, toScope === "global" ? "" : toWs);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+// 刪除 legacy-global craft 條目
+learningRouter.delete("/legacy/craft/:agentId", (req, res) => {
+  try {
+    setCraftMemory(req.params.agentId, "", "legacy-global", "");
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+learningRouter.delete("/legacy/category/:category", (req, res) => {
+  try {
+    setCategoryMemory(req.params.category, "", "legacy-global", "");
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+// === 能力學習 run + 排程（不變）===
 
 // 啟動能力學習 run — 序列逐一跑，socket 推進度。
 // io 從 req.app.get("io") 取得，避免循環依賴
