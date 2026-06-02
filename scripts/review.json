@@ -1,0 +1,1145 @@
+{
+  "meta": {
+    "reviewedAt": "2026-06-02T08:29:37.429Z",
+    "reviewer": "Claude Opus 4.7 (逐條 AI 審查)",
+    "summary": {
+      "totalCraft": 213,
+      "totalCategory": 12,
+      "keepGlobal": 225,
+      "lockWorkspace": 0,
+      "delete": 0,
+      "needsManualEdit": 1
+    }
+  },
+  "craft": [
+    {
+      "id": "academic-anthropologist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "academic-geographer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "academic-historian",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "academic-narratologist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "academic-psychologist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "academic-study-planner",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "accounts-payable-agent",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "agentic-identity-trust",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "agents-orchestrator",
+      "action": "promote-global",
+      "reason": "主體 4 條（2026-05-23）為通用方法論，價值高，保留為全域；但內含 3 條對話現場累積（2026-05-27 ~ 2026-05-29），其中 5/27 那條提及「金田式 DAC」具體品牌名",
+      "needsManualEdit": true,
+      "manualEditNote": "升級為 global 後，請進記憶編輯器手動編輯：移除「（例如金田式 DAC 那篇）」這段具體品牌名提及，保留通用教訓「驗證每篇文章的真實作者」"
+    },
+    {
+      "id": "ai-coding-guide-consultant",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "automation-governance-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "blender-addon-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "blockchain-security-auditor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "code-reviewer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "compliance-auditor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "corporate-training-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "data-consolidation-agent",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-brand-guardian",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-image-prompt-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-inclusive-visuals-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-ui-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-ux-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-ux-researcher",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-visual-storyteller",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "design-whimsy-injector",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-ai-data-remediation-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-ai-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-autonomous-optimization-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-backend-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-cms-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-code-reviewer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-codebase-onboarding-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-data-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-database-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-devops-automator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-dingtalk-integration-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-email-intelligence-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-embedded-firmware-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-embedded-linux-driver-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-feishu-integration-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-filament-optimization-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-fpga-digital-design-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-frontend-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-git-workflow-master",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-incident-response-commander",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-iot-solution-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-minimal-change-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-mobile-app-builder",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-rapid-prototyper",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-security-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-senior-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-software-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-solidity-smart-contract-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-sre",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-technical-writer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-threat-detection-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-voice-ai-integration-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "engineering-wechat-mini-program-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-bookkeeper-controller",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-financial-analyst",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-financial-forecaster",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-fpa-analyst",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-fraud-detector",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-investment-researcher",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-invoice-manager",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "finance-tax-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "game-audio-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "game-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "gaokao-college-advisor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "godot-gameplay-scripter",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "godot-multiplayer-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "godot-shader-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "government-digital-presales-consultant",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "healthcare-customer-service",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "healthcare-marketing-compliance",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "hospitality-guest-services",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "hr-onboarding",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "hr-performance-reviewer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "hr-recruiter",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "identity-graph-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "language-translator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "legal-billing-time-tracking",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "legal-client-intake",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "legal-contract-reviewer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "legal-document-review",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "legal-policy-writer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "level-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "loan-officer-assistant",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "lsp-index-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "macos-spatial-metal-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-agentic-search-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-ai-citation-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-app-store-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-baidu-seo-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-bilibili-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-book-co-author",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-carousel-growth-engine",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-china-ecommerce-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-china-market-localization-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-content-creator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-cross-border-ecommerce",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-douyin-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-ecommerce-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-growth-hacker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-instagram-curator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-knowledge-commerce-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-kuaishou-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-linkedin-content-creator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-livestream-commerce-coach",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-podcast-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-private-domain-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-reddit-community-builder",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-seo-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-short-video-editing-coach",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-social-media-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-tiktok-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-twitter-engager",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-video-optimization-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-wechat-official-account",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-wechat-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-weibo-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-weixin-channels-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-xiaohongshu-operator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-xiaohongshu-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "marketing-zhihu-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "narrative-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-auditor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-creative-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-paid-social-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-ppc-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-programmatic-buyer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-search-query-analyst",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media-tracking-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "product-behavioral-nudge-engine",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "product-feedback-synthesizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "product-manager",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "product-sprint-prioritizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "product-trend-researcher",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-management-experiment-tracker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-management-jira-workflow-steward",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-management-project-shepherd",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-management-studio-operations",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-management-studio-producer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "project-manager-senior",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "prompt-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "real-estate-buyer-seller",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "recruitment-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "report-distribution-agent",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "retail-customer-returns",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "roblox-avatar-creator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "roblox-experience-designer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "roblox-systems-scripter",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-account-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-coach",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-data-extraction-agent",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-deal-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-discovery-coach",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-outbound-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-pipeline-analyst",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "sales-proposal-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-ai-policy-writer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-chief-of-staff",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-civil-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-cultural-intelligence-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-developer-advocate",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-document-generator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-french-consulting-market",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-korean-business-navigator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-mcp-builder",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-meeting-assistant",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-model-qa",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-pricing-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-risk-assessor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-salesforce-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "specialized-workflow-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "study-abroad-advisor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "supply-chain-inventory-forecaster",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "supply-chain-route-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "supply-chain-vendor-evaluator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-analytics-reporter",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-executive-summary-generator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-finance-tracker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-infrastructure-maintainer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-legal-compliance-checker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-recruitment-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-supply-chain-strategist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "support-support-responder",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "technical-artist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "technical-translator-agent",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "terminal-integration-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-accessibility-auditor",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-api-tester",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-embedded-qa-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-evidence-collector",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-performance-benchmarker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-reality-checker",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-test-results-analyzer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-tool-evaluator",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "testing-workflow-optimizer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unity-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unity-editor-tool-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unity-multiplayer-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unity-shader-graph-artist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unreal-multiplayer-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unreal-systems-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unreal-technical-artist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "unreal-world-builder",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "visionos-spatial-engineer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "xr-cockpit-interaction-specialist",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "xr-immersive-developer",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "xr-interface-architect",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    },
+    {
+      "id": "zk-steward",
+      "action": "promote-global",
+      "reason": "純通用方法論，跨工作區共享有價值"
+    }
+  ],
+  "category": [
+    {
+      "id": "academic",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "design",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "engineering",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "finance",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "game-development",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "marketing",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "paid-media",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "product",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "project-management",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "sales",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "support",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    },
+    {
+      "id": "testing",
+      "action": "promote-global",
+      "reason": "部門通用方法論（marketing/engineering/sales 等），跨工作區共享有價值"
+    }
+  ]
+}
