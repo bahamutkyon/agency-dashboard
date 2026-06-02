@@ -321,6 +321,8 @@ ${labelled.slice(0, 25000)}
 // members so it can recommend who to call for a given project.
 sessionsRouter.post("/orchestrator", (req, res) => {
   const allAgents = loadAgentsImpl();
+  // PM 注入完整 description；system prompt 改走 --append-system-prompt-file
+  // 暫存檔路徑（agentSession.spawnClaudeChild），不再受 Windows 命令列 32767 字元上限約束。
   const catalog = allAgents
     .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${a.description}`)
     .join("\n");

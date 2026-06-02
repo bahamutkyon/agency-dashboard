@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { loadAgents } from "./agentLoader.js";
 import { agentManager } from "./agentManager.js";
+import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { scheduler } from "./scheduler.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { loadRemoteConfig, buildRemoteAccessMiddleware } from "./remoteAccess.js";
@@ -194,6 +195,7 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
     console.log(`[agency-dashboard] listening on http://127.0.0.1:${PORT} (local-only, default)`);
   }
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
+  cleanupOrphanPromptFiles();
   scheduler.init();
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
   learningScheduler.init((payload) => io.emit("learning:progress", payload));

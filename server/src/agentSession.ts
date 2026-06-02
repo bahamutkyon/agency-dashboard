@@ -1,9 +1,38 @@
 import { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { v4 as uuid } from "uuid";
 import { spawnClaude } from "./claudeProcess.js";
 import { spawnCodexTurn, parseCodexLine } from "./codexProcess.js";
 import { spawnGeminiTurn, parseGeminiLine } from "./geminiProcess.js";
+
+/**
+ * Claude CLI 的 --append-system-prompt 走命令列 arg，Windows CreateProcessW
+ * 對單一 arg 上限約 32767 字元。PM session 的 system prompt 含 213 agent
+ * catalog (~42KB) 加上 craft / category memory 注入會撞線 → ENAMETOOLONG。
+ *
+ * 解法：寫到 %TEMP%/agency-dashboard-prompts/<sessionId>.md，args 改用
+ * --append-system-prompt-file 接路徑，徹底繞過 arg 上限。
+ */
+export const PROMPT_TMP_DIR = path.join(os.tmpdir(), "agency-dashboard-prompts");
+function ensurePromptTmpDir() {
+  if (!fs.existsSync(PROMPT_TMP_DIR)) fs.mkdirSync(PROMPT_TMP_DIR, { recursive: true });
+}
+/** 啟動時清掉前一個 server 留下的孤兒檔（process crash 沒走 cleanup）。 */
+export function cleanupOrphanPromptFiles() {
+  try {
+    if (!fs.existsSync(PROMPT_TMP_DIR)) return;
+    const files = fs.readdirSync(PROMPT_TMP_DIR);
+    for (const f of files) {
+      try { fs.unlinkSync(path.join(PROMPT_TMP_DIR, f)); } catch {}
+    }
+    if (files.length) console.log(`[agentSession] cleaned ${files.length} orphan prompt files`);
+  } catch (e: any) {
+    console.warn("[agentSession] orphan cleanup failed:", e?.message);
+  }
+}
 
 export type Provider = "claude" | "codex" | "gemini";
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
@@ -43,6 +72,8 @@ export class AgentSession extends EventEmitter {
   claudeSessionId?: string;
   private child?: ChildProcess;
   private buf = "";
+  /** Claude `--append-system-prompt-file` 用的暫存檔路徑（session 級，可重用）。 */
+  private promptFilePath?: string;
 
   // Codex-specific state
   codexThreadId?: string;
@@ -94,7 +125,27 @@ export class AgentSession extends EventEmitter {
       try { this.child.kill(); } catch {}
       this.child = undefined;
     }
+    this.cleanupPromptFile();
     this.setStatus("closed");
+  }
+
+  /** 把 extraSystemPrompt 寫到 session 專屬暫存檔，回傳檔案路徑。Idempotent。 */
+  private ensurePromptFile(): string {
+    if (this.promptFilePath && fs.existsSync(this.promptFilePath)) {
+      return this.promptFilePath;
+    }
+    ensurePromptTmpDir();
+    const p = path.join(PROMPT_TMP_DIR, `${this.id}.md`);
+    fs.writeFileSync(p, this.extraSystemPrompt || "", { encoding: "utf8" });
+    this.promptFilePath = p;
+    return p;
+  }
+
+  /** session 結束時刪掉暫存檔。失敗不丟錯（避免吃掉真正的 error）。 */
+  private cleanupPromptFile(): void {
+    if (!this.promptFilePath) return;
+    try { fs.unlinkSync(this.promptFilePath); } catch {}
+    this.promptFilePath = undefined;
   }
 
   private setStatus(s: SessionStatus) {
@@ -131,7 +182,8 @@ export class AgentSession extends EventEmitter {
       args.push("--session-id", this.id);
     }
     if (this.extraSystemPrompt) {
-      args.push("--append-system-prompt", this.extraSystemPrompt);
+      // 走暫存檔路徑而非直接塞 args，繞過 Windows 命令列 32767 字元上限
+      args.push("--append-system-prompt-file", this.ensurePromptFile());
     }
     if (this.mcpConfigJson) {
       args.push("--mcp-config", this.mcpConfigJson);
@@ -155,6 +207,7 @@ export class AgentSession extends EventEmitter {
       this.emit("event", { type: "status", payload: code === 0 ? "closed" : "error" });
       this.status = code === 0 ? "closed" : "error";
       this.child = undefined;
+      this.cleanupPromptFile();
     });
     this.child = child;
   }
