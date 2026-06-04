@@ -422,12 +422,14 @@ export function ChatWindow({
   }, [messages]);
 
   // 與 server/src/dispatchParser.ts 同格式的就地解析（client 不跨引 server 模組）
+  // 只認「PM 最近一則 assistant 訊息」裡的 DISPATCH：PM 一旦講了後續話（整合回覆／已交辦），
+  // 代表這輪派工已執行過，卡片不該再跳。這純靠持久化歷史推導，重啟／重整都正確。
   const detectedDispatch = useMemo(() => {
     if (agentId !== "agents-orchestrator") return null;
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role !== "assistant") continue;
       const m = messages[i].content.match(/=== DISPATCH ===\s*\n([\s\S]*?)\n=== END DISPATCH ===/);
-      if (!m) continue;
+      if (!m) return null; // 最近一則 assistant 訊息已非 DISPATCH → 沒有待批准的派工
       const items: { agentId: string; mode: "consult" | "execute"; task: string }[] = [];
       let cur: any = null;
       const flush = () => { if (cur?.agentId && cur?.task) items.push({ agentId: cur.agentId, mode: cur.mode || "consult", task: cur.task }); };
@@ -449,13 +451,38 @@ export function ChatWindow({
   const [dispatched, setDispatched] = useState(false);
   const [consultRaw, setConsultRaw] = useState<{ agentId: string; task: string; output: string; status: string; subSessionId: string }[] | null>(null);
 
+  // 派工指紋：用 sessionId + 派工內容唯一標識這一輪派工，存進 localStorage。
+  // 補強核心修正未覆蓋的窄窗——consult 同步執行中（整合回覆尚未串回）若使用者重整，
+  // 最近一則 assistant 仍是 DISPATCH、卡片會再現，靠這個指紋擋下重複批准。
+  const dispatchKey = useMemo(() => {
+    if (!detectedDispatch) return null;
+    const sig = detectedDispatch.map((i) => `${i.agentId}|${i.mode}|${i.task}`).join("\n");
+    let h = 0;
+    for (let i = 0; i < sig.length; i++) { h = (h * 31 + sig.charCodeAt(i)) | 0; }
+    return `dispatched:${sessionId}:${h}`;
+  }, [detectedDispatch, sessionId]);
+
+  // 換到新的派工（或無派工）時重設；若該指紋已批准過則維持隱藏。
+  useEffect(() => {
+    if (dispatchKey && typeof localStorage !== "undefined" && localStorage.getItem(dispatchKey)) {
+      setDispatched(true);
+    } else {
+      setDispatched(false);
+    }
+  }, [dispatchKey]);
+
+  const markDispatched = () => {
+    if (dispatchKey && typeof localStorage !== "undefined") localStorage.setItem(dispatchKey, "1");
+    setDispatched(true);
+  };
+
   const approveDispatch = async () => {
     if (!detectedDispatch) return;
     setDispatchBusy(true);
     try {
       const r = await api.dispatch(sessionId, detectedDispatch);
       setConsultRaw(r.consulted);
-      setDispatched(true);
+      markDispatched();
     } catch (e: any) {
       alert("派工失敗：" + (e?.message || e));
     } finally {
@@ -759,7 +786,7 @@ export function ChatWindow({
             items={detectedDispatch}
             busy={dispatchBusy}
             onApprove={approveDispatch}
-            onCancel={() => setDispatched(true)}
+            onCancel={markDispatched}
           />
         </div>
       )}
