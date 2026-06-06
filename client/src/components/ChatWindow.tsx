@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "../lib/socket";
-import { api, type Note, type PromptTemplate, type SessionRecord } from "../lib/api";
-import { notify } from "../lib/notifications";
+import { api, type SessionRecord } from "../lib/api";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
 import { DispatchApprovalCard } from "./DispatchApprovalCard";
@@ -9,6 +8,11 @@ import { useDispatch } from "../hooks/useDispatch";
 import { useWorkflowDetection } from "../hooks/useWorkflowDetection";
 import { useMemoDetection } from "../hooks/useMemoDetection";
 import { useFileUpload } from "../hooks/useFileUpload";
+import { useChatSession, type Msg } from "../hooks/useChatSession";
+import { useTemplates } from "../hooks/useTemplates";
+import { useNotes } from "../hooks/useNotes";
+import { useTags } from "../hooks/useTags";
+import { useSessionSummary } from "../hooks/useSessionSummary";
 
 interface Props {
   sessionId: string;
@@ -24,13 +28,6 @@ interface Props {
   onMemoApplied?: () => void;
   onAcceptFork?: (toAgentId: string, message: string, fromAgentName: string) => void;
   onOpenSession?: (sessionId: string, agentId: string, title: string) => void;
-}
-
-interface Msg {
-  role: "user" | "assistant" | "system";
-  content: string;
-  ts: number;
-  partial?: boolean;
 }
 
 interface ParsedFork {
@@ -204,71 +201,22 @@ export function ChatWindow({
   sessionId, agentId, agentName, provider, onStatusChange, onOpenAgentById, onHandoff,
   knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork, onOpenSession,
 }: Props) {
-  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
-  const [status, setStatus] = useState<string>("idle");
-  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
-  const [pickerFilter, setPickerFilter] = useState("");
   const [showMemory, setShowMemory] = useState(false);
-  const streamingRef = useRef<string>("");
-  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [dismissedForks, setDismissedForks] = useState<Set<number>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // load templates once (refresh on focus to pick up changes from templates panel)
-  useEffect(() => {
-    const fetch = () => api.templates().then(setTemplates).catch(() => {});
-    fetch();
-    window.addEventListener("focus", fetch);
-    return () => window.removeEventListener("focus", fetch);
-  }, []);
+  // 對話核心狀態與 socket 串流抽到 useChatSession。
+  const { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef } =
+    useChatSession(sessionId, agentName, onStatusChange);
+  // 範本 / 筆記 / 標籤 / 摘要 各自的 hook。
+  const { showPicker, setShowPicker, pickerFilter, setPickerFilter, visibleTemplates, insertTemplate } =
+    useTemplates(agentId, setInput, inputRef);
+  const { notes, showNotePicker, setShowNotePicker, attachNote } = useNotes(setInput, inputRef);
+  const { tags, setTags, tagInput, setTagInput, addTag, removeTag } = useTags(sessionId);
+  const { summary, summarizing, summarize, clearSummary } = useSessionSummary(sessionId);
 
-  const visibleTemplates = useMemo(() => {
-    return templates.filter((t) => {
-      // show templates bound to this agent or unbound
-      if (t.agentId && t.agentId !== agentId) return false;
-      if (!pickerFilter.trim()) return true;
-      const q = pickerFilter.toLowerCase();
-      return t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q);
-    });
-  }, [templates, agentId, pickerFilter]);
-
-  const insertTemplate = (t: PromptTemplate) => {
-    // replace the leading "/..." trigger with the template body
-    setInput((cur) => {
-      const m = cur.match(/^\/[^\s]*/);
-      const rest = m ? cur.slice(m[0].length) : cur;
-      return t.body + rest;
-    });
-    setShowPicker(false);
-    setPickerFilter("");
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const [dismissedForks, setDismissedForks] = useState<Set<number>>(new Set());
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summarizing, setSummarizing] = useState(false);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [showNotePicker, setShowNotePicker] = useState(false);
-  const [autoInjectedNotes, setAutoInjectedNotes] = useState<{ title: string }[]>([]);
-
-  useEffect(() => {
-    const fetch = () => api.notes().then(setNotes).catch(() => {});
-    fetch();
-    window.addEventListener("focus", fetch);
-    return () => window.removeEventListener("focus", fetch);
-  }, []);
-
-  const attachNote = (n: Note) => {
-    const wrapped = `<context source="${n.title}">\n${n.body}\n</context>\n\n`;
-    setInput((cur) => wrapped + cur);
-    setShowNotePicker(false);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  // load history
+  // 載入歷史：一次 hydrate 訊息、標籤、狀態（橫跨 useChatSession + useTags）。
   useEffect(() => {
     let cancelled = false;
     api.session(sessionId).then((rec: SessionRecord) => {
@@ -279,100 +227,6 @@ export function ChatWindow({
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId]);
-
-  const saveTags = async (next: string[]) => {
-    setTags(next);
-    try { await api.updateSession(sessionId, { tags: next }); } catch {}
-  };
-
-  const addTag = () => {
-    const t = tagInput.trim().replace(/^#/, "");
-    if (!t || tags.includes(t)) { setTagInput(""); return; }
-    saveTags([...tags, t]);
-    setTagInput("");
-  };
-
-  const removeTag = (t: string) => saveTags(tags.filter((x) => x !== t));
-
-  const summarize = async () => {
-    if (summarizing) return;
-    setSummarizing(true);
-    setSummary(null);
-    try {
-      const r = await api.summarize(sessionId);
-      setSummary(r.summary);
-    } catch (e: any) {
-      setSummary(`摘要失敗:${e.message || "未知錯誤"}`);
-    } finally {
-      setSummarizing(false);
-    }
-  };
-
-  // socket subscription
-  useEffect(() => {
-    const sock = getSocket();
-    sock.emit("session:join", sessionId);
-
-    const handler = (evt: any) => {
-      if (evt.sessionId !== sessionId) return;
-      switch (evt.type) {
-        case "delta": {
-          streamingRef.current += evt.payload;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last && last.partial) {
-              return [...prev.slice(0, -1), { ...last, content: streamingRef.current }];
-            }
-            return [...prev, { role: "assistant", content: streamingRef.current, ts: Date.now(), partial: true }];
-          });
-          break;
-        }
-        case "message": {
-          streamingRef.current = "";
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            const finalMsg: Msg = { role: "assistant", content: evt.payload.content, ts: Date.now() };
-            if (last && last.partial) return [...prev.slice(0, -1), finalMsg];
-            return [...prev, finalMsg];
-          });
-          break;
-        }
-        case "status": {
-          setStatus(evt.payload);
-          onStatusChange?.(evt.payload);
-          break;
-        }
-        case "result": {
-          setStatus("idle");
-          onStatusChange?.("idle");
-          notify(`${agentName} 回應完畢`, "切回儀表板查看結果", { tag: sessionId });
-          break;
-        }
-        case "error": {
-          setMessages((prev) => [...prev, { role: "system", content: `[錯誤] ${evt.payload}`, ts: Date.now() }]);
-          break;
-        }
-        case "notes-injected": {
-          setAutoInjectedNotes(evt.payload || []);
-          // clear after 8s
-          setTimeout(() => setAutoInjectedNotes([]), 8000);
-          break;
-        }
-        case "dispatch:done": {
-          const ok = evt.payload?.status === "ok";
-          notify(`外包任務${ok ? "完成" : "結束"}`, `${evt.payload?.agentId || "同事"} 已回報,專案經理整理中`, { tag: sessionId });
-          break;
-        }
-      }
-    };
-    sock.on("session:event", handler);
-    return () => { sock.off("session:event", handler); };
-  }, [sessionId, onStatusChange]);
-
-  // autoscroll
-  useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
 
   // detect agent IDs the orchestrator (or anyone) recommends — anything in
   // backticks that matches a known agent id. Only shown for orchestrator chats
@@ -648,7 +502,7 @@ export function ChatWindow({
       {summary && (
         <div className="px-4 py-3 bg-amber-950/30 border-b border-amber-800/30 relative">
           <button
-            onClick={() => setSummary(null)}
+            onClick={clearSummary}
             className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-200 text-sm"
             title="關閉"
           >×</button>
