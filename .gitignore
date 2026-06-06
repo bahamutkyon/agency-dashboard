@@ -23,6 +23,7 @@ server/x*.json
 server/*-base64.json
 server/fb-*.yml
 server/fb-*.json
+server/spec*.yml
 
 # Build 產物(每次 build 都會重生,進 repo 只會製造 diff 噪音)
 client/tsconfig.tsbuildinfo

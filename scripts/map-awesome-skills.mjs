@@ -31,7 +31,7 @@ const MAPPING = [
   { skill: "awesome-tailored-resume-generator", why: "依職缺描述產出客製化履歷——招聘端可反向用來理解求職者敘事", agents: ["hr-recruiter", "recruitment-specialist"] },
   { skill: "awesome-developer-growth-analysis", why: "分析 Claude Code 對話紀錄找出開發者的技術缺口與成長方向", agents: ["academic-study-planner"] },
   { skill: "awesome-video-downloader", why: "下載 YouTube 影片(多畫質格式),也可只抓音訊轉 MP3", agents: ["marketing-short-video-editing-coach", "marketing-video-optimization-specialist"] },
-  { skill: "awesome-raffle-winner-picker", why: "從名單/Sheets 隨機抽出贈獎得主,適用社群活動抽獎情境", agents: ["marketing-weibo-strategist"] },
+  { skill: "awesome-raffle-winner-picker", why: "從名單/Sheets 隨機抽出贈獎得主,適用社群活動抽獎情境", agents: ["marketing-wechat-official-account"] },
 ];
 
 // 載入現有 map
