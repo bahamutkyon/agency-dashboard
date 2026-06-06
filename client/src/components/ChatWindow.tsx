@@ -5,7 +5,10 @@ import { notify } from "../lib/notifications";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
 import { DispatchApprovalCard } from "./DispatchApprovalCard";
-import { detectDispatch, dispatchStorageKey } from "../lib/dispatchDetection";
+import { useDispatch } from "../hooks/useDispatch";
+import { useWorkflowDetection } from "../hooks/useWorkflowDetection";
+import { useMemoDetection } from "../hooks/useMemoDetection";
+import { useFileUpload } from "../hooks/useFileUpload";
 
 interface Props {
   sessionId: string;
@@ -397,116 +400,13 @@ export function ChatWindow({
   // detect MEMO block in latest assistant message — works in any session
   // (originally tied to onboarding mode, but we also want to recover memos
   // when user reopens an old session from history).
-  const detectedMemo = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role !== "assistant" || m.partial) continue;
-      const match = m.content.match(/=== MEMO START ===([\s\S]*?)=== MEMO END ===/);
-      if (match) return match[1].trim();
-    }
-    return null;
-  }, [messages]);
-
-  // detect ```workflow JSON block (any chat — orchestrator drafts these)
-  const detectedWorkflow = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role !== "assistant" || m.partial) continue;
-      const match = m.content.match(/```workflow\s*\n([\s\S]*?)\n```/);
-      if (!match) continue;
-      try {
-        const wf = JSON.parse(match[1]);
-        if (wf?.name && Array.isArray(wf?.steps)) return wf;
-      } catch { /* keep scanning earlier */ }
-    }
-    return null;
-  }, [messages]);
-
-  // 與 server/src/dispatchParser.ts 同格式的就地解析（client 不跨引 server 模組）
-  // 派工偵測邏輯抽到 lib/dispatchDetection（純函式、有單元測試）。
-  const detectedDispatch = useMemo(() => detectDispatch(messages, agentId), [messages, agentId]);
-
-  const [dispatchBusy, setDispatchBusy] = useState(false);
-  const [dispatched, setDispatched] = useState(false);
-  const [consultRaw, setConsultRaw] = useState<{ agentId: string; task: string; output: string; status: string; subSessionId: string }[] | null>(null);
-
-  // 派工指紋 key：用 sessionId + 派工內容唯一標識這一輪派工，存進 localStorage。
-  // 補強核心修正未覆蓋的窄窗——consult 同步執行中（整合回覆尚未串回）若使用者重整，
-  // 最近一則 assistant 仍是 DISPATCH、卡片會再現，靠這個指紋擋下重複批准。
-  const dispatchKey = useMemo(
-    () => dispatchStorageKey(sessionId, detectedDispatch),
-    [detectedDispatch, sessionId],
-  );
-
-  // 換到新的派工（或無派工）時重設；若該指紋已批准過則維持隱藏。
-  useEffect(() => {
-    if (dispatchKey && typeof localStorage !== "undefined" && localStorage.getItem(dispatchKey)) {
-      setDispatched(true);
-    } else {
-      setDispatched(false);
-    }
-  }, [dispatchKey]);
-
-  const markDispatched = () => {
-    if (dispatchKey && typeof localStorage !== "undefined") localStorage.setItem(dispatchKey, "1");
-    setDispatched(true);
-  };
-
-  const approveDispatch = async () => {
-    if (!detectedDispatch) return;
-    setDispatchBusy(true);
-    try {
-      const r = await api.dispatch(sessionId, detectedDispatch);
-      setConsultRaw(r.consulted);
-      markDispatched();
-    } catch (e: any) {
-      alert("派工失敗：" + (e?.message || e));
-    } finally {
-      setDispatchBusy(false);
-    }
-  };
-
-  const [applyingWf, setApplyingWf] = useState(false);
-  const [appliedWf, setAppliedWf] = useState(false);
-
-  const applyWorkflow = async () => {
-    if (!detectedWorkflow) return;
-    // assume current workspace = the one we're chatting in. backend uses
-    // workspace from query string, which the api client already adds.
-    const wsId = (await import("../lib/workspace")).getActiveWorkspace();
-    setApplyingWf(true);
-    try {
-      await api.applyWorkflowDraft(sessionId, wsId, detectedWorkflow);
-      setAppliedWf(true);
-    } catch (e: any) {
-      alert("套用失敗:" + e.message);
-    } finally {
-      setApplyingWf(false);
-    }
-  };
-
-  const [applying, setApplying] = useState(false);
-  const [applied, setApplied] = useState(false);
-
-  const applyMemo = async () => {
-    if (!detectedMemo) return;
-    const { getActiveWorkspace } = await import("../lib/workspace");
-    const wsId = onboardingTargetWorkspaceId || getActiveWorkspace();
-    if (!wsId) {
-      alert("請先在右上選好目標工作區再套用");
-      return;
-    }
-    setApplying(true);
-    try {
-      await api.applyOnboarding(sessionId, wsId, detectedMemo);
-      setApplied(true);
-      onMemoApplied?.();
-    } catch (e) {
-      alert("套用失敗:" + (e as any).message);
-    } finally {
-      setApplying(false);
-    }
-  };
+  // 偵測類功能抽成 custom hooks（各自包偵測邏輯 + 動作狀態 + handler）。
+  const { detectedMemo, applying, applied, applyMemo } =
+    useMemoDetection(messages, sessionId, onboardingTargetWorkspaceId, onMemoApplied);
+  const { detectedWorkflow, applyingWf, appliedWf, applyWorkflow } =
+    useWorkflowDetection(messages, sessionId);
+  const { detectedDispatch, dispatchBusy, dispatched, consultRaw, approveDispatch, markDispatched } =
+    useDispatch(messages, agentId, sessionId);
 
   const send = () => {
     const text = input.trim();
@@ -544,56 +444,7 @@ export function ChatWindow({
     try { await navigator.clipboard.writeText(text); } catch {}
   };
 
-  const [dragActive, setDragActive] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  const TEXT_EXT = /\.(md|txt|json|csv|tsv|log|ya?ml|html?|xml|tsx?|jsx?|py|rb|go|rs|sh|bat|sql|css|scss|toml|ini|env)$/i;
-
-  const handleFiles = async (files: FileList | File[]) => {
-    setUploading(true);
-    const additions: string[] = [];
-    try {
-      for (const file of Array.from(files)) {
-        const isImage = file.type.startsWith("image/");
-        const isText = file.type.startsWith("text/") || TEXT_EXT.test(file.name);
-        const tooBig = file.size > 10 * 1024 * 1024; // 10MB cap
-
-        if (tooBig) {
-          additions.push(`[檔案太大,跳過:${file.name} (${Math.round(file.size / 1024)} KB)]`);
-          continue;
-        }
-
-        if (isText && file.size < 200_000) {
-          // small text: inline directly
-          const text = await file.text();
-          additions.push(`<file name="${file.name}">\n${text}\n</file>`);
-        } else {
-          // upload binary / large file
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const r = new FileReader();
-            r.onload = () => resolve(r.result as string);
-            r.onerror = () => reject(r.error);
-            r.readAsDataURL(file);
-          });
-          const base64 = dataUrl.split(",")[1];
-          const { path } = await api.uploadFile(file.name, base64, "base64");
-          if (isImage) {
-            additions.push(`請看這張圖片:${path}`);
-          } else {
-            additions.push(`請用 Read 工具讀取這個檔案:${path}`);
-          }
-        }
-      }
-      if (additions.length > 0) {
-        setInput((cur) => (cur ? cur + "\n\n" : "") + additions.join("\n\n") + "\n\n");
-        setTimeout(() => inputRef.current?.focus(), 0);
-      }
-    } catch (e: any) {
-      alert("上傳失敗:" + (e.message || e));
-    } finally {
-      setUploading(false);
-    }
-  };
+  const { dragActive, setDragActive, uploading, handleFiles } = useFileUpload(setInput, inputRef);
 
   return (
     <>
