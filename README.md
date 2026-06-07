@@ -598,6 +598,8 @@ cp .env.example .env.local
 | 兩端互通 | 手機瀏覽器能載入 dashboard 首頁 |
 | UI 確認 | 右上角出現 📱 徽章(關閉時不會出現) |
 
+> 🔐 **安全提醒**：開了 `ENABLE_REMOTE_ACCESS=true` 後,server 綁定 `0.0.0.0`,**同一個 Tailscale tailnet 或同網段 LAN(允許清單內)的任何裝置都能連進來驅動你的 Claude 訂閱、看你的對話**。自用單人 tailnet 沒問題;但若你的 tailnet 有共用成員、或在公司 / 公共 Wi-Fi 等不完全信任的網段,**請一併設 `ACCESS_TOKEN`**(作法見下方 ⓑ)。token 沒設時 dashboard 啟動 log 會顯示 `token auth: off`。
+
 ---
 
 ### ⓑ 🌐 Cloudflare Tunnel(進階 — 公網存取、免費)
