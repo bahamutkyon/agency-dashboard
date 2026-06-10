@@ -8,8 +8,9 @@ import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { scheduler } from "./scheduler.js";
 import { workflowRunner } from "./workflowRunner.js";
 import { loadRemoteConfig, buildRemoteAccessMiddleware } from "./remoteAccess.js";
-import { resumeUnfinishedRuns, runLearningTarget } from "./capabilityLearning.js";
+import { resumeUnfinishedRuns } from "./capabilityLearning.js";
 import { learningScheduler } from "./learningScheduler.js";
+import { studyScheduler } from "./studyScheduler.js";
 import { getRun } from "./store.js";
 import path from "node:path";
 import fs from "node:fs";
@@ -86,6 +87,7 @@ const io = new SocketServer(server, { cors: { origin: "*" } });
 
 // Make io accessible to routers via req.app.get("io")
 app.set("io", io);
+app.set("studyScheduler", studyScheduler);
 
 // sessionObservers: sessionId → Set of socketIds currently observing that session.
 // sessionForwards: sessionId → the "event" listener attached to the AgentSession.
@@ -199,7 +201,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   scheduler.init();
   scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
-  resumeUnfinishedRuns(runLearningTarget, (r) => {
+  studyScheduler.init((payload) => io.emit("learning:progress", payload));
+  resumeUnfinishedRuns((r) => {
     io.emit("learning:progress", {
       runId: r.id, status: r.status, total: r.total, done: r.done,
       current: r.current, failed: r.failed, createdProposals: r.createdProposals,

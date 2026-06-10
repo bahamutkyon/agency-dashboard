@@ -304,11 +304,11 @@ export function createLearningRun(
 
 /**
  * server 啟動時呼叫：撿起上次中斷的 run（status='running'）並從斷點續跑。
- * 傳入 worker 與 sink 由 index.ts 注入（和正常啟動路徑一致），
- * 避免 capabilityLearning.ts 直接依賴 socket.io。
+ * sink 由 index.ts 注入（避免 capabilityLearning.ts 直接依賴 socket.io）；
+ * worker 則依每個 run 的 runKind 內部分流：research → runResearchTarget（需綁 run.id），
+ * 其餘 → runLearningTarget，確保進修型 run 重啟後仍走研究流程並寫回能力報告。
  */
 export function resumeUnfinishedRuns(
-  worker: (t: LearnTarget) => Promise<{ created: number }>,
   sink: (run: LearningRun) => void,
 ): void {
   const rows = db.prepare("SELECT * FROM learning_runs WHERE status = 'running'").all() as any[];
@@ -318,6 +318,10 @@ export function resumeUnfinishedRuns(
     const run = rowToRun(row);
     // 重建 in-memory 讓 getLearningRun 可以直接查 Map
     runs.set(run.id, run);
+    // 依 runKind 選對 worker：research 需把 run.id 綁進去以利報告寫回
+    const worker = run.runKind === "research"
+      ? (t: LearnTarget) => runResearchTarget(t, run.id)
+      : runLearningTarget;
     // 背景續跑，不 await
     executeLearningRun(run, worker, sink).catch((e) => {
       run.status = "error";
