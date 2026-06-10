@@ -147,6 +147,14 @@ describe("Phase 1: agent_craft_memory v1 → v2 migration", () => {
   });
 });
 
+describe("workspaces schema", () => {
+  it("workspaces 有 working_dir 欄", () => {
+    const db = freshDb();
+    const cols = db.prepare("SELECT name FROM pragma_table_info('workspaces')").all().map((c: any) => c.name);
+    expect(cols).toContain("working_dir");
+  });
+});
+
 describe("autonomous-study schema", () => {
   it("建立 agent_study_prefs / agent_capability_reports / agent_study_schedules", () => {
     const db = freshDb();

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   memory TEXT DEFAULT '',
   enabled_mcps TEXT DEFAULT '[]',
   chrome_cdp_port INTEGER,
+  working_dir TEXT,
   created_at INTEGER NOT NULL
 );
 
@@ -271,6 +272,9 @@ export function applyMigrations(db: DatabaseSync): void {
     }
     if (!hasColumn(db, "workspaces", "chrome_cdp_port")) {
       db.exec("ALTER TABLE workspaces ADD COLUMN chrome_cdp_port INTEGER");
+    }
+    if (!hasColumn(db, "workspaces", "working_dir")) {
+      db.exec("ALTER TABLE workspaces ADD COLUMN working_dir TEXT");
     }
   }
   // workflow_runs.step_outputs
