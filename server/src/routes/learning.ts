@@ -400,7 +400,17 @@ learningRouter.post("/study/run", (req, res) => {
   const run = createLearningRun([{ type: "agent", id: agentId }], null, "research");
   res.json({ runId: run.id });
   const io = req.app.get("io");
-  executeLearningRun(run, (t) => runResearchTarget(t, run.id), (r) => io?.emit?.("learning:progress", {
-    runId: r.id, status: r.status, total: r.total, done: r.done, current: r.current, failed: r.failed, createdProposals: r.createdProposals,
-  })).catch(() => {});
+  executeLearningRun(run, (t) => runResearchTarget(t, run.id), (r) => {
+    io?.emit?.("learning:progress", {
+      runId: r.id, status: r.status, total: r.total, done: r.done,
+      current: r.current, failed: r.failed, createdProposals: r.createdProposals,
+    });
+  }).catch((e) => {
+    run.status = "error";
+    io?.emit?.("learning:progress", {
+      runId: run.id, status: run.status, total: run.total, done: run.done,
+      current: null, failed: run.failed, createdProposals: run.createdProposals,
+    });
+    console.warn("[study/run] background exec failed:", e?.message || e);
+  });
 });

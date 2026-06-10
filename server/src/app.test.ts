@@ -88,6 +88,7 @@ describe("HTTP 端點 smoke", () => {
     expect(r.status).toBe(200);
     const j = await r.json();
     expect(j).toHaveProperty("hot"); expect(j).toHaveProperty("cold"); expect(j).toHaveProperty("dormant");
+    expect(j).toHaveProperty("excluded");
   });
 
   it("POST /api/learning/study/override 設定 hot 回 ok", async () => {
@@ -96,6 +97,11 @@ describe("HTTP 端點 smoke", () => {
       body: JSON.stringify({ agentId: "marketing-content-creator", override: "hot" }),
     });
     expect(r.status).toBe(200);
+    // 清除避免污染後續測試的分層
+    await fetch(`${base}/api/learning/study/override`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: "marketing-content-creator", override: null }),
+    });
   });
 
   it("POST /api/learning/study/override 非法 override 回 400", async () => {
