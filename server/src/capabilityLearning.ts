@@ -5,10 +5,14 @@
  */
 import { spawnClaude } from "./claudeProcess.js";
 import { parseLearnMarkers } from "./learningCapture.js";
-import { createProposal, getCategoryMemory } from "./learningStore.js";
+import { createProposal, getCategoryMemory, getCraftMemoryFor } from "./learningStore.js";
 import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
 import { loadAgents, categoryLabel, readAgentDefinition } from "./agentLoader.js";
-import { buildCategoryLearningPrompt, buildAgentLearningPrompt } from "./capabilityPrompts.js";
+import {
+  buildCategoryLearningPrompt, buildAgentLearningPrompt,
+  buildAgentResearchPrompt, parseCapabilityReport,
+} from "./capabilityPrompts.js";
+import { saveCapabilityReport } from "./studyStore.js";
 
 /** 類層提案的 agent_id 前綴 — 避免與真實 agentId 撞名。 */
 export const CATEGORY_PREFIX = "__category__:";
@@ -59,6 +63,26 @@ export function ingestLearningOutput(text: string, target: LearnTarget): number 
   return created;
 }
 
+/**
+ * 解析研究型 worker 的回應：把 LEARN 標記建成 agent-global 的 craft 提案，
+ * 並把 REPORT 區塊（含來源 URL）寫進能力報告表。回傳建立的提案數。
+ */
+export function ingestResearchOutput(text: string, agentId: string, runId: string | null): number {
+  const drafts = parseLearnMarkers(text, 6, 500);
+  let created = 0;
+  for (const d of drafts) {
+    const p = createProposal({
+      agentId, workspaceId: DEFAULT_WORKSPACE_ID,
+      kind: "craft", scope: "agent-global",
+      content: d.content, source: "capability-research:agent",
+    });
+    if (p) created++;
+  }
+  const rep = parseCapabilityReport(text);
+  if (rep) saveCapabilityReport({ agentId, report: rep.report, sources: rep.sources, runId });
+  return created;
+}
+
 /** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */
 function runClaudeOnce(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -96,6 +120,58 @@ function runClaudeOnce(prompt: string): Promise<string> {
   });
 }
 
+/**
+ * 帶工具（WebSearch/WebFetch）與逾時的一次性 Claude 呼叫，回傳 result 文字。
+ * 與 runClaudeOnce 相同的協議，但多了 --allowedTools 與硬逾時保護。
+ */
+function runClaudeWithTools(prompt: string, tools: string[], timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err: Error | null, val?: string) => {
+      if (settled) return;
+      settled = true;
+      err ? reject(err) : resolve(val!);
+    };
+    const child = spawnClaude([
+      "-p", "--output-format", "json", "--model", LEARNING_MODEL,
+      "--allowedTools", tools.join(" "),
+      "--no-session-persistence", "--disable-slash-commands",
+    ]);
+    const timer = setTimeout(() => { try { child.kill(); } catch {} done(new Error("研究逾時")); }, timeoutMs);
+    timer.unref?.();
+    let out = "";
+    child.stdout!.setEncoding("utf8");
+    child.stdout!.on("data", (d) => { out += String(d); if (out.length > 5_000_000) { child.kill(); done(new Error("輸出超過上限")); } });
+    child.stderr!.on("data", () => {});
+    child.stdin!.write(Buffer.from(prompt, "utf8")); child.stdin!.end();
+    child.on("error", (e) => done(e));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
+      try { const j = JSON.parse(out); done(null, String(j.result || "")); }
+      catch (e: any) { done(new Error(`解析回應失敗: ${e.message}`)); }
+    });
+  });
+}
+
+/**
+ * 跑單一 agent 的自主進修：用 WebSearch/WebFetch 研究最新業界知識，
+ * 產出 craft 提案 + 能力現況報告。回傳建立的提案數。會打真 Claude。
+ */
+export async function runResearchTarget(target: LearnTarget): Promise<{ created: number }> {
+  const agent = loadAgents().find((a) => a.id === target.id);
+  if (!agent) throw new Error(`找不到 agent: ${target.id}`);
+  const def = readAgentDefinition(target.id);
+  const bundle = getCraftMemoryFor(target.id, DEFAULT_WORKSPACE_ID);
+  const craftText = [bundle.legacyGlobal, bundle.global].filter((s) => s && s.trim()).join("\n");
+  const catMem = getCategoryMemory(agent.category);
+  const prompt = buildAgentResearchPrompt(agent.name, agent.description, def?.body, craftText, catMem);
+  const text = await runClaudeWithTools(prompt, ["WebSearch", "WebFetch"], 600_000);
+  const created = ingestResearchOutput(text, target.id, null);
+  if (created === 0 && !parseCapabilityReport(text)) throw new Error("研究未產出任何 LEARN 或 REPORT");
+  return { created };
+}
+
 // --- 學習 run 狀態機 ---
 
 export interface LearningRun {
@@ -108,6 +184,7 @@ export interface LearningRun {
   failed: { target: string; error: string }[];
   createdProposals: number;
   scheduleId?: string | null;
+  runKind?: "learning" | "research";
 }
 
 const runs = new Map<string, LearningRun>();
@@ -120,8 +197,8 @@ function insertRunToDB(run: LearningRun): void {
   const now = Date.now();
   db.prepare(`
     INSERT OR REPLACE INTO learning_runs
-    (id, targets, status, total, done, current, failed, created_proposals, schedule_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, targets, status, total, done, current, failed, created_proposals, schedule_id, run_kind, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     run.id,
     JSON.stringify(run.targets),
@@ -132,6 +209,7 @@ function insertRunToDB(run: LearningRun): void {
     JSON.stringify(run.failed),
     run.createdProposals,
     run.scheduleId ?? null,
+    run.runKind ?? "learning",
     now,
     now,
   );
@@ -166,6 +244,7 @@ function rowToRun(row: any): LearningRun {
     failed: JSON.parse(row.failed || "[]"),
     createdProposals: row.created_proposals,
     scheduleId: row.schedule_id ?? null,
+    runKind: row.run_kind ?? "learning",
   };
 }
 
@@ -221,13 +300,18 @@ export async function executeLearningRun(
 }
 
 /** 建立並登記一個新 run（狀態機初始值），同時寫入 DB。 */
-export function createLearningRun(targets: LearnTarget[], scheduleId?: string | null): LearningRun {
+export function createLearningRun(
+  targets: LearnTarget[],
+  scheduleId?: string | null,
+  runKind: "learning" | "research" = "learning",
+): LearningRun {
   const run: LearningRun = {
     id: `lrun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     targets, status: "running",
     total: targets.length, done: 0, current: null,
     failed: [], createdProposals: 0,
     scheduleId: scheduleId ?? null,
+    runKind,
   };
   runs.set(run.id, run);
   insertRunToDB(run);

@@ -2,8 +2,10 @@ import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import {
   ingestLearningOutput, parseCategoryAgentId, CATEGORY_PREFIX,
   executeLearningRun, createLearningRun, getLearningRun, resumeUnfinishedRuns,
+  ingestResearchOutput,
   type LearningRun, type LearnTarget,
 } from "./capabilityLearning.js";
+import { getLatestReport } from "./studyStore.js";
 import { db } from "./db.js";
 import {
   getCategoryMemory, getCraftMemory, getProposal, setProposalStatus,
@@ -381,6 +383,25 @@ describe("bulk-approve 邏輯（直接呼叫 store 函式模擬）", () => {
     expect(setProposalStatus(row.id, "approved")).toBe(true);  // 第一次成功
     expect(setProposalStatus(row.id, "approved")).toBe(false); // 第二次失敗
     expect(setProposalStatus(row.id, "rejected")).toBe(false); // 改 rejected 也失敗
+  });
+});
+
+describe("ingestResearchOutput", () => {
+  it("建 craft 提案 + 寫能力報告", () => {
+    db.exec("DELETE FROM learning_proposals; DELETE FROM agent_capability_reports;");
+    const text = `=== LEARN kind=craft ===
+2026 最新做法：X，門檻 Y
+=== END LEARN ===
+=== REPORT ===
+目前：會A
+最新：B
+缺口：C
+來源： https://z.com
+=== END REPORT ===`;
+    const created = ingestResearchOutput(text, "marketing-content-creator", "run1");
+    expect(created).toBe(1);
+    const rep = getLatestReport("marketing-content-creator");
+    expect(rep?.sources).toEqual(["https://z.com"]);
   });
 });
 
