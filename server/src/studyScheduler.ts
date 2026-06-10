@@ -9,7 +9,7 @@ import { pickForRun } from "./studyTiering.js";
 import { createLearningRun, executeLearningRun, runResearchTarget, type LearnTarget } from "./capabilityLearning.js";
 
 type Sink = (payload: any) => void;
-type Worker = (t: LearnTarget) => Promise<{ created: number }>;
+type Worker = (t: LearnTarget, runId?: string | null) => Promise<{ created: number }>;
 type Picker = (tier: "hot" | "cold", cap: number) => string[];
 
 /** 測試可注入 worker/picker；正式用預設。回傳 { total, runId }。 */
@@ -23,7 +23,7 @@ export async function runScheduledTier(
   const targets: LearnTarget[] = ids.map((id) => ({ type: "agent", id }));
   const run = createLearningRun(targets, null, "research");
   touchStudyScheduleRun(tier);
-  await executeLearningRun(run, (t) => worker(t), (r) => sink({
+  await executeLearningRun(run, (t) => worker(t, run.id), (r) => sink({
     runId: r.id, status: r.status, total: r.total, done: r.done,
     current: r.current, failed: r.failed, createdProposals: r.createdProposals, tier,
   }));
