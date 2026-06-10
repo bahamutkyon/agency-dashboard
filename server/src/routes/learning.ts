@@ -13,8 +13,10 @@ import {
 import { learningScheduler } from "../learningScheduler.js";
 import {
   parseCategoryAgentId, createLearningRun, executeLearningRun,
-  getLearningRun, runLearningTarget,
+  getLearningRun, runLearningTarget, runResearchTarget,
 } from "../capabilityLearning.js";
+import { computeTiers } from "../studyTiering.js";
+import { setTierOverride, getLatestReport, listStudySchedules, updateStudySchedule } from "../studyStore.js";
 import { appendWorkspaceMemory, DEFAULT_WORKSPACE_ID } from "../store.js";
 import cron from "node-cron";
 import { v4 as uuid } from "uuid";
@@ -50,7 +52,7 @@ type LandingPlan =
 
 function deriveDefaultScope(p: LearningProposal): "global" | "workspace" {
   // 批量能力學習的產出 = 跨工作區通用方法論（不綁特定對話/客戶情境）
-  if (p.source.startsWith("capability-learning:")) return "global";
+  if (p.source.startsWith("capability-learning:") || p.source.startsWith("capability-research:")) return "global";
   // 對話現場觸發 LEARN：依 kind 決定
   return p.kind === "domain" ? "global" : "workspace";
 }
@@ -360,4 +362,45 @@ learningRouter.delete("/schedules/:id", (req, res) => {
   deleteLearningSchedule(req.params.id);
   learningScheduler.sync();
   res.json({ ok: true });
+});
+
+// === 自主進修 study/* 端點 ===
+
+learningRouter.get("/study/tiers", (_req, res) => res.json(computeTiers()));
+
+learningRouter.post("/study/override", (req, res) => {
+  const { agentId, override } = req.body || {};
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  if (override !== null && !["hot", "cold", "exclude"].includes(override)) return res.status(400).json({ error: "override 非法" });
+  setTierOverride(String(agentId), override);
+  res.json({ ok: true });
+});
+
+learningRouter.get("/study/report/:agentId", (req, res) => {
+  res.json(getLatestReport(req.params.agentId) || null);
+});
+
+learningRouter.get("/study/schedules", (_req, res) => res.json(listStudySchedules()));
+
+learningRouter.patch("/study/schedules/:tier", (req, res) => {
+  const tier = req.params.tier;
+  if (tier !== "hot" && tier !== "cold") return res.status(400).json({ error: "tier 須 hot/cold" });
+  updateStudySchedule(tier, {
+    enabled: typeof req.body?.enabled === "boolean" ? req.body.enabled : undefined,
+    cron: req.body?.cron, perRunCap: req.body?.perRunCap,
+  });
+  const sched = req.app.get("studyScheduler");
+  if (sched && typeof sched.sync === "function") sched.sync();
+  res.json({ ok: true });
+});
+
+learningRouter.post("/study/run", (req, res) => {
+  const agentId = String(req.body?.agentId || "");
+  if (!agentId) return res.status(400).json({ error: "agentId required" });
+  const run = createLearningRun([{ type: "agent", id: agentId }], null, "research");
+  res.json({ runId: run.id });
+  const io = req.app.get("io");
+  executeLearningRun(run, (t) => runResearchTarget(t, run.id), (r) => io?.emit?.("learning:progress", {
+    runId: r.id, status: r.status, total: r.total, done: r.done, current: r.current, failed: r.failed, createdProposals: r.createdProposals,
+  })).catch(() => {});
 });

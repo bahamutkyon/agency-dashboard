@@ -82,4 +82,32 @@ describe("HTTP 端點 smoke", () => {
     const del = await fetch(`${base}/api/workspaces/${created.id}`, { method: "DELETE" });
     expect(del.status).toBe(200);
   });
+
+  it("GET /api/learning/study/tiers 回 hot/cold/dormant", async () => {
+    const r = await fetch(`${base}/api/learning/study/tiers`);
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j).toHaveProperty("hot"); expect(j).toHaveProperty("cold"); expect(j).toHaveProperty("dormant");
+  });
+
+  it("POST /api/learning/study/override 設定 hot 回 ok", async () => {
+    const r = await fetch(`${base}/api/learning/study/override`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: "marketing-content-creator", override: "hot" }),
+    });
+    expect(r.status).toBe(200);
+  });
+
+  it("POST /api/learning/study/override 非法 override 回 400", async () => {
+    const r = await fetch(`${base}/api/learning/study/override`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: "x", override: "bogus" }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it("GET /api/learning/study/schedules 回 hot/cold 兩列", async () => {
+    const j = (await (await fetch(`${base}/api/learning/study/schedules`)).json()) as any[];
+    expect(j.map((s: any) => s.tier).sort()).toEqual(["cold", "hot"]);
+  });
 });
