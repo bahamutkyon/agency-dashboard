@@ -68,6 +68,7 @@ export function ingestLearningOutput(text: string, target: LearnTarget): number 
  * 並把 REPORT 區塊（含來源 URL）寫進能力報告表。回傳建立的提案數。
  */
 export function ingestResearchOutput(text: string, agentId: string, runId: string | null): number {
+  // research prompt 最多 6 條（對應 buildAgentResearchPrompt 的 3-6 上限）
   const drafts = parseLearnMarkers(text, 6, 500);
   let created = 0;
   for (const d of drafts) {
@@ -83,70 +84,42 @@ export function ingestResearchOutput(text: string, agentId: string, runId: strin
   return created;
 }
 
-/** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */
-function runClaudeOnce(prompt: string): Promise<string> {
+interface ClaudeRunOptions { tools?: string[]; timeoutMs?: number; }
+
+/**
+ * 共用底層：一次性非互動呼叫 Claude，支援可選工具清單與逾時保護。
+ * runClaudeOnce / runClaudeWithTools 均委派至此，避免重複實作。
+ */
+function runClaudeOnceBase(prompt: string, opts: ClaudeRunOptions = {}): Promise<string> {
   return new Promise((resolve, reject) => {
+    const args = [
+      "-p", "--output-format", "json", "--model", LEARNING_MODEL,
+      "--no-session-persistence", "--disable-slash-commands",
+    ];
+    if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(" "));
     let settled = false;
     const done = (err: Error | null, val?: string) => {
       if (settled) return;
       settled = true;
       err ? reject(err) : resolve(val!);
     };
-    const child = spawnClaude([
-      "-p", "--output-format", "json",
-      "--model", LEARNING_MODEL,
-      "--no-session-persistence",
-      "--disable-slash-commands",
-    ]);
+    const child = spawnClaude(args);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (opts.timeoutMs) {
+      timer = setTimeout(() => { try { child.kill(); } catch {} done(new Error("研究逾時")); }, opts.timeoutMs);
+      timer.unref?.();
+    }
     let out = "";
     child.stdout!.setEncoding("utf8");
     child.stdout!.on("data", (d) => {
       out += String(d);
-      if (out.length > 5_000_000) { child.kill(); done(new Error("輸出超過上限")); }
+      if (out.length > 5_000_000) { if (timer) clearTimeout(timer); child.kill(); done(new Error("輸出超過上限")); }
     });
-    child.stderr!.on("data", () => {});
-    child.stdin!.write(Buffer.from(prompt, "utf8"));
-    child.stdin!.end();
-    child.on("error", (e) => done(e));
-    child.on("close", (code) => {
-      if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
-      try {
-        const j = JSON.parse(out);
-        done(null, String(j.result || ""));
-      } catch (e: any) {
-        done(new Error(`解析回應失敗: ${e.message}`));
-      }
-    });
-  });
-}
-
-/**
- * 帶工具（WebSearch/WebFetch）與逾時的一次性 Claude 呼叫，回傳 result 文字。
- * 與 runClaudeOnce 相同的協議，但多了 --allowedTools 與硬逾時保護。
- */
-function runClaudeWithTools(prompt: string, tools: string[], timeoutMs: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const done = (err: Error | null, val?: string) => {
-      if (settled) return;
-      settled = true;
-      err ? reject(err) : resolve(val!);
-    };
-    const child = spawnClaude([
-      "-p", "--output-format", "json", "--model", LEARNING_MODEL,
-      "--allowedTools", tools.join(" "),
-      "--no-session-persistence", "--disable-slash-commands",
-    ]);
-    const timer = setTimeout(() => { try { child.kill(); } catch {} done(new Error("研究逾時")); }, timeoutMs);
-    timer.unref?.();
-    let out = "";
-    child.stdout!.setEncoding("utf8");
-    child.stdout!.on("data", (d) => { out += String(d); if (out.length > 5_000_000) { child.kill(); done(new Error("輸出超過上限")); } });
     child.stderr!.on("data", () => {});
     child.stdin!.write(Buffer.from(prompt, "utf8")); child.stdin!.end();
-    child.on("error", (e) => done(e));
+    child.on("error", (e) => { if (timer) clearTimeout(timer); done(e); });
     child.on("close", (code) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
       try { const j = JSON.parse(out); done(null, String(j.result || "")); }
       catch (e: any) { done(new Error(`解析回應失敗: ${e.message}`)); }
@@ -154,11 +127,22 @@ function runClaudeWithTools(prompt: string, tools: string[], timeoutMs: number):
   });
 }
 
+/** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */
+function runClaudeOnce(prompt: string): Promise<string> { return runClaudeOnceBase(prompt); }
+
+/**
+ * 帶工具（WebSearch/WebFetch）與逾時的一次性 Claude 呼叫，回傳 result 文字。
+ * 與 runClaudeOnce 相同的協議，但多了 --allowedTools 與硬逾時保護。
+ */
+function runClaudeWithTools(prompt: string, tools: string[], timeoutMs: number): Promise<string> {
+  return runClaudeOnceBase(prompt, { tools, timeoutMs });
+}
+
 /**
  * 跑單一 agent 的自主進修：用 WebSearch/WebFetch 研究最新業界知識，
  * 產出 craft 提案 + 能力現況報告。回傳建立的提案數。會打真 Claude。
  */
-export async function runResearchTarget(target: LearnTarget): Promise<{ created: number }> {
+export async function runResearchTarget(target: LearnTarget, runId: string | null = null): Promise<{ created: number }> {
   const agent = loadAgents().find((a) => a.id === target.id);
   if (!agent) throw new Error(`找不到 agent: ${target.id}`);
   const def = readAgentDefinition(target.id);
@@ -167,7 +151,7 @@ export async function runResearchTarget(target: LearnTarget): Promise<{ created:
   const catMem = getCategoryMemory(agent.category);
   const prompt = buildAgentResearchPrompt(agent.name, agent.description, def?.body, craftText, catMem);
   const text = await runClaudeWithTools(prompt, ["WebSearch", "WebFetch"], 600_000);
-  const created = ingestResearchOutput(text, target.id, null);
+  const created = ingestResearchOutput(text, target.id, runId);
   if (created === 0 && !parseCapabilityReport(text)) throw new Error("研究未產出任何 LEARN 或 REPORT");
   return { created };
 }

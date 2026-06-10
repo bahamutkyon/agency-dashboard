@@ -403,6 +403,20 @@ describe("ingestResearchOutput", () => {
     const rep = getLatestReport("marketing-content-creator");
     expect(rep?.sources).toEqual(["https://z.com"]);
   });
+
+  it("只有 REPORT 沒 LEARN → created=0 但有報告", () => {
+    db.exec("DELETE FROM learning_proposals; DELETE FROM agent_capability_reports;");
+    const text = "=== REPORT ===\n目前:A\n來源: https://q.com\n=== END REPORT ===";
+    expect(ingestResearchOutput(text, "marketing-content-creator", null)).toBe(0);
+    expect(getLatestReport("marketing-content-creator")?.report).toContain("目前:A");
+  });
+
+  it("只有 LEARN 沒 REPORT → created=1 且無報告", () => {
+    db.exec("DELETE FROM learning_proposals; DELETE FROM agent_capability_reports;");
+    const text = "=== LEARN kind=craft ===\n做法 X\n=== END LEARN ===";
+    expect(ingestResearchOutput(text, "support-support-responder", null)).toBe(1);
+    expect(getLatestReport("support-support-responder")).toBeNull();
+  });
 });
 
 describe("bulk-reject 邏輯", () => {
