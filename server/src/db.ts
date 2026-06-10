@@ -13,7 +13,10 @@ import { v4 as uuid } from "uuid";
 import { setupSchema } from "./dbSchema.js";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "store.db");
+// 測試（vitest）一律用獨立的記憶體資料庫，絕不碰正式 store.db。
+// 否則測試裡的 DELETE/INSERT 會直接改到使用者真實對話資料（曾因此清空 sessions）。
+const IS_TEST = !!process.env.VITEST;
+const DB_PATH = IS_TEST ? ":memory:" : path.join(DATA_DIR, "store.db");
 const LEGACY_STORE = path.join(DATA_DIR, "store.json");
 const LEGACY_USAGE = path.join(DATA_DIR, "usage.json");
 

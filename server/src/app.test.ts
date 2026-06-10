@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
-import { deleteWorkspace, deleteSession } from "./store.js";
+import { deleteWorkspace, deleteSession, upsertSession, DEFAULT_WORKSPACE_ID } from "./store.js";
 
 // HTTP 端點 smoke 測試：用 ephemeral 埠（listen(0)）起一個臨時 server 打真實路由，
 // 不撞正在跑的 dev server、不需新依賴。會寫 DB 的測試（建工作區/session）在 afterAll
@@ -54,12 +54,15 @@ describe("HTTP 端點 smoke", () => {
     expect(r.status).toBe(404);
   });
 
-  it("POST /api/orchestrator/:id/dispatch items 空 → 400（需先有真 session）", async () => {
-    // 建一個真 orchestrator session（不送訊息、不花 token），再用空 items 打驗證早退。
-    const s = (await (await fetch(`${base}/api/orchestrator`, { method: "POST" })).json()) as { id: string };
-    expect(s.id).toBeTruthy();
-    createdSessionIds.push(s.id);
-    const r = await fetch(`${base}/api/orchestrator/${s.id}/dispatch`, {
+  it("POST /api/orchestrator/:id/dispatch items 空 → 400", async () => {
+    // 直接用 store 建一個 PM session（不 spawn claude、不依賴正式資料），再用空 items 打驗證早退。
+    const sid = `test_pm_${Date.now()}`;
+    upsertSession({
+      id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator",
+      title: "test PM", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [],
+    });
+    createdSessionIds.push(sid);
+    const r = await fetch(`${base}/api/orchestrator/${sid}/dispatch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: [] }),
