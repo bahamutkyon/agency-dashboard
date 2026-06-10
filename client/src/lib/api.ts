@@ -275,7 +275,7 @@ export interface AgentUsage {
   sessions30d: number;
   sessions90d: number;
   lastResearchedAt: number | null;
-  override: string | null;
+  override: "hot" | "cold" | "exclude" | null;
 }
 
 export interface StudySchedule {
