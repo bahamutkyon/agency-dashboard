@@ -68,8 +68,9 @@ export function ingestLearningOutput(text: string, target: LearnTarget): number 
  * 並把 REPORT 區塊（含來源 URL）寫進能力報告表。回傳建立的提案數。
  */
 export function ingestResearchOutput(text: string, agentId: string, runId: string | null): number {
-  // research prompt 最多 6 條（對應 buildAgentResearchPrompt 的 3-6 上限）
-  const drafts = parseLearnMarkers(text, 6, 500);
+  // research prompt 最多 6 條（對應 buildAgentResearchPrompt 的 3-6 上限）；
+  // maxLen 600（研究手藝比對話 LEARN 詳細，實測常落在 ~460，留頭寸避免被丟）
+  const drafts = parseLearnMarkers(text, 6, 600);
   let created = 0;
   for (const d of drafts) {
     const p = createProposal({
@@ -153,6 +154,8 @@ export async function runResearchTarget(target: LearnTarget, runId: string | nul
   const text = await runClaudeWithTools(prompt, ["WebSearch", "WebFetch"], 600_000);
   const created = ingestResearchOutput(text, target.id, runId);
   if (created === 0 && !parseCapabilityReport(text)) throw new Error("研究未產出任何 LEARN 或 REPORT");
+  // 有報告但 0 手藝 = 模型只給 REPORT 漏了 LEARN（prompt 稀釋的徵兆），留痕以便調校
+  if (created === 0) console.warn(`[research] ${target.id} 產出 0 craft 提案（output ${text.length} 字，有 REPORT）— 檢查 prompt 是否被稀釋`);
   return { created };
 }
 

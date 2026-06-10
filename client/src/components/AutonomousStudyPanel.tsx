@@ -182,7 +182,7 @@ export function AutonomousStudyPanel() {
         ))}
       </div>
       <div>
-        <div className="text-xs text-zinc-400 mb-1">💤 休眠（{tiers.dormant.length}，不自動跑）</div>
+        <div className="text-xs text-zinc-400 mb-1">💤 休眠（{tiers.dormant.length}，不自動跑{tiers.dormant.length > 30 ? "，顯示前 30" : ""}）</div>
         {tiers.dormant.slice(0, 30).map((a) => (
           <StudyRow
             key={a.agentId}

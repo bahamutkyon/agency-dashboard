@@ -69,10 +69,12 @@ export function buildAgentResearchPrompt(
   existingCraft: string | undefined,
   categoryMemory: string | undefined,
 ): string {
-  const body = (agentBody || "").trim();
-  const craft = (existingCraft || "").trim();
-  const cat = (categoryMemory || "").trim();
-  const bodyBlock = body ? `\n# 你的角色設定\n${body}\n` : "";
+  // 截斷人設/手藝/類記憶：過長的 context 會稀釋結尾的輸出格式指令，
+  // 導致模型只給 REPORT、漏掉必交的 LEARN 區塊（實測過的坑）。給足夠脈絡即可。
+  const body = (agentBody || "").trim().slice(0, 1800);
+  const craft = (existingCraft || "").trim().slice(0, 1800);
+  const cat = (categoryMemory || "").trim().slice(0, 1200);
+  const bodyBlock = body ? `\n# 你的角色設定（摘要）\n${body}\n` : "";
   const craftBlock = craft ? `\n# 你目前已有的手藝（避免重複，要在此之上找更新/更缺的）\n${craft}\n` : "";
   const catBlock = cat ? `\n# 類共通能力（已具備）\n${cat}\n` : "";
   return `你是「${agentName}」。${agentDescription}
@@ -81,19 +83,23 @@ ${bodyBlock}${craftBlock}${catBlock}
 用 **WebSearch** 工具研究你這個專業領域**當前年度最新**的最佳實踐、工具、平台規則與趨勢（必要時用 WebFetch 讀來源）。對照你目前的手藝與人設，找出：①已**過時／需更新**的做法 ②你還**缺**的新能力。只收**具體可操作**（帶數字門檻／判準／一句話決策樹）、且**有來源依據**的要點；避免通用空話，也避免與你現有手藝重複。
 若你是文案／內容類角色，至少要有一條「如何降低 AI 味（anti-AI-slop）」的具體手法。
 
-# 輸出格式（嚴格遵守，不要前言/編號/額外解釋）
-先輸出 3-6 個手藝（每條 ≤500 字）：
+# 輸出格式（最重要，務必遵守）
+**你的主要交付物是 LEARN 區塊**——把你研究後發現的每一個「最新做法／你的缺口」都寫成一條 craft。
+**必須先輸出至少 3 條（最多 6 條）** \`=== LEARN ===\` 區塊；只給 REPORT 不給 LEARN 視為任務失敗。
+每條 ≤500 字、具體可操作、最好帶來源年份。格式：
 === LEARN kind=craft ===
-最新手藝要點（具體、可操作、最好帶來源年份）
+最新手藝要點
 === END LEARN ===
 
-最後輸出一份能力現況報告：
+全部 LEARN 之後，最後才輸出一份能力現況報告（次要）：
 === REPORT ===
 目前已具備：…
 業界最新：…
 你的缺口：…
 來源： <把你引用的 URL 列在這行，用空白分隔>
-=== END REPORT ===`;
+=== END REPORT ===
+
+不要前言、不要編號、不要額外解釋，直接從第一個 === LEARN === 開始。`;
 }
 
 export interface ParsedReport { report: string; sources: string[]; }
