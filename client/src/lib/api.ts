@@ -225,6 +225,29 @@ export const api = {
   rejectLearning: (id: string) =>
     fetch(`/api/learning/proposals/${id}/reject`, { method: "POST" }).then(j),
 
+  // === 自主進修 ===
+  studyTiers: () =>
+    fetch("/api/learning/study/tiers").then(j<{ hot: AgentUsage[]; cold: AgentUsage[]; dormant: AgentUsage[]; excluded: AgentUsage[] }>),
+  studyOverride: (agentId: string, override: "hot" | "cold" | "exclude" | null) =>
+    fetch("/api/learning/study/override", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId, override }),
+    }).then(j),
+  studyRun: (agentId: string) =>
+    fetch("/api/learning/study/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId }),
+    }).then(j<{ runId: string }>),
+  studyReport: (agentId: string) =>
+    fetch(`/api/learning/study/report/${agentId}`).then(j<any>),
+  studySchedules: () =>
+    fetch("/api/learning/study/schedules").then(j<StudySchedule[]>),
+  studyPatchSchedule: (tier: string, patch: { enabled?: boolean; cron?: string; perRunCap?: number }) =>
+    fetch(`/api/learning/study/schedules/${tier}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j),
+
   // === Legacy 重審 ===
   legacyCraft: () => fetch("/api/learning/legacy/craft").then(j<LegacyMemoryEntry[]>),
   legacyCategory: () => fetch("/api/learning/legacy/category").then(j<LegacyMemoryEntry[]>),
@@ -245,6 +268,23 @@ export const api = {
   deleteLegacyCategory: (category: string) =>
     fetch(`/api/learning/legacy/category/${encodeURIComponent(category)}`, { method: "DELETE" }).then(j),
 };
+
+export interface AgentUsage {
+  agentId: string;
+  name: string;
+  sessions30d: number;
+  sessions90d: number;
+  lastResearchedAt: number | null;
+  override: string | null;
+}
+
+export interface StudySchedule {
+  tier: "hot" | "cold";
+  cron: string;
+  enabled: boolean;
+  perRunCap: number;
+  lastRunAt?: number;
+}
 
 export interface LegacyMemoryEntry {
   // craft: agentId + workspaceId='' + scope='legacy-global'

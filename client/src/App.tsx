@@ -39,6 +39,9 @@ const LearningQueuePanel = lazy(() =>
 const CapabilityLearningPanel = lazy(() =>
   import("./components/CapabilityLearningPanel").then((m) => ({ default: m.CapabilityLearningPanel }))
 );
+const AutonomousStudyPanel = lazy(() =>
+  import("./components/AutonomousStudyPanel").then((m) => ({ default: m.AutonomousStudyPanel }))
+);
 const LegacyReviewPanel = lazy(() =>
   import("./components/LegacyReviewPanel").then((m) => ({ default: m.LegacyReviewPanel }))
 );
@@ -68,6 +71,7 @@ type View =
   | { kind: "notes" }
   | { kind: "learning" }
   | { kind: "capability-learning" }
+  | { kind: "autonomous-study" }
   | { kind: "memory-editor" }
   | { kind: "legacy-review" }
   | { kind: "workflows" }
@@ -222,6 +226,7 @@ export default function App() {
   const openNotes = useCallback(() => setView({ kind: "notes" }), []);
   const openLearning = useCallback(() => setView({ kind: "learning" }), []);
   const openCapabilityLearning = useCallback(() => setView({ kind: "capability-learning" }), []);
+  const openAutonomousStudy = useCallback(() => setView({ kind: "autonomous-study" }), []);
   const openMemoryEditor = useCallback(() => setView({ kind: "memory-editor" }), []);
   const openLegacyReview = useCallback(() => setView({ kind: "legacy-review" }), []);
   const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
@@ -375,6 +380,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openCapabilityLearning, toggleSidebar]);
 
+  const onOpenAutonomousStudyMobile = useCallback(() => {
+    openAutonomousStudy();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openAutonomousStudy, toggleSidebar]);
+
   const onOpenMemoryEditorMobile = useCallback(() => {
     openMemoryEditor();
     if (window.innerWidth < 768) toggleSidebar();
@@ -444,6 +454,7 @@ ${message}
               onOpenNotes={onOpenNotesMobile}
               onOpenLearning={onOpenLearningMobile}
               onOpenCapabilityLearning={onOpenCapabilityLearningMobile}
+              onOpenAutonomousStudy={onOpenAutonomousStudyMobile}
               onOpenMemoryEditor={onOpenMemoryEditorMobile}
               onOpenLegacyReview={onOpenLegacyReviewMobile}
               onOpenWorkflows={onOpenWorkflowsMobile}
@@ -575,6 +586,11 @@ ${message}
           {isView("capability-learning") && (
             <Suspense fallback={LazyFallback}>
               <CapabilityLearningPanel key={`cl-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("autonomous-study") && (
+            <Suspense fallback={LazyFallback}>
+              <AutonomousStudyPanel key={`as-${reloadKey}`} />
             </Suspense>
           )}
           {isView("memory-editor") && (

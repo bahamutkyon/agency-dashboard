@@ -18,6 +18,7 @@ interface Props {
   onOpenNotes: () => void;
   onOpenLearning: () => void;
   onOpenCapabilityLearning: () => void;
+  onOpenAutonomousStudy: () => void;
   onOpenMemoryEditor: () => void;
   onOpenLegacyReview: () => void;
   onOpenWorkflows: () => void;
@@ -105,7 +106,7 @@ function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -200,6 +201,14 @@ function AgentSidebarInner({
           >
             <span>🎓</span>
             <span>能力學習</span>
+          </button>
+          <button
+            onClick={onOpenAutonomousStudy}
+            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
+            title="常用 agent 定期自主上網研究領域最新做法"
+          >
+            <span>📡</span>
+            <span>自主進修</span>
           </button>
           <button
             onClick={onOpenMemoryEditor}
