@@ -190,10 +190,35 @@ CREATE TABLE IF NOT EXISTS learning_runs (
   failed            TEXT NOT NULL DEFAULT '[]',
   created_proposals INTEGER NOT NULL DEFAULT 0,
   schedule_id       TEXT,
+  run_kind          TEXT NOT NULL DEFAULT 'learning',
   created_at        INTEGER NOT NULL,
   updated_at        INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_learning_runs_status ON learning_runs(status);
+
+CREATE TABLE IF NOT EXISTS agent_study_prefs (
+  agent_id      TEXT PRIMARY KEY,
+  tier_override TEXT,
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_capability_reports (
+  id         TEXT PRIMARY KEY,
+  agent_id   TEXT NOT NULL,
+  report     TEXT NOT NULL,
+  sources    TEXT NOT NULL DEFAULT '[]',
+  run_id     TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_acr_agent ON agent_capability_reports(agent_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_study_schedules (
+  tier        TEXT PRIMARY KEY,
+  cron        TEXT NOT NULL,
+  enabled     INTEGER NOT NULL DEFAULT 0,
+  per_run_cap INTEGER NOT NULL DEFAULT 10,
+  last_run_at INTEGER
+);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {
@@ -207,6 +232,10 @@ export function applyBaseSchema(db: DatabaseSync): void {
 export function setupSchema(db: DatabaseSync): void {
   applyMigrations(db);
   applyBaseSchema(db);
+  db.exec(`
+    INSERT OR IGNORE INTO agent_study_schedules (tier, cron, enabled, per_run_cap)
+    VALUES ('hot','0 4 * * 1',0,10), ('cold','0 4 1 * *',0,10);
+  `);
 }
 
 function hasColumn(db: DatabaseSync, table: string, column: string): boolean {
@@ -263,6 +292,10 @@ export function applyMigrations(db: DatabaseSync): void {
   // workflows.max_concurrency
   if (tableExists(db, "workflows") && !hasColumn(db, "workflows", "max_concurrency")) {
     db.exec("ALTER TABLE workflows ADD COLUMN max_concurrency INTEGER");
+  }
+  // learning_runs.run_kind
+  if (tableExists(db, "learning_runs") && !hasColumn(db, "learning_runs", "run_kind")) {
+    db.exec("ALTER TABLE learning_runs ADD COLUMN run_kind TEXT NOT NULL DEFAULT 'learning'");
   }
 
   // === agent_craft_memory v1 → v2 ===

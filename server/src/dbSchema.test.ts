@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { DatabaseSync } from "node:sqlite";
-import { applyBaseSchema, applyMigrations } from "./dbSchema.js";
+import { applyBaseSchema, applyMigrations, setupSchema } from "./dbSchema.js";
+
+function freshDb() {
+  const db = new DatabaseSync(":memory:");
+  setupSchema(db);
+  return db;
+}
 
 /** 模擬「v1 舊 schema」——pre-workspace_id 時代的 craft / category 表，只有 PK = agent_id / category。 */
 function seedLegacyV1Schema(db: DatabaseSync) {
@@ -138,5 +144,26 @@ describe("Phase 1: agent_craft_memory v1 → v2 migration", () => {
 
     const all = db.prepare("SELECT workspace_id, scope FROM agent_craft_memory WHERE agent_id='agent-x' ORDER BY workspace_id, scope").all() as any[];
     expect(all).toHaveLength(4);
+  });
+});
+
+describe("autonomous-study schema", () => {
+  it("建立 agent_study_prefs / agent_capability_reports / agent_study_schedules", () => {
+    const db = freshDb();
+    for (const t of ["agent_study_prefs", "agent_capability_reports", "agent_study_schedules"]) {
+      const r = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+      expect(r, `表 ${t} 應存在`).toBeTruthy();
+    }
+  });
+  it("learning_runs 有 run_kind 欄", () => {
+    const db = freshDb();
+    const cols = db.prepare("SELECT name FROM pragma_table_info('learning_runs')").all().map((c: any) => c.name);
+    expect(cols).toContain("run_kind");
+  });
+  it("種子 hot/cold 兩列排程，預設關閉", () => {
+    const db = freshDb();
+    const rows = db.prepare("SELECT tier, enabled FROM agent_study_schedules ORDER BY tier").all() as any[];
+    expect(rows.map((r) => r.tier)).toEqual(["cold", "hot"]);
+    expect(rows.every((r) => r.enabled === 0)).toBe(true);
   });
 });
