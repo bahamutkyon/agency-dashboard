@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCategoryLearningPrompt, buildAgentLearningPrompt } from "./capabilityPrompts.js";
-import { buildAgentResearchPrompt, parseCapabilityReport } from "./capabilityPrompts.js";
+import { buildCategoryLearningPrompt, buildAgentLearningPrompt, buildAgentResearchPrompt, parseCapabilityReport } from "./capabilityPrompts.js";
 
 describe("buildCategoryLearningPrompt", () => {
   it("含類別名稱與 domain 標記指示", () => {
@@ -60,6 +59,10 @@ describe("parseCapabilityReport", () => {
     const r = parseCapabilityReport(text);
     expect(r?.report).toContain("目前:會X");
     expect(r?.sources).toEqual(["https://a.com", "https://b.com"]);
+  });
+  it("去除 URL 尾隨標點（逗號/句號）", () => {
+    const text = "=== REPORT ===\n來源: https://a.com, https://b.com。\n=== END REPORT ===";
+    expect(parseCapabilityReport(text)?.sources).toEqual(["https://a.com", "https://b.com"]);
   });
   it("無 REPORT → null", () => {
     expect(parseCapabilityReport("沒有報告")).toBeNull();

@@ -104,6 +104,7 @@ export function parseCapabilityReport(text: string): ParsedReport | null {
   if (!m) return null;
   const report = m[1].trim();
   if (!report) return null;
-  const sources = Array.from(report.matchAll(/https?:\/\/[^\s)]+/g)).map((u) => u[0]);
-  return { report, sources: [...new Set(sources)] };
+  // 去掉 LLM 常見的尾隨標點（逗號/句號/中文標點/括號），避免存到壞連結
+  const raw = Array.from(report.matchAll(/https?:\/\/[^\s)]+/g)).map((u) => u[0].replace(/[,.、。）)\]]+$/, ""));
+  return { report, sources: [...new Set(raw)] };
 }
