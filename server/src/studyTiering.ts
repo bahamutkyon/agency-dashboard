@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { loadAgents } from "./agentLoader.js";
-import { listOverrides, lastResearchedAt } from "./studyStore.js";
+import { listOverrides, lastResearchedAt, type TierOverride } from "./studyStore.js";
 
 export const HOT_THRESHOLD = 3;
 const HOT_WINDOW_MS = 30 * 86400_000;
@@ -12,7 +12,7 @@ export interface AgentUsage {
   sessions30d: number;
   sessions90d: number;
   lastResearchedAt: number | null;
-  override: string | null;
+  override: TierOverride | null;
 }
 
 export interface Tiers {
