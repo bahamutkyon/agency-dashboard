@@ -26,6 +26,20 @@ import { AutonomousStudyPanel } from "./AutonomousStudyPanel";
 describe("AutonomousStudyPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default mock for studyTiers — reset to base shape
+    (api.studyTiers as ReturnType<typeof vi.fn>).mockResolvedValue({
+      hot: [{ agentId: "a1", name: "熱A", sessions30d: 5, sessions90d: 12, lastResearchedAt: null, override: null }],
+      cold: [],
+      dormant: [],
+      excluded: [],
+    });
+    (api.studySchedules as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { tier: "hot", cron: "0 4 * * 1", enabled: false, perRunCap: 10 },
+      { tier: "cold", cron: "0 4 1 * *", enabled: false, perRunCap: 10 },
+    ]);
+    (api.studyOverride as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+    (api.studyRun as ReturnType<typeof vi.fn>).mockResolvedValue({ runId: "r1" });
+    (api.studyPatchSchedule as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
   });
 
   it("載入後顯示熱層 agent", async () => {
@@ -49,5 +63,25 @@ describe("AutonomousStudyPanel", () => {
     await waitFor(() => expect(screen.getByText("熱A")).toBeInTheDocument());
     fireEvent.click(screen.getByText("立即進修"));
     await waitFor(() => expect(api.studyRun).toHaveBeenCalledWith("a1"));
+  });
+
+  it("點📄報告鈕呼叫 studyReport 並顯示報告內容", async () => {
+    (api.studyReport as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "rpt1",
+      agentId: "a1",
+      report: "## 摘要\n這是最新進修報告內容",
+      sources: ["https://example.com/ref1"],
+      runId: "run1",
+      createdAt: 1700000000000,
+    });
+
+    render(<AutonomousStudyPanel />);
+    await waitFor(() => expect(screen.getByText("熱A")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("📄 報告"));
+
+    await waitFor(() => expect(api.studyReport).toHaveBeenCalledWith("a1"));
+    await waitFor(() => expect(screen.getByText("這是最新進修報告內容")).toBeInTheDocument());
+    expect(screen.getByText("https://example.com/ref1")).toBeInTheDocument();
   });
 });
