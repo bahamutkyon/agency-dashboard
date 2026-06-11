@@ -25,6 +25,14 @@ describe("手動派工 server 端偵測入列", () => {
     detectAndEnqueueDispatch({ id: sid, agentId: "agents-orchestrator", workspaceId: "w1" }, content);
     expect(listPending(sid)).toHaveLength(1);
   });
+  it("同 agent 不同 task（前筆仍 pending）→ 入列兩筆，不誤判重複", () => {
+    const sid = `pm3_${Date.now()}`;
+    const c1 = "=== DISPATCH ===\n- agentId: marketing-trend-researcher\n  mode: consult\n  task: 本週選題\n=== END DISPATCH ===";
+    const c2 = "=== DISPATCH ===\n- agentId: marketing-trend-researcher\n  mode: consult\n  task: 下週選題\n=== END DISPATCH ===";
+    detectAndEnqueueDispatch({ id: sid, agentId: "agents-orchestrator", workspaceId: "w1" }, c1);
+    detectAndEnqueueDispatch({ id: sid, agentId: "agents-orchestrator", workspaceId: "w1" }, c2);
+    expect(listPending(sid)).toHaveLength(2);
+  });
 });
 
 describe("手動派工 approve 分流：detail → items 解析", () => {

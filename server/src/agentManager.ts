@@ -32,11 +32,12 @@ export function detectAndEnqueueDispatch(
   const plan = parseDispatchMarker(content);
   if (!plan || !plan.items.length) return;
   const summary = `派工給 ${plan.items.length} 位：${plan.items.map((i) => i.agentId).join("、")}`;
-  if (listPending(sess.id).some((p) => p.kind === "dispatch" && p.summary === summary)) return;
+  const detail = plan.items.map((i) => `- agentId: ${i.agentId}\n  mode: ${i.mode}\n  task: ${i.task}`).join("\n");
+  // 去重用 detail（含 task），避免「同 agent 不同 task」被誤判重複漏單
+  if (listPending(sess.id).some((p) => p.kind === "dispatch" && p.detail === detail)) return;
   createPendingAction({
     sessionId: sess.id, workspaceId: sess.workspaceId, kind: "dispatch", risk: "high",
-    summary,
-    detail: plan.items.map((i) => `- agentId: ${i.agentId}\n  mode: ${i.mode}\n  task: ${i.task}`).join("\n"),
+    summary, detail,
   });
 }
 
