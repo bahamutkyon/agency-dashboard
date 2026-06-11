@@ -134,7 +134,8 @@ describe("HTTP 端點 smoke", () => {
   });
 
   it("PATCH /api/workspaces/:id workingDir 設成外部合法路徑 → 200", async () => {
-    const os = await import("node:os"); const path = await import("node:path");
+    const os = await import("node:os");
+    const path = await import("node:path");
     const ws = (await (await fetch(`${base}/api/workspaces`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "wd ok" }),

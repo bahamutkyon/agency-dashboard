@@ -35,9 +35,13 @@ workspacesRouter.post("/", (req, res) => {
 
 workspacesRouter.patch("/:id", (req, res) => {
   const body = req.body || {};
-  if (typeof body.workingDir === "string" && body.workingDir.trim()) {
-    const err = validateWorkingDir(body.workingDir);
-    if (err) return res.status(400).json({ error: err });
+  // workingDir：trim 一次，驗證與儲存用同一個正規化後的值（避免前後空格語義漂移）
+  if (typeof body.workingDir === "string") {
+    body.workingDir = body.workingDir.trim();
+    if (body.workingDir) {
+      const err = validateWorkingDir(body.workingDir);
+      if (err) return res.status(400).json({ error: err });
+    }
   }
   const updated = updateWorkspace(req.params.id, body);
   if (!updated) return res.status(404).json({ error: "not found" });
