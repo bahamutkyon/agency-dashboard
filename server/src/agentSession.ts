@@ -68,6 +68,9 @@ export class AgentSession extends EventEmitter {
   mcpConfigJson?: string;
   status: SessionStatus = "idle";
 
+  /** 工作區工作目錄（沙箱）。spawn 時作為 child 的 cwd；未設則回退 process.cwd()。 */
+  private cwd?: string;
+
   // Claude-specific state
   claudeSessionId?: string;
   private child?: ChildProcess;
@@ -94,6 +97,7 @@ export class AgentSession extends EventEmitter {
     extraSystemPrompt?: string,
     mcpConfigJson?: string,
     provider: Provider = "claude",
+    cwd?: string,
   ) {
     super();
     this.id = sessionId || uuid();
@@ -101,6 +105,7 @@ export class AgentSession extends EventEmitter {
     this.extraSystemPrompt = extraSystemPrompt;
     this.mcpConfigJson = mcpConfigJson;
     this.provider = provider;
+    this.cwd = cwd;
   }
 
   send(text: string): void {
@@ -191,7 +196,7 @@ export class AgentSession extends EventEmitter {
 
     this.setStatus("starting");
     const child = spawnClaude(args, {
-      cwd: opts?.cwd || process.cwd(),
+      cwd: opts?.cwd || this.cwd || process.cwd(),
       env: process.env,
     });
     child.stdout!.setEncoding("utf8");
@@ -310,7 +315,7 @@ export class AgentSession extends EventEmitter {
     const child = spawnCodexTurn({
       prompt,
       threadId: this.codexThreadId,
-      cwd: process.cwd(),
+      cwd: this.cwd || process.cwd(),
       sandbox: "read-only",
     });
     this.child = child;
@@ -397,7 +402,7 @@ export class AgentSession extends EventEmitter {
     const child = spawnGeminiTurn({
       prompt,
       conversationHistory: this.geminiHistory,
-      cwd: process.cwd(),
+      cwd: this.cwd || process.cwd(),
     });
     this.child = child;
 
