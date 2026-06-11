@@ -185,6 +185,22 @@ describe("autonomyRunner 狀態機", () => {
     expect(getRun(runId)?.status).toBe("error");
   });
 
+  it("重啟後孤兒 pending 被 supersede，reject 不啟動雙迴圈（S1）", async () => {
+    const { deps } = makeDeps([
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: external_send\nsummary: 寄信\n=== END ACTION ===",
+    ]);
+    const runId = await startRun("sessZombie", "wZ", "g", {}, deps);
+    await approvePlan(runId);
+    const pa = listPending("sessZombie").find((p) => p.kind === "external_send")!;
+    expect(pa).toBeTruthy();
+    pauseRunningRunsOnBoot(listActiveRuns);  // 模擬重啟
+    expect(getRun(runId)?.status).toBe("paused");
+    expect(listPending("sessZombie")).toHaveLength(0); // 孤兒已 superseded
+    await rejectAction(pa.id); // 對孤兒 reject
+    expect(getRun(runId)?.status).toBe("paused"); // 沒被改成 running（無雙迴圈）
+  });
+
   it("loop 中 sendTurn 失敗 → run 轉 error（K2）", async () => {
     let i = 0;
     const deps: AutonomyDeps = {

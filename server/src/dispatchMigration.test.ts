@@ -39,7 +39,7 @@ describe("手動派工 approve 分流：detail → items 解析", () => {
   // executeDispatch 的實跑路徑會 spawn claude（runConsult），不在單元測試覆蓋；
   // 此處驗證入列後 detail 能被正確解析回 DispatchItem[]，供 approve handler 餵給 executeDispatch。
   it("入列的 pending dispatch detail 可解析回正確 items", () => {
-    const sid = `pm3_${Date.now()}`;
+    const sid = `pm4_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const content = "=== DISPATCH ===\n- agentId: marketing-trend-researcher\n  mode: consult\n  task: 本週選題\n- agentId: marketing-content-creator\n  mode: execute\n  task: 寫貼文\n=== END DISPATCH ===";
     detectAndEnqueueDispatch({ id: sid, agentId: "agents-orchestrator", workspaceId: "w1" }, content);
     const pa = listPending(sid)[0];

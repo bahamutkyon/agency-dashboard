@@ -14,26 +14,42 @@ export const autonomyRouter = Router();
 
 const DISPATCH_CONCURRENCY = 3;
 const CONSULT_TIMEOUT_MS = 5 * 60 * 1000;
+const SEND_TURN_TIMEOUT_MS = 6 * 60 * 1000;
+const BUSY_POLL_MS = 1500;
+const BUSY_MAX_WAIT_MS = 90 * 1000;
 
 function makeDeps(io: any): AutonomyDeps {
   return {
-    sendTurn: (sessionId, prompt) => new Promise<string>((resolve) => {
+    sendTurn: (sessionId, prompt) => new Promise<string>((resolve, reject) => {
       const s = agentManager.get(sessionId) || agentManager.reattach(sessionId);
       if (!s) return resolve("");
       let collected = "", streamed = "", settled = false;
-      const finish = () => {
-        if (settled) return; settled = true;
-        s.removeListener("event", onEvent);
-        resolve((collected || streamed).trim());
-      };
+      const cleanup = () => { clearTimeout(timer); s.removeListener("event", onEvent); };
+      const finish = () => { if (settled) return; settled = true; cleanup(); resolve((collected || streamed).trim()); };
+      const fail = (e: Error) => { if (settled) return; settled = true; cleanup(); reject(e); };
       const onEvent = (evt: any) => {
         if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
         else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
         else if (evt.type === "result") finish();
-        else if (evt.type === "error") finish();
+        else if (evt.type === "error") {
+          // busy 為瞬時碰撞（不該發生在此處，因送出前已等 idle）；其餘視為真錯
+          if (typeof evt.payload === "string" && evt.payload.includes("busy")) return;
+          fail(new Error(typeof evt.payload === "string" ? evt.payload : "agent 錯誤"));
+        }
       };
-      s.on("event", onEvent);
-      agentManager.send(sessionId, prompt);
+      const timer = setTimeout(() => fail(new Error("sendTurn 逾時")), SEND_TURN_TIMEOUT_MS);
+      // busy-aware：等到 session idle 才掛 listener + 送，避免誤殺 run、誤收他人回合事件
+      const trySend = (waited: number) => {
+        if (settled) return;
+        if (s.status === "busy") {
+          if (waited >= BUSY_MAX_WAIT_MS) { fail(new Error("session 持續忙碌，放棄本回合")); return; }
+          setTimeout(() => trySend(waited + BUSY_POLL_MS), BUSY_POLL_MS);
+          return;
+        }
+        s.on("event", onEvent);
+        agentManager.send(sessionId, prompt);
+      };
+      trySend(0);
     }),
     runDispatch: async (items: DispatchItem[], workspaceId: string) => {
       const res = await runConsult(items, workspaceId, { concurrency: DISPATCH_CONCURRENCY, perItemTimeoutMs: CONSULT_TIMEOUT_MS });

@@ -84,3 +84,8 @@ export function decidePendingAction(id: string, status: Extract<PendingStatus, "
 export function markActionExecuted(id: string, result: string, ok = true): void {
   db.prepare("UPDATE pending_actions SET status = ?, result = ? WHERE id = ?").run(ok ? "executed" : "failed", result.slice(0, 4000), id);
 }
+
+/** 把某 run 名下仍 pending 的動作標記為 superseded（重啟時清孤兒卡用）。 */
+export function supersedePendingForRun(runId: string): void {
+  db.prepare("UPDATE pending_actions SET status = 'superseded', decided_at = ? WHERE run_id = ? AND status = 'pending'").run(Date.now(), runId);
+}

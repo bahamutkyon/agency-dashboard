@@ -3,6 +3,7 @@ import type { DispatchItem } from "./dispatchParser.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
   createPendingAction, getPendingAction, decidePendingAction, markActionExecuted,
+  supersedePendingForRun,
   type AutonomyRun, type PendingAction, type RunStatus,
 } from "./store/autonomy.js";
 
@@ -169,7 +170,8 @@ export async function rejectAction(actionId: string): Promise<void> {
   const pa = getPendingAction(actionId);
   if (!pa || !pa.runId || pa.status !== "pending") return;
   const deps = activeDeps.get(pa.runId);
-  if (!deps) return;
+  const run = getRun(pa.runId);
+  if (!deps || !run || run.status !== "paused_for_action") return;
   decidePendingAction(actionId, "rejected");
   deps.emit(pa.runId, { kind: "action", action: getPendingAction(actionId) });
   updateRunStatus(pa.runId, "running"); emitRun(deps, pa.runId);
@@ -191,7 +193,7 @@ export async function stopRun(runId: string): Promise<void> {
 
 export function pauseRunningRunsOnBoot(listActiveRunsFn: () => AutonomyRun[]): number {
   const active = listActiveRunsFn();
-  for (const r of active) updateRunStatus(r.id, "paused");
+  for (const r of active) { updateRunStatus(r.id, "paused"); supersedePendingForRun(r.id); }
   return active.length;
 }
 
