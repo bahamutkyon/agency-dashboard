@@ -183,4 +183,17 @@ describe("HTTP 端點 smoke", () => {
     });
     expect(r.status).toBe(400);
   });
+
+  it("GET /api/activity 回 items 陣列", async () => {
+    const r = await fetch(`${base}/api/activity`);
+    expect(r.status).toBe(200);
+    const j = (await r.json()) as { items: unknown[] };
+    expect(Array.isArray(j.items)).toBe(true);
+  });
+
+  it("GET /api/activity?sessionId= 篩選（不存在 → 空）", async () => {
+    const r = await fetch(`${base}/api/activity?sessionId=__none__`);
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { items: unknown[] }).items).toEqual([]);
+  });
 });

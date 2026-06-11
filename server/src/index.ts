@@ -26,6 +26,7 @@ import { notesRouter } from "./routes/notes.js";
 import { workflowsRouter, runsRouter } from "./routes/workflows.js";
 import { learningRouter } from "./routes/learning.js";
 import { autonomyRouter } from "./routes/autonomy.js";
+import { activityRouter } from "./routes/activity.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
@@ -86,6 +87,9 @@ app.use("/api/learning", learningRouter);
 
 // Autonomy loop: /api/autonomy/*
 app.use("/api/autonomy", autonomyRouter);
+
+// Activity log: /api/activity
+app.use("/api/activity", activityRouter);
 
 // --- HTTP server + Socket.IO ---
 
