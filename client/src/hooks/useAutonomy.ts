@@ -55,15 +55,23 @@ export function useAutonomy(sessionId: string) {
 
   const stop = async () => {
     if (run) {
-      await api.autonomyStop(run.id);
-      await refresh();
+      try {
+        await api.autonomyStop(run.id);
+        await refresh();
+      } catch (e) {
+        console.warn("autonomy stop failed", e);
+      }
     }
   };
 
   const resume = async () => {
     if (run) {
-      await api.autonomyResume(run.id);
-      await refresh();
+      try {
+        await api.autonomyResume(run.id);
+        await refresh();
+      } catch (e) {
+        console.warn("autonomy resume failed", e);
+      }
     }
   };
 

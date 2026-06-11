@@ -89,4 +89,40 @@ describe("AutonomyPanel", () => {
     fireEvent.click(screen.getByText(/喊停/));
     expect(onStop).toHaveBeenCalled();
   });
+
+  it("paused 狀態顯示續跑鈕並呼叫 onResume", () => {
+    const onResume = vi.fn();
+    render(
+      <AutonomyPanel
+        run={makeRun({ status: "paused" })}
+        busy={false}
+        onStart={() => {}}
+        onApprovePlan={() => {}}
+        onStop={() => {}}
+        onResume={onResume}
+        onInput={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByText(/續跑/));
+    expect(onResume).toHaveBeenCalled();
+  });
+
+  it("paused_for_input 狀態顯示補充輸入並呼叫 onInput", () => {
+    const onInput = vi.fn();
+    render(
+      <AutonomyPanel
+        run={makeRun({ status: "paused_for_input" })}
+        busy={false}
+        onStart={() => {}}
+        onApprovePlan={() => {}}
+        onStop={() => {}}
+        onResume={() => {}}
+        onInput={onInput}
+      />
+    );
+    const box = screen.getByPlaceholderText(/補充/);
+    fireEvent.change(box, { target: { value: "預算一萬" } });
+    fireEvent.click(screen.getByText(/送出/));
+    expect(onInput).toHaveBeenCalledWith("預算一萬");
+  });
 });
