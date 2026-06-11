@@ -155,6 +155,20 @@ describe("workspaces schema", () => {
   });
 });
 
+describe("autonomy-loop schema", () => {
+  it("autonomy_runs 與 pending_actions 表建立成功", () => {
+    const db = new DatabaseSync(":memory:");
+    setupSchema(db);
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r: any) => r.name);
+    expect(tables).toContain("autonomy_runs");
+    expect(tables).toContain("pending_actions");
+    const runCols = db.prepare("PRAGMA table_info(autonomy_runs)").all().map((c: any) => c.name);
+    expect(runCols).toEqual(expect.arrayContaining(["id", "session_id", "goal", "status", "step_count", "max_steps", "deadline_at"]));
+    const paCols = db.prepare("PRAGMA table_info(pending_actions)").all().map((c: any) => c.name);
+    expect(paCols).toEqual(expect.arrayContaining(["id", "run_id", "session_id", "kind", "risk", "summary", "status"]));
+  });
+});
+
 describe("autonomous-study schema", () => {
   it("建立 agent_study_prefs / agent_capability_reports / agent_study_schedules", () => {
     const db = freshDb();

@@ -171,10 +171,16 @@ export function MessageList({
             : "（已將同事回覆交給專案經理整合）";
           return <div key={i} className="my-1 text-[11px] text-zinc-600">{label}</div>;
         }
+        // 隱藏自主迴圈協議回合（autonomyRunner in-band 注入的 PROTOCOL 提示），避免污染對話歷史顯示
+        if (m.role === "user" && m.content.includes("你正在「自主模式」下工作")) {
+          return null;
+        }
         const fork = m.role === "assistant" && !m.partial ? parseFork(m.content) : null;
         let cleanContent = fork ? m.content.replace(fork.raw, "").trim() : m.content;
         // 隱藏 DISPATCH 標記原文（批准卡已呈現），避免泡泡出現醜的 === DISPATCH === 區塊
         if (m.role === "assistant") cleanContent = cleanContent.replace(/=== DISPATCH ===[\s\S]*?=== END DISPATCH ===/g, "").trim();
+        // 移除 ACTION 區塊標記（已由 ActionApprovalCard 呈現），避免泡泡出現結構化協議原文
+        if (m.role === "assistant") cleanContent = cleanContent.replace(/=== ACTION ===[\s\S]*?=== END ACTION ===/g, "").trim();
         return (
           <div
             key={i}
@@ -191,7 +197,11 @@ export function MessageList({
                   : "bg-zinc-900 text-zinc-500 text-xs italic whitespace-pre-wrap"
               }`}
             >
-              {m.role === "assistant" ? <MarkdownView>{cleanContent || " "}</MarkdownView> : m.content}
+              {m.role === "assistant"
+                ? cleanContent
+                  ? <MarkdownView>{cleanContent}</MarkdownView>
+                  : <span className="text-zinc-500 text-xs italic">🤖（自主步驟）</span>
+                : m.content}
             </div>
             {fork && (
               <ForkBanner

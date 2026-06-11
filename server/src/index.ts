@@ -25,6 +25,9 @@ import { templatesRouter } from "./routes/templates.js";
 import { notesRouter } from "./routes/notes.js";
 import { workflowsRouter, runsRouter } from "./routes/workflows.js";
 import { learningRouter } from "./routes/learning.js";
+import { autonomyRouter } from "./routes/autonomy.js";
+import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
+import { listActiveRuns } from "./store/autonomy.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -79,6 +82,9 @@ app.use("/api/runs", runsRouter);
 
 // Capability learning: /api/learning/*
 app.use("/api/learning", learningRouter);
+
+// Autonomy loop: /api/autonomy/*
+app.use("/api/autonomy", autonomyRouter);
 
 // --- HTTP server + Socket.IO ---
 
@@ -208,6 +214,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
       current: r.current, failed: r.failed, createdProposals: r.createdProposals,
     });
   });
+  const pausedCount = pauseRunningRunsOnBoot(listActiveRuns);
+  if (pausedCount) console.log(`[autonomy] 重啟：${pausedCount} 個 run 轉為 paused（待使用者續跑/停止）`);
   workflowRunner.on("update", (runId: string) => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);

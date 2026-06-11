@@ -58,4 +58,32 @@ describe("MessageList", () => {
     fireEvent.click(screen.getByText(/接受/));
     expect(p.onAcceptFork).toHaveBeenCalledWith("marketing-content-creator", "幫我寫貼文", "測試員");
   });
+
+  it("自主迴圈協議 user 訊息（含「你正在「自主模式」下工作」）不出現在畫面", () => {
+    const autonomyPrompt = "你正在「自主模式」下工作。\n\n以下是你的目標：\n分析報告";
+    render(<MessageList {...baseProps()} messages={[msg("user", autonomyPrompt)]} />);
+    expect(screen.queryByText(/你正在「自主模式」下工作/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/分析報告/)).not.toBeInTheDocument();
+  });
+
+  it("assistant 訊息中 ACTION 區塊被移除，保留其餘文字", () => {
+    const content = "好的我來做。\n=== ACTION ===\nkind: next_step\nsummary: x\n=== END ACTION ===";
+    render(<MessageList {...baseProps()} messages={[msg("assistant", content)]} />);
+    expect(screen.getByText("好的我來做。")).toBeInTheDocument();
+    expect(screen.queryByText(/=== ACTION ===/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/=== END ACTION ===/)).not.toBeInTheDocument();
+  });
+
+  it("assistant 訊息只含 ACTION 區塊時顯示灰色占位提示而非空泡泡", () => {
+    const content = "=== ACTION ===\nkind: next_step\nsummary: 執行下一步\n=== END ACTION ===";
+    render(<MessageList {...baseProps()} messages={[msg("assistant", content)]} />);
+    expect(screen.getByText(/自主步驟/)).toBeInTheDocument();
+    expect(screen.queryByText(/=== ACTION ===/)).not.toBeInTheDocument();
+  });
+
+  it("一般對話訊息不受自主過濾影響", () => {
+    render(<MessageList {...baseProps()} messages={[msg("user", "請幫我分析"), msg("assistant", "好的，分析如下：\n1. 項目一")]} />);
+    expect(screen.getByText("請幫我分析")).toBeInTheDocument();
+    expect(screen.getByText(/好的，分析如下：/)).toBeInTheDocument();
+  });
 });

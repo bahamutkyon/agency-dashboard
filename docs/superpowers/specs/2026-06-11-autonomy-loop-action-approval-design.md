@@ -189,6 +189,8 @@ interface AutonomyDeps {
 - 自主迴圈中每完成一步用 `next_step` 回報、達標用 `goal_done`、缺資訊用 `need_input`。
 - 誠實註記：此為軟約束，硬攔僅 dispatch 與迴圈續行。
 
+> 實作備註（2026-06-11）：經實作與最終審查，ACTION 協議改由 autonomyRunner 於**每個自主回合的 prompt 開頭 in-band 注入**（常數 PROTOCOL），而非寫入 agent system prompt。原因：reattach() 喚醒既有 session 不重建 system prompt，system-prompt 方案會在 resume 時漏掉協議；每回合 in-band 注入更可靠且等價。前端 MessageList 會過濾這些協議回合的顯示，避免污染對話。
+
 ## 10. 錯誤處理與重啟安全
 
 - 壞格式 ACTION → 當 `need_input` + log，不崩。
