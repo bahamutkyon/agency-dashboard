@@ -255,6 +255,23 @@ CREATE TABLE IF NOT EXISTS pending_actions (
 );
 CREATE INDEX IF NOT EXISTS idx_pending_actions_session ON pending_actions(session_id, status);
 CREATE INDEX IF NOT EXISTS idx_pending_actions_run ON pending_actions(run_id);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id TEXT PRIMARY KEY,
+  ts INTEGER NOT NULL,
+  workspace_id TEXT NOT NULL DEFAULT '',
+  session_id TEXT,
+  run_id TEXT,
+  kind TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  detail TEXT,
+  status TEXT,
+  total_len INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_log(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_log(session_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_ws ON activity_log(workspace_id, ts DESC);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {
