@@ -3,7 +3,7 @@ import type { DispatchItem } from "./dispatchParser.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
   createPendingAction, getPendingAction, decidePendingAction, markActionExecuted,
-  type AutonomyRun, type PendingAction,
+  type AutonomyRun, type PendingAction, type RunStatus,
 } from "./store/autonomy.js";
 
 export const DEFAULT_MAX_STEPS = 20;
@@ -34,6 +34,12 @@ function emitRun(deps: AutonomyDeps, runId: string) {
   if (run) deps.emit(runId, { kind: "run", run });
 }
 
+function finalize(deps: AutonomyDeps | undefined, runId: string, status: RunStatus, lastError?: string) {
+  updateRunStatus(runId, status, lastError);
+  activeDeps.delete(runId);
+  if (deps) emitRun(deps, runId);
+}
+
 function budgetExceeded(run: AutonomyRun, deps: AutonomyDeps): boolean {
   return run.stepCount >= run.maxSteps || deps.now() >= run.deadlineAt;
 }
@@ -57,7 +63,13 @@ export async function startRun(
   activeDeps.set(run.id, deps);
   emitRun(deps, run.id);
   const planPrompt = `${PROTOCOL}\n\n# 目標\n${goal}\n\n請先把目標拆成可執行的步驟計畫，用 kind: plan 輸出（risk: high）。先不要執行任何步驟。`;
-  const out = await deps.sendTurn(sessionId, planPrompt);
+  let out: string;
+  try {
+    out = await deps.sendTurn(sessionId, planPrompt);
+  } catch (e) {
+    finalize(deps, run.id, "error", e instanceof Error ? e.message : String(e));
+    return run.id;
+  }
   const plan = pickAction(parseActions(out), "plan");
   createPendingAction({
     runId: run.id, sessionId, workspaceId, kind: "plan", risk: "high",
@@ -83,24 +95,35 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
   while (true) {
     let run = getRun(runId);
     if (!run || run.status !== "running") return;
-    if (budgetExceeded(run, deps)) { updateRunStatus(runId, "budget_exhausted"); emitRun(deps, runId); return; }
+    if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
 
-    const out = await deps.sendTurn(run.sessionId, `${PROTOCOL}\n\n${prompt}`);
+    let out: string;
+    try {
+      out = await deps.sendTurn(run.sessionId, `${PROTOCOL}\n\n${prompt}`);
+    } catch (e) {
+      finalize(deps, runId, "error", e instanceof Error ? e.message : String(e));
+      return;
+    }
+    // K1：sendTurn 期間可能被 stop/pause，重讀確認仍可推進
+    run = getRun(runId);
+    if (!run || run.status !== "running") return;
     incrementStep(runId);
     const action = pickAction(parseActions(out));
 
     if (!action || action.kind === "next_step") {
       run = getRun(runId)!;
-      if (budgetExceeded(run, deps)) { updateRunStatus(runId, "budget_exhausted"); emitRun(deps, runId); return; }
+      if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
       prompt = "請繼續執行下一步，朝目標推進。";
       continue;
     }
-    if (action.kind === "goal_done") { updateRunStatus(runId, "done"); emitRun(deps, runId); return; }
+    if (action.kind === "goal_done") { finalize(deps, runId, "done"); return; }
     if (action.kind === "need_input") {
-      createPendingAction({ runId, sessionId: run.sessionId, workspaceId: run.workspaceId, kind: "need_input", risk: "low", summary: action.summary, detail: action.detail });
-      updateRunStatus(runId, "paused_for_input"); emitRun(deps, runId); deps.emit(runId, { kind: "pending" });
+      const pa = createPendingAction({ runId, sessionId: run.sessionId, workspaceId: run.workspaceId, kind: "need_input", risk: "low", summary: action.summary, detail: action.detail });
+      updateRunStatus(runId, "paused_for_input"); emitRun(deps, runId); deps.emit(runId, { kind: "pending", action: pa });
       return;
     }
+    // 高風險：先判預算（I3），超限不彈卡
+    if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
     const pa = createPendingAction({
       runId, sessionId: run.sessionId, workspaceId: run.workspaceId,
       kind: action.kind, risk: "high", summary: action.summary, detail: action.detail,
@@ -115,18 +138,28 @@ export async function approveAction(actionId: string): Promise<void> {
   if (!pa || !pa.runId || pa.status !== "pending") return;
   const deps = activeDeps.get(pa.runId);
   const run = getRun(pa.runId);
-  if (!deps || !run) return;
+  if (!deps || !run || run.status !== "paused_for_action") return;
   decidePendingAction(actionId, "approved");
   let resultNote = "（已核可，請執行並用 next_step 回報結果）";
   if (pa.kind === "dispatch") {
     const items = parseActions(`=== ACTION ===\nkind: dispatch\ndetail:\n${pa.detail ?? ""}\n=== END ACTION ===`)[0]?.dispatchItems ?? [];
-    const out = items.length ? await deps.runDispatch(items, run.workspaceId) : "（無有效派工項）";
+    let out: string;
+    try {
+      out = items.length ? await deps.runDispatch(items, run.workspaceId) : "（無有效派工項）";
+    } catch (e) {
+      markActionExecuted(actionId, e instanceof Error ? e.message : String(e), false);
+      finalize(deps, pa.runId, "error", "派工失敗");
+      return;
+    }
     markActionExecuted(actionId, out);
     resultNote = `派工結果：\n${out.slice(0, 4000)}\n請據此用 next_step 繼續。`;
   } else {
     markActionExecuted(actionId, "已核可");
   }
+  // K1：runDispatch 期間可能被 stop；重讀確認仍是 paused_for_action 才續行
+  const cur = getRun(pa.runId);
   deps.emit(pa.runId, { kind: "action", action: getPendingAction(actionId) });
+  if (!cur || cur.status !== "paused_for_action") return;
   updateRunStatus(pa.runId, "running"); emitRun(deps, pa.runId);
   await loop(pa.runId, deps, resultNote);
 }
@@ -152,9 +185,7 @@ export async function provideInput(runId: string, text: string): Promise<void> {
 
 export async function stopRun(runId: string): Promise<void> {
   const deps = activeDeps.get(runId);
-  updateRunStatus(runId, "stopped");
-  if (deps) emitRun(deps, runId);
-  activeDeps.delete(runId);
+  finalize(deps, runId, "stopped");
 }
 
 export function pauseRunningRunsOnBoot(listActiveRunsFn: () => AutonomyRun[]): number {

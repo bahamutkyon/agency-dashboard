@@ -152,4 +152,40 @@ describe("autonomyRunner 狀態機", () => {
     await resumeRun(runId, deps2);
     expect(getRun(runId)?.status).toBe("done");
   });
+
+  it("sendTurn 進行中被 stop → 不被 in-flight 迭代覆蓋（K1）", async () => {
+    let runId = "";
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => {
+        i++;
+        if (i === 1) return "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===";
+        await stopRun(runId); // 模擬使用者在這一步進行中按停
+        return "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===";
+      },
+      runDispatch: async () => "",
+      now: () => 1000,
+      emit: () => {},
+    };
+    runId = await startRun("sessStop", "wStop", "g", {}, deps);
+    await approvePlan(runId);
+    expect(getRun(runId)?.status).toBe("stopped"); // 不應被覆蓋成 done
+  });
+
+  it("loop 中 sendTurn 失敗 → run 轉 error（K2）", async () => {
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => {
+        if (i++ === 0) return "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===";
+        throw new Error("claude 掛了");
+      },
+      runDispatch: async () => "",
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessErr", "wErr", "g", {}, deps);
+    await approvePlan(runId);
+    expect(getRun(runId)?.status).toBe("error");
+    expect(getRun(runId)?.lastError).toContain("claude");
+  });
 });
