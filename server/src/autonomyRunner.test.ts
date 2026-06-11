@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { startRun, approvePlan, approveAction, rejectAction, provideInput, stopRun, type AutonomyDeps } from "./autonomyRunner.js";
-import { getRun, listPending, getActiveRunForSession } from "./store/autonomy.js";
+import { startRun, approvePlan, approveAction, rejectAction, provideInput, stopRun, resumeRun, pauseRunningRunsOnBoot, type AutonomyDeps } from "./autonomyRunner.js";
+import { getRun, listPending, getActiveRunForSession, listActiveRuns } from "./store/autonomy.js";
 
 function makeDeps(scripted: string[]): { deps: AutonomyDeps; sent: string[]; clock: { t: number } } {
   const sent: string[] = [];
@@ -107,5 +107,49 @@ describe("autonomyRunner 狀態機", () => {
     await stopRun(runId);
     expect(getRun(runId)?.status).toBe("stopped");
     expect(getActiveRunForSession("sess8")).toBeUndefined();
+  });
+
+  it("dispatch 高風險 → approveAction 呼叫 runDispatch 並把結果餵回 loop", async () => {
+    const dispatchCalls: { items: any[]; ws: string }[] = [];
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 派工給研究員\ndetail:\n- agentId: marketing-trend-researcher\n  mode: consult\n  task: 本週選題\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 整合完成\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ===",
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "研究員回覆：選題A/B/C"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessD", "wD", "g", {}, deps);
+    await approvePlan(runId);
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    const pa = listPending("sessD").find((p) => p.kind === "dispatch")!;
+    expect(pa).toBeTruthy();
+    await approveAction(pa.id);
+    expect(dispatchCalls).toHaveLength(1);
+    expect(dispatchCalls[0].items).toEqual([{ agentId: "marketing-trend-researcher", mode: "consult", task: "本週選題" }]);
+    expect(dispatchCalls[0].ws).toBe("wD");
+    expect(getRun(runId)?.status).toBe("done");
+  });
+
+  it("pauseRunningRunsOnBoot 把 active run 轉 paused 並回傳數量", async () => {
+    const { deps } = makeDeps(["=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ==="]);
+    const runId = await startRun("sessP", "wP", "g", {}, deps);
+    const n = pauseRunningRunsOnBoot(listActiveRuns);
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(getRun(runId)?.status).toBe("paused");
+  });
+
+  it("resumeRun 從 paused 續跑到 goal_done", async () => {
+    const { deps } = makeDeps(["=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ==="]);
+    const runId = await startRun("sessR", "wR", "g", {}, deps);
+    pauseRunningRunsOnBoot(listActiveRuns);
+    expect(getRun(runId)?.status).toBe("paused");
+    const { deps: deps2 } = makeDeps(["=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ==="]);
+    await resumeRun(runId, deps2);
+    expect(getRun(runId)?.status).toBe("done");
   });
 });

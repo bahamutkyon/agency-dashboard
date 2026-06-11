@@ -2,7 +2,7 @@ import { parseActions, type ParsedAction } from "./actionProtocol.js";
 import type { DispatchItem } from "./dispatchParser.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
-  createPendingAction, getPendingAction, decidePendingAction, markActionExecuted, getActiveRunForSession,
+  createPendingAction, getPendingAction, decidePendingAction, markActionExecuted,
   type AutonomyRun, type PendingAction,
 } from "./store/autonomy.js";
 
