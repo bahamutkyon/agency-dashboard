@@ -17,6 +17,12 @@ describe("store/activity", () => {
     expect(r.detail!.length).toBe(ACTIVITY_DETAIL_CAP);
     expect(r.totalLen).toBe(long.length);
   });
+  it("detail 未超上限 → totalLen 為 undefined", () => {
+    logActivity({ workspaceId: "w1", sessionId: "sShort", kind: "tool_call", summary: "s", detail: "短內容" });
+    const r = listActivity({ sessionId: "sShort" })[0];
+    expect(r.detail).toBe("短內容");
+    expect(r.totalLen).toBeUndefined();
+  });
   it("listActivity 依 kind 篩選 + limit", () => {
     for (let i = 0; i < 5; i++) logActivity({ workspaceId: "w2", sessionId: "sf", kind: "tool_call", summary: `c${i}` });
     logActivity({ workspaceId: "w2", sessionId: "sf", kind: "dispatch", summary: "派工" });

@@ -55,12 +55,17 @@ export function listActivity(opts: { workspaceId?: string; sessionId?: string; k
   return (db.prepare(sql).all(...args, limit) as any[]).map(rowTo);
 }
 
-/** 取嚴者清理：刪 30 天前者，再刪超出最近 2 萬筆的舊資料。回傳刪除筆數。 */
+/**
+ * 取嚴者清理：刪 30 天前者，再刪超出最近 2 萬筆的舊資料。回傳刪除筆數。
+ *
+ * 第二段 DELETE 條件為 `ts < cutoff.ts`，故與 cutoff 同毫秒的邊界筆會被保留，
+ * 語意為「**至少**保留最近 2 萬筆」，而非精確 2 萬。
+ */
 export function pruneActivity(): number {
   let removed = 0;
   removed += db.prepare("DELETE FROM activity_log WHERE ts < ?").run(Date.now() - ACTIVITY_MAX_AGE_MS).changes as number;
   const cutoff = db.prepare("SELECT ts FROM activity_log ORDER BY ts DESC LIMIT 1 OFFSET ?").get(ACTIVITY_MAX_ROWS) as any;
-  if (cutoff?.ts) {
+  if (cutoff != null) {
     removed += db.prepare("DELETE FROM activity_log WHERE ts < ?").run(cutoff.ts).changes as number;
   }
   return removed;
