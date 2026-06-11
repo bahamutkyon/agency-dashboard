@@ -167,7 +167,7 @@ export function MessageList({
       {messages.map((m, i) => {
         // 工具 chip：帶 tool 欄位的 system 訊息 → 渲染為緊湊 chip，不走一般泡泡
         if (m.tool) {
-          const isCall = Boolean(m.tool.name);
+          const isCall = m.tool.type === "call";
           const isError = m.tool.status === "error";
           return (
             <div key={i} className="flex items-center gap-1 my-0.5 ml-1">

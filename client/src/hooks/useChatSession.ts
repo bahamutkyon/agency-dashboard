@@ -7,7 +7,7 @@ export interface Msg {
   content: string;
   ts: number;
   partial?: boolean;
-  tool?: { name?: string; status?: string; summary: string };
+  tool?: { type: "call" | "result"; name?: string; status?: string; summary: string };
 }
 
 /**
@@ -82,12 +82,15 @@ export function useChatSession(
         }
         case "tool_call": {
           const name = evt.payload?.name || "工具";
-          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { name, summary: name } }]);
+          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { type: "call", name, summary: name } }]);
           break;
         }
         case "tool_result": {
           const toolStatus = evt.payload?.status;
-          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { status: toolStatus, summary: toolStatus === "error" ? "工具錯誤" : "工具完成" } }]);
+          const rawText = evt.payload?.text;
+          const fallback = toolStatus === "error" ? "工具錯誤" : "工具完成";
+          const summary = rawText ? String(rawText).slice(0, 80) : fallback;
+          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { type: "result", status: toolStatus, summary } }]);
           break;
         }
       }

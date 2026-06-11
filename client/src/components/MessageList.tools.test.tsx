@@ -26,14 +26,14 @@ const toolCallMsg = (name: string): Msg => ({
   role: "system",
   content: "",
   ts: 0,
-  tool: { name, summary: name },
+  tool: { type: "call", name, summary: name },
 });
 
-const toolResultMsg = (status: "ok" | "error"): Msg => ({
+const toolResultMsg = (status: "ok" | "error", summary?: string): Msg => ({
   role: "system",
   content: "",
   ts: 0,
-  tool: { status, summary: status === "error" ? "工具錯誤" : "工具完成" },
+  tool: { type: "result", status, summary: summary ?? (status === "error" ? "工具錯誤" : "工具完成") },
 });
 
 const plainMsg = (role: Msg["role"], content: string): Msg => ({
@@ -95,5 +95,10 @@ describe("MessageList — 工具 chip", () => {
     expect(screen.getByText(/Bash/)).toBeInTheDocument();
     expect(screen.getByText(/工具完成/)).toBeInTheDocument();
     expect(screen.getByText("測試完成")).toBeInTheDocument();
+  });
+
+  it("tool_result chip 顯示實際結果文字", () => {
+    render(<MessageList {...baseProps()} messages={[toolResultMsg("ok", "3 passed")]} />);
+    expect(screen.getByText(/3 passed/)).toBeTruthy();
   });
 });

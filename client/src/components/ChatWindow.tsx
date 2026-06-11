@@ -46,6 +46,7 @@ function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
     ``,
   ];
   for (const m of messages) {
+    if (m.tool) continue; // 工具 chip 為暫態，不寫入匯出
     const who = m.role === "user" ? "🧑 我" : m.role === "assistant" ? `🤖 ${agentName}` : "⚙️ 系統";
     lines.push(`## ${who} · ${fmt(m.ts)}`);
     lines.push("");
