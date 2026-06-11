@@ -220,6 +220,41 @@ CREATE TABLE IF NOT EXISTS agent_study_schedules (
   per_run_cap INTEGER NOT NULL DEFAULT 10,
   last_run_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS autonomy_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  goal TEXT NOT NULL,
+  status TEXT NOT NULL,
+  step_count INTEGER NOT NULL DEFAULT 0,
+  max_steps INTEGER NOT NULL,
+  started_at INTEGER NOT NULL,
+  deadline_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_autonomy_runs_session ON autonomy_runs(session_id);
+CREATE INDEX IF NOT EXISTS idx_autonomy_runs_status ON autonomy_runs(status);
+
+CREATE TABLE IF NOT EXISTS pending_actions (
+  id TEXT PRIMARY KEY,
+  run_id TEXT,
+  session_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  risk TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  detail TEXT,
+  status TEXT NOT NULL,
+  result TEXT,
+  created_at INTEGER NOT NULL,
+  decided_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pending_actions_session ON pending_actions(session_id, status);
+CREATE INDEX IF NOT EXISTS idx_pending_actions_run ON pending_actions(run_id);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {
