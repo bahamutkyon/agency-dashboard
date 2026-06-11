@@ -53,6 +53,15 @@ describe("agentSession 工具事件捕捉", () => {
     ] } });
     expect(evts.find((e) => e.type === "tool_result")?.payload.text).toContain("純字串輸出");
   });
+  it("assistant 多個 tool_use → 每個都 emit tool_call", () => {
+    const s = new AgentSession("a");
+    const evts: any[] = []; s.on("event", (e) => evts.push(e));
+    (s as any).routeClaudeEvent({ type: "assistant", message: { content: [
+      { type: "tool_use", id: "t1", name: "Bash", input: {} },
+      { type: "tool_use", id: "t2", name: "Read", input: {} },
+    ] } });
+    expect(evts.filter((e) => e.type === "tool_call").length).toBe(2);
+  });
   it("tool_result 含 image → 既有 tool_image 不回歸 + 也 emit tool_result", () => {
     const s = new AgentSession("a");
     const evts: any[] = []; collect(evts, s);

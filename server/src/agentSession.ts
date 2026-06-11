@@ -255,7 +255,7 @@ export class AgentSession extends EventEmitter {
       }
       return;
     }
-    if (evt.type === "assistant" && evt.message?.content) {
+    if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
       const blocks = evt.message.content;
       for (const b of blocks) {
         if (b.type === "tool_use") {
