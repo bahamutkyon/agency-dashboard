@@ -1,3 +1,26 @@
+export interface AutonomyRun {
+  id: string;
+  sessionId: string;
+  workspaceId: string;
+  goal: string;
+  status: string;
+  stepCount: number;
+  maxSteps: number;
+  startedAt: number;
+  deadlineAt: number;
+}
+
+export interface PendingAction {
+  id: string;
+  runId?: string;
+  sessionId: string;
+  kind: string;
+  risk: string;
+  summary: string;
+  detail?: string;
+  status: string;
+}
+
 export interface AgentMeta {
   id: string;
   name: string;
@@ -267,6 +290,32 @@ export const api = {
     fetch(`/api/learning/legacy/craft/${encodeURIComponent(agentId)}`, { method: "DELETE" }).then(j),
   deleteLegacyCategory: (category: string) =>
     fetch(`/api/learning/legacy/category/${encodeURIComponent(category)}`, { method: "DELETE" }).then(j),
+
+  // === 自主迴圈 ===
+  autonomyStart: (sessionId: string, goal: string) =>
+    fetch("/api/autonomy/runs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, goal }),
+    }).then(j<{ runId: string }>),
+  autonomyRun: (sid: string) =>
+    fetch(`/api/autonomy/sessions/${sid}/run`).then(j<{ run: AutonomyRun | null }>),
+  autonomyPending: (sid: string) =>
+    fetch(`/api/autonomy/sessions/${sid}/pending`).then(j<{ pending: PendingAction[] }>),
+  autonomyApprovePlan: (runId: string) =>
+    fetch(`/api/autonomy/runs/${runId}/approve-plan`, { method: "POST" }).then(j),
+  autonomyStop: (runId: string) =>
+    fetch(`/api/autonomy/runs/${runId}/stop`, { method: "POST" }).then(j),
+  autonomyResume: (runId: string) =>
+    fetch(`/api/autonomy/runs/${runId}/resume`, { method: "POST" }).then(j),
+  autonomyInput: (runId: string, text: string) =>
+    fetch(`/api/autonomy/runs/${runId}/input`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).then(j),
+  actionApprove: (id: string) =>
+    fetch(`/api/autonomy/actions/${id}/approve`, { method: "POST" }).then(j),
+  actionReject: (id: string) =>
+    fetch(`/api/autonomy/actions/${id}/reject`, { method: "POST" }).then(j),
 };
 
 export interface AgentUsage {

@@ -3,10 +3,11 @@ import { getSocket } from "../lib/socket";
 import { api, type SessionRecord } from "../lib/api";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
-import { DispatchApprovalCard } from "./DispatchApprovalCard";
+import { ActionApprovalCard } from "./ActionApprovalCard";
+import { AutonomyPanel } from "./AutonomyPanel";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
-import { useDispatch } from "../hooks/useDispatch";
+import { useAutonomy } from "../hooks/useAutonomy";
 import { useWorkflowDetection } from "../hooks/useWorkflowDetection";
 import { useMemoDetection } from "../hooks/useMemoDetection";
 import { useFileUpload } from "../hooks/useFileUpload";
@@ -126,8 +127,8 @@ export function ChatWindow({
     useMemoDetection(messages, sessionId, onboardingTargetWorkspaceId, onMemoApplied);
   const { detectedWorkflow, applyingWf, appliedWf, applyWorkflow } =
     useWorkflowDetection(messages, sessionId);
-  const { detectedDispatch, dispatchBusy, dispatched, consultRaw, approveDispatch, markDispatched } =
-    useDispatch(messages, agentId, sessionId);
+  const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, approveAction, rejectAction } =
+    useAutonomy(sessionId);
 
   const send = () => {
     const text = input.trim();
@@ -278,7 +279,7 @@ export function ChatWindow({
           onBlur={addTag}
         />
       </div>
-      {recommendedAgents.length > 0 && onOpenAgentById && !detectedDispatch && !detectedWorkflow && (
+      {recommendedAgents.length > 0 && onOpenAgentById && !detectedWorkflow && (
         <div className="px-4 py-2 bg-gradient-to-r from-accent/20 to-violet-500/20 border-b border-accent/30 flex items-center justify-between gap-3">
           <div className="text-xs">
             <span className="text-zinc-300">專案經理推薦團隊({recommendedAgents.length} 位):</span>
@@ -328,37 +329,28 @@ export function ChatWindow({
           </button>
         </div>
       )}
-      {detectedDispatch && !dispatched && (
-        <div className="px-4 py-2 border-b border-sky-700/30">
-          <DispatchApprovalCard
-            items={detectedDispatch}
-            busy={dispatchBusy}
-            onApprove={approveDispatch}
-            onCancel={markDispatched}
-          />
-        </div>
-      )}
-      {consultRaw && consultRaw.length > 0 && (
+      <div className="px-4 py-2 border-b border-zinc-800">
+        <AutonomyPanel
+          run={autonomyRun}
+          busy={autonomyBusy}
+          onStart={autonomyStart}
+          onApprovePlan={autonomyApprovePlan}
+          onStop={autonomyStop}
+          onResume={autonomyResume}
+          onInput={autonomySendInput}
+        />
+      </div>
+      {autonomyPending.length > 0 && (
         <div className="px-4 py-2 border-b border-zinc-700/30">
-          <details className="mb-2 rounded border border-zinc-700 bg-zinc-900/50 p-2 text-xs">
-            <summary className="cursor-pointer text-zinc-300">🔍 同事原始回覆（{consultRaw.length} 位）</summary>
-            <div className="mt-2 space-y-2">
-              {consultRaw.map((c, i) => (
-                <div key={i}>
-                  <div className="flex items-center gap-2 text-zinc-400">
-                    <span>{c.agentId}（{c.status}）</span>
-                    {c.subSessionId && onOpenSession && (
-                      <button
-                        onClick={() => onOpenSession(c.subSessionId, c.agentId, `🤝 受派諮詢：${c.task.slice(0, 20)}`)}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200"
-                      >開啟對話</button>
-                    )}
-                  </div>
-                  <pre className="whitespace-pre-wrap text-zinc-300">{c.output || "（未取得回覆）"}</pre>
-                </div>
-              ))}
-            </div>
-          </details>
+          {autonomyPending.map((p) => (
+            <ActionApprovalCard
+              key={p.id}
+              action={p}
+              busy={autonomyBusy}
+              onApprove={() => approveAction(p.id)}
+              onReject={() => rejectAction(p.id)}
+            />
+          ))}
         </div>
       )}
       {autoInjectedNotes.length > 0 && (
