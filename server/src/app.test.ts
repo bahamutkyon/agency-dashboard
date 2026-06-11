@@ -119,4 +119,31 @@ describe("HTTP 端點 smoke", () => {
     const j = (await (await fetch(`${base}/api/learning/study/schedules`)).json()) as any[];
     expect(j.map((s: any) => s.tier).sort()).toEqual(["cold", "hot"]);
   });
+
+  it("PATCH /api/workspaces/:id workingDir 設成 dashboard 自身 → 400", async () => {
+    const ws = (await (await fetch(`${base}/api/workspaces`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "wd guard" }),
+    })).json()) as { id: string };
+    createdWorkspaceIds.push(ws.id);
+    const r = await fetch(`${base}/api/workspaces/${ws.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workingDir: process.cwd() }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it("PATCH /api/workspaces/:id workingDir 設成外部合法路徑 → 200", async () => {
+    const os = await import("node:os"); const path = await import("node:path");
+    const ws = (await (await fetch(`${base}/api/workspaces`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "wd ok" }),
+    })).json()) as { id: string };
+    createdWorkspaceIds.push(ws.id);
+    const r = await fetch(`${base}/api/workspaces/${ws.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workingDir: path.join(os.tmpdir(), "wd_ok_proj") }),
+    });
+    expect(r.status).toBe(200);
+  });
 });
