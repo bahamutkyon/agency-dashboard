@@ -14,9 +14,10 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const [active, setActive] = useState<string>(getActiveWorkspace());
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] as string[], chromeCdpPort: undefined as number | undefined });
+  const [draft, setDraft] = useState({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [] as string[], chromeCdpPort: undefined as number | undefined, workingDir: "" });
   const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
   const [chromeStatus, setChromeStatus] = useState<string>("");
+  const [saveError, setSaveError] = useState<string>("");
 
   useEffect(() => {
     api.mcpServers().then(setMcpServers).catch(() => {});
@@ -39,7 +40,7 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const startNew = () => {
     setEditingId("new");
     setChromeStatus("");
-    setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [], chromeCdpPort: undefined });
+    setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [], chromeCdpPort: undefined, workingDir: "" });
   };
 
   const startEdit = (w: Workspace) => {
@@ -50,20 +51,26 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
       standingContext: w.standingContext, memory: w.memory || "",
       enabledMcps: w.enabledMcps || [],
       chromeCdpPort: w.chromeCdpPort,
+      workingDir: w.workingDir || "",
     });
   };
 
   const save = async () => {
     if (!draft.name.trim()) return;
-    if (editingId === "new") {
-      const w = await api.createWorkspace(draft);
-      setEditingId(null);
-      reload();
-      switchTo(w.id);
-    } else if (editingId) {
-      await api.updateWorkspace(editingId, draft);
-      setEditingId(null);
-      reload();
+    setSaveError("");
+    try {
+      if (editingId === "new") {
+        const w = await api.createWorkspace(draft);
+        setEditingId(null);
+        reload();
+        switchTo(w.id);
+      } else if (editingId) {
+        await api.updateWorkspace(editingId, draft);
+        setEditingId(null);
+        reload();
+      }
+    } catch (e: any) {
+      setSaveError(e?.message || "儲存失敗");
     }
   };
 
@@ -281,6 +288,26 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
                     ⚠️ 只登賣場/社群帳號,勿登 Gmail/網銀（agent 能用此 Chrome 全部登入）。
                   </p>
                 </div>
+              )}
+
+              {editingId !== "new" && (
+                <div>
+                  <label className="text-xs text-zinc-400">📁 工作目錄（沙箱路徑）</label>
+                  <input
+                    type="text"
+                    className="w-full mt-1 bg-zinc-900 px-3 py-2 rounded text-sm font-mono"
+                    placeholder={`（預設沙箱：data/workspaces/${editingId}）`}
+                    value={draft.workingDir}
+                    onChange={(e) => setDraft({ ...draft, workingDir: e.target.value })}
+                  />
+                  <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed">
+                    指定此工作區的工作目錄；留空則使用預設沙箱路徑。填絕對路徑（如 <span className="font-mono">/home/user/project</span>），禁止填 dashboard 本身目錄。
+                  </p>
+                </div>
+              )}
+
+              {saveError && (
+                <p className="text-xs text-rose-400">{saveError}</p>
               )}
 
               <div className="flex gap-2">
