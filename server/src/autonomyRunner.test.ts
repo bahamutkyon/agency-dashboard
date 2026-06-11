@@ -172,6 +172,19 @@ describe("autonomyRunner 狀態機", () => {
     expect(getRun(runId)?.status).toBe("stopped"); // 不應被覆蓋成 done
   });
 
+  it("sendTurn 回空字串（session 消失）→ run 轉 error，不空轉", async () => {
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => (i++ === 0 ? "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===" : ""),
+      runDispatch: async () => "",
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessEmpty", "wEmpty", "g", {}, deps);
+    await approvePlan(runId);
+    expect(getRun(runId)?.status).toBe("error");
+  });
+
   it("loop 中 sendTurn 失敗 → run 轉 error（K2）", async () => {
     let i = 0;
     const deps: AutonomyDeps = {

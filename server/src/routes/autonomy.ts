@@ -66,15 +66,18 @@ autonomyRouter.get("/sessions/:sid/pending", (req, res) => {
   res.json({ pending: listPending(req.params.sid) });
 });
 autonomyRouter.post("/runs/:id/approve-plan", (req, res) => {
+  if (!getRun(req.params.id)) return res.status(404).json({ error: "run 不存在" });
   approvePlan(req.params.id).catch((e) => console.warn("[autonomy] approvePlan", e?.message));
   res.json({ ok: true });
 });
 autonomyRouter.post("/runs/:id/stop", async (req, res) => { await stopRun(req.params.id); res.json({ ok: true }); });
 autonomyRouter.post("/runs/:id/resume", (req, res) => {
+  if (!getRun(req.params.id)) return res.status(404).json({ error: "run 不存在" });
   resumeRun(req.params.id, makeDeps(req.app.get("io"))).catch((e) => console.warn("[autonomy] resume", e?.message));
   res.json({ ok: true });
 });
 autonomyRouter.post("/runs/:id/input", (req, res) => {
+  if (!getRun(req.params.id)) return res.status(404).json({ error: "run 不存在" });
   const text = String(req.body?.text || "");
   if (!text.trim()) return res.status(400).json({ error: "text 不可空" });
   provideInput(req.params.id, text).catch((e) => console.warn("[autonomy] input", e?.message));

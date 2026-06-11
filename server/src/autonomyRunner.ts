@@ -107,6 +107,7 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     // K1：sendTurn 期間可能被 stop/pause，重讀確認仍可推進
     run = getRun(runId);
     if (!run || run.status !== "running") return;
+    if (!out) { finalize(deps, runId, "error", "session 消失（sendTurn 回空字串）"); return; }
     incrementStep(runId);
     const action = pickAction(parseActions(out));
 
