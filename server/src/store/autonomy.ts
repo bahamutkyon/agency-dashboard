@@ -1,4 +1,3 @@
-import { v4 as uuid } from "uuid";
 import { db } from "../db.js";
 import type { ActionKind, Risk } from "../actionProtocol.js";
 
@@ -48,7 +47,7 @@ export function getRun(id: string): AutonomyRun | undefined {
 }
 export function updateRunStatus(id: string, status: RunStatus, lastError?: string): void {
   const ended = TERMINAL_RUN_STATES.includes(status) ? Date.now() : null;
-  db.prepare("UPDATE autonomy_runs SET status = ?, last_error = ?, ended_at = COALESCE(?, ended_at), updated_at = ? WHERE id = ?")
+  db.prepare("UPDATE autonomy_runs SET status = ?, last_error = ?, ended_at = ?, updated_at = ? WHERE id = ?")
     .run(status, lastError ?? null, ended, Date.now(), id);
 }
 export function incrementStep(id: string): void {
