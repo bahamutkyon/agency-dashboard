@@ -209,7 +209,7 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   scheduler.init();
   scheduler.onFire((s) => {
     io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt });
-    try { const row = logActivity({ kind: "schedule_fired", summary: `排程觸發：${s.name}` }); io.emit("activity:event", row); } catch {}
+    try { const row = logActivity({ workspaceId: s.workspaceId, kind: "schedule_fired", summary: `排程觸發：${s.name}` }); io.emit("activity:event", row); } catch {}
   });
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
   studyScheduler.init((payload) => io.emit("learning:progress", payload));

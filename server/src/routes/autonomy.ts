@@ -60,6 +60,8 @@ function makeDeps(io: any): AutonomyDeps {
     emit: (runId, evt) => {
       io?.emit("autonomy:event", { runId, ...evt });
       try {
+        // v1：planning/awaiting_plan_approval/paused 狀態的 run emit 刻意不寫 activity
+        // （核心 timeline 由 run_started/run_done/action_*/工具呼叫構成；避免過早擴充 kind 分類）。
         const run = (evt as any).run;
         const action = (evt as any).action;
         let kind: any = null, summary = "";
@@ -68,7 +70,7 @@ function makeDeps(io: any): AutonomyDeps {
           else if (["done", "stopped", "budget_exhausted", "error"].includes(run.status)) { kind = "run_done"; summary = `自主 run ${run.status}`; }
           else if (run.status === "running") { kind = "run_step"; summary = `第 ${run.stepCount} 步`; }
         } else if (evt.kind === "pending") { kind = "action_pending"; summary = action?.summary || "待批動作"; }
-        else if (evt.kind === "action") { kind = action?.status === "rejected" ? "action_rejected" : "action_approved"; summary = action?.summary || "動作決定"; }
+        else if (evt.kind === "action") { kind = action?.status === "rejected" ? "action_rejected" : action?.status === "pending" ? "action_approved" : null; summary = action?.summary || "動作決定"; }
         if (kind) {
           const row = logActivity({ workspaceId: run?.workspaceId || "", sessionId: run?.sessionId, runId, kind, summary });
           io?.emit("activity:event", row);
