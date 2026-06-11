@@ -6,7 +6,9 @@ import type { DispatchItem } from "../dispatchParser.js";
 import {
   startRun, approvePlan, approveAction, rejectAction, provideInput, stopRun, resumeRun, type AutonomyDeps,
 } from "../autonomyRunner.js";
-import { getRun, getActiveRunForSession, listPending, getPendingAction } from "../store/autonomy.js";
+import { getRun, getActiveRunForSession, listPending, getPendingAction, markActionExecuted, decidePendingAction } from "../store/autonomy.js";
+import { executeDispatch } from "./sessions.js";
+import { parseDispatchMarker } from "../dispatchParser.js";
 
 export const autonomyRouter = Router();
 
@@ -83,8 +85,19 @@ autonomyRouter.post("/runs/:id/input", (req, res) => {
   provideInput(req.params.id, text).catch((e) => console.warn("[autonomy] input", e?.message));
   res.json({ ok: true });
 });
-autonomyRouter.post("/actions/:id/approve", (req, res) => {
-  if (!getPendingAction(req.params.id)) return res.status(404).json({ error: "action 不存在" });
+autonomyRouter.post("/actions/:id/approve", async (req, res) => {
+  const pa = getPendingAction(req.params.id);
+  if (!pa) return res.status(404).json({ error: "action 不存在" });
+  // 手動派工（kind=dispatch 且無 runId，非自主 run）→ 走 executeDispatch；其餘交 autonomyRunner。
+  if (pa.kind === "dispatch" && !pa.runId) {
+    const plan = parseDispatchMarker(`=== DISPATCH ===\n${pa.detail ?? ""}\n=== END DISPATCH ===`);
+    const items = plan?.items ?? [];
+    decidePendingAction(pa.id, "approved");
+    executeDispatch(pa.sessionId, items, req.app.get("io"))
+      .then((out) => markActionExecuted(pa.id, `consult ${out.consulted.length} 項、execute ${out.executing.length} 項`))
+      .catch((e) => { console.warn("[autonomy] executeDispatch", e?.message); markActionExecuted(pa.id, String(e?.message || e), false); });
+    return res.json({ ok: true });
+  }
   approveAction(req.params.id).catch((e) => console.warn("[autonomy] approveAction", e?.message));
   res.json({ ok: true });
 });

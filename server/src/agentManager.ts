@@ -15,8 +15,30 @@ import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
+import { parseDispatchMarker } from "./dispatchParser.js";
+import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
 import fs from "node:fs";
 import path from "node:path";
+
+/** 從 PM 訊息偵測 DISPATCH 並入待批佇列（手動派工，runId 空）。
+ *  去重：同 session 已有相同 summary 的 pending dispatch 則跳過。
+ *  有自主 run 進行中時跳過（交給 autonomyRunner，避免雙重入列）。 */
+export function detectAndEnqueueDispatch(
+  sess: { id: string; agentId: string; workspaceId: string },
+  content: string,
+): void {
+  if (sess.agentId !== "agents-orchestrator") return;
+  if (getActiveRunForSession(sess.id)) return;
+  const plan = parseDispatchMarker(content);
+  if (!plan || !plan.items.length) return;
+  const summary = `派工給 ${plan.items.length} 位：${plan.items.map((i) => i.agentId).join("、")}`;
+  if (listPending(sess.id).some((p) => p.kind === "dispatch" && p.summary === summary)) return;
+  createPendingAction({
+    sessionId: sess.id, workspaceId: sess.workspaceId, kind: "dispatch", risk: "high",
+    summary,
+    detail: plan.items.map((i) => `- agentId: ${i.agentId}\n  mode: ${i.mode}\n  task: ${i.task}`).join("\n"),
+  });
+}
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -372,6 +394,12 @@ kind 四選一（直接影響該條會落到哪個範圍）：
               console.warn(`[agentManager] createProposal failed:`, e?.message || e);
             }
           }
+        }
+        // 手動派工：偵測 PM 輸出的 DISPATCH 標記 → 寫入 server 待批佇列（根治 client localStorage 競態）。
+        const wsForDispatch = (s as any).workspaceId as string | undefined;
+        if (wsForDispatch) {
+          try { detectAndEnqueueDispatch({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content)); }
+          catch (e: any) { console.warn("[agentManager] detectAndEnqueueDispatch", e?.message); }
         }
         buffer = "";
       } else if (evt.type === "result") {

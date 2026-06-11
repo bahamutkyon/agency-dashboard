@@ -376,6 +376,56 @@ ${catalog}
   res.json({ id: session.id });
 });
 
+/**
+ * 派工執行核心 —— 跑 consult/execute 並把結果餵回 PM。
+ * 從舊 POST /orchestrator/:id/dispatch route body 抽出，供 route 與 autonomy approve handler 共用。
+ * 行為與原 route 完全一致：validIds 過濾 → startExecute 背景跑 → runConsult 同步並行 → 餵回 PM。
+ * 注意：HTTP 守衛（404 無 pm / 400 空 items / 400 無有效項）仍留在 route 與 caller，不在此函式。
+ */
+export async function executeDispatch(
+  pmSessionId: string,
+  items: DispatchItem[],
+  io: any,
+): Promise<{ consulted: Awaited<ReturnType<typeof runConsult>>; executing: { subSessionId: string; agentId: string }[] }> {
+  const pm = getSession(pmSessionId);
+  const validIds = new Set(loadAgentsImpl().map((a) => a.id));
+  const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
+  const execute = items.filter((i) => i.mode === "execute" && validIds.has(i.agentId) && i.task);
+  const workspaceId = pm?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+
+  const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
+
+  // execute：背景跑、不等完成；完成時把結果餵回 PM（PM 貼回報）+ socket 通知前端 toast。
+  let executing: { subSessionId: string; agentId: string }[] = [];
+  if (execute.length > 0) {
+    executing = startExecute(execute, workspaceId, pmSessionId, (d) => {
+      const label = nameOf.get(d.agentId) ?? d.agentId;
+      const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n請用一句話向使用者轉達此回報。`;
+      agentManager.send(d.pmSessionId, report);
+      io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
+    });
+  }
+
+  // consult：同步並行跑、收齊後餵回 PM 整合（PM 串流經既有 session-room forward 自動到前端）。
+  let consulted: Awaited<ReturnType<typeof runConsult>> = [];
+  if (consult.length > 0) {
+    consulted = await runConsult(consult, workspaceId, {
+      concurrency: DISPATCH_CONCURRENCY,
+      perItemTimeoutMs: CONSULT_TIMEOUT_MS,
+    });
+    const labelled = consulted
+      .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
+      .join("\n\n");
+    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆，請**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼；逾時/錯誤的同事就說明未能取得）：\n\n${labelled.slice(0, 25000)}`;
+    agentManager.send(pmSessionId, feedback);
+  } else if (execute.length > 0) {
+    // 只有 execute：請 PM 先回一句「已交辦」。
+    agentManager.send(pmSessionId, `[[EXEC_ACK]]\n你已把 ${execute.length} 件外包任務交辦出去（背景進行中），請用一句話告訴使用者「已交辦，完成會回報」。`);
+  }
+
+  return { consulted, executing };
+}
+
 // PM 派工 — 接收已批准的計畫，實際跑子 agent。切片① 僅 consult（execute 見切片②）。
 sessionsRouter.post("/orchestrator/:sessionId/dispatch", async (req, res) => {
   const pmSessionId = req.params.sessionId;
@@ -385,45 +435,14 @@ sessionsRouter.post("/orchestrator/:sessionId/dispatch", async (req, res) => {
   if (items.length === 0) return res.status(400).json({ error: "items 不可為空" });
 
   const validIds = new Set(loadAgentsImpl().map((a) => a.id));
-  const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
-  const execute = items.filter((i) => i.mode === "execute" && validIds.has(i.agentId) && i.task);
-  if (consult.length === 0 && execute.length === 0) {
+  const valid = items.filter((i) => validIds.has(i.agentId) && i.task);
+  if (valid.length === 0) {
     return res.status(400).json({ error: "沒有有效的派工項（agentId 須在團隊清單內、且要有 task）" });
   }
 
-  const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
-  const io = req.app.get("io");
-
   try {
-    // execute：背景跑、不等完成；完成時把結果餵回 PM（PM 貼回報）+ socket 通知前端 toast。
-    let executing: { subSessionId: string; agentId: string }[] = [];
-    if (execute.length > 0) {
-      executing = startExecute(execute, pm.workspaceId, pmSessionId, (d) => {
-        const label = nameOf.get(d.agentId) ?? d.agentId;
-        const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n請用一句話向使用者轉達此回報。`;
-        agentManager.send(d.pmSessionId, report);
-        io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
-      });
-    }
-
-    // consult：同步並行跑、收齊後餵回 PM 整合（PM 串流經既有 session-room forward 自動到前端）。
-    let consulted: Awaited<ReturnType<typeof runConsult>> = [];
-    if (consult.length > 0) {
-      consulted = await runConsult(consult, pm.workspaceId, {
-        concurrency: DISPATCH_CONCURRENCY,
-        perItemTimeoutMs: CONSULT_TIMEOUT_MS,
-      });
-      const labelled = consulted
-        .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
-        .join("\n\n");
-      const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆，請**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼；逾時/錯誤的同事就說明未能取得）：\n\n${labelled.slice(0, 25000)}`;
-      agentManager.send(pmSessionId, feedback);
-    } else if (execute.length > 0) {
-      // 只有 execute：請 PM 先回一句「已交辦」。
-      agentManager.send(pmSessionId, `[[EXEC_ACK]]\n你已把 ${execute.length} 件外包任務交辦出去（背景進行中），請用一句話告訴使用者「已交辦，完成會回報」。`);
-    }
-
-    res.json({ consulted, executing });
+    const out = await executeDispatch(pmSessionId, valid, req.app.get("io"));
+    res.json(out);
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });
   }
