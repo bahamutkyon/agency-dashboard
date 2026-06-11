@@ -43,15 +43,37 @@ function within(parent: string, child: string): boolean {
 }
 
 export function resolveWorkspaceDir(ws: Pick<Workspace, "id" | "workingDir">): string {
+  const fallback = path.join(SANDBOX_ROOT, ws.id);
   const custom = (ws.workingDir || "").trim();
-  if (custom) return path.resolve(custom);
-  return path.join(SANDBOX_ROOT, ws.id);
+  if (!custom) return fallback;
+  // 驗證下沉到使用點：PATCH 的驗證是「早期友善報錯」，但不能是唯一防線。
+  // 匯入、直接改 DB、或日後 banned 清單擴充都不經過 PATCH——這裡再驗一次，
+  // 不合法就退回預設沙箱（而非沿用危險路徑）。failed closed。
+  const err = validateWorkingDir(custom);
+  if (err) {
+    console.warn(`[workspaceDir] 自訂工作目錄無效，退回預設沙箱 ws=${ws.id}：${err}`);
+    return fallback;
+  }
+  return path.resolve(custom);
 }
 
 export function ensureWorkspaceDir(ws: Pick<Workspace, "id" | "workingDir">): string {
   const dir = resolveWorkspaceDir(ws);
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  const fallback = path.join(SANDBOX_ROOT, ws.id);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch (e: unknown) {
+    // 自訂目錄建立失敗（不存在磁碟機、無權限、UNC 不可達…）。沙箱功能的失敗
+    // 模式不能是「退回 dashboard 自身目錄」（fail-open），而要退回預設沙箱。
+    if (dir !== fallback) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[workspaceDir] 建立自訂工作目錄失敗，退回預設沙箱 ws=${ws.id}：${msg}`);
+      fs.mkdirSync(fallback, { recursive: true });
+      return fallback;
+    }
+    throw e; // 連預設沙箱都建不出來 → 真錯誤，交給上層（resolveCwd 會吞成 undefined）
+  }
 }
 
 /** 防呆：禁止工作目錄落在 dashboard 自身（沙箱子目錄例外）。OK 回 null，否則回錯誤訊息。 */
