@@ -230,6 +230,7 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
     if (r) io.emit("workflow:update", r);
   });
   pruneActivity();
+  setInterval(() => { try { pruneActivity(); } catch (e: any) { console.warn("[activity] prune", e?.message); } }, 60 * 60 * 1000).unref();
 });
 
 // 給測試用：app.test.ts import 這個 app，用 ephemeral 埠打端點（見上方 VITEST 守衛）。

@@ -389,11 +389,11 @@ export async function executeDispatch(
   io: any,
 ): Promise<{ consulted: Awaited<ReturnType<typeof runConsult>>; executing: { subSessionId: string; agentId: string }[] }> {
   const pm = getSession(pmSessionId);
-  try { const row = logActivity({ sessionId: pmSessionId, kind: "dispatch", summary: `派工 ${items.length} 項` }); io?.emit("activity:event", row); } catch {}
+  const workspaceId = pm?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  try { const row = logActivity({ workspaceId, sessionId: pmSessionId, kind: "dispatch", summary: `派工 ${items.length} 項` }); io?.emit("activity:event", row); } catch {}
   const validIds = new Set(loadAgentsImpl().map((a) => a.id));
   const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
   const execute = items.filter((i) => i.mode === "execute" && validIds.has(i.agentId) && i.task);
-  const workspaceId = pm?.workspaceId ?? DEFAULT_WORKSPACE_ID;
 
   const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
 

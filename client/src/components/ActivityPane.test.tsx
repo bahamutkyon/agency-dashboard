@@ -27,6 +27,16 @@ describe("ActivityPane", () => {
     act(() => captured!({ id: "3", ts: 99, workspaceId: "w", kind: "run_done", summary: "新事件" }));
     await waitFor(() => expect(screen.getByText(/新事件/)).toBeTruthy());
   });
+  it("socket 事件 id 已存在 → 不重複", async () => {
+    let captured: ((row: any) => void) | undefined;
+    const mockOn = vi.fn((_: string, h: any) => { captured = h; });
+    vi.mocked(getSocket).mockReturnValue({ on: mockOn, off: vi.fn() } as any);
+    render(<ActivityPane />);
+    await waitFor(() => expect(screen.getByText(/Bash: npm test/)).toBeTruthy());
+    // id "1" 已在初次載入的 mock 資料裡
+    act(() => captured!({ id: "1", ts: 2, workspaceId: "w", sessionId: "s", kind: "tool_call", summary: "Bash: npm test" }));
+    expect(screen.getAllByText(/Bash: npm test/).length).toBe(1);
+  });
   it("unmount 時 off 傳入與 on 相同的 handler 參考", async () => {
     const mockOn = vi.fn();
     const mockOff = vi.fn();

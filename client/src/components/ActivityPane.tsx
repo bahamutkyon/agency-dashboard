@@ -35,7 +35,7 @@ export function ActivityPane() {
 
     const socket = getSocket();
     const handler = (row: ActivityRow) => {
-      setItems((prev) => [row, ...prev]);
+      setItems((prev) => prev.some((p) => p.id === row.id) ? prev : [row, ...prev]);
     };
     socket.on("activity:event", handler);
 
