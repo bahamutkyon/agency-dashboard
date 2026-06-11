@@ -40,12 +40,14 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const startNew = () => {
     setEditingId("new");
     setChromeStatus("");
+    setSaveError("");
     setDraft({ name: "", description: "", standingContext: "", memory: "", enabledMcps: [], chromeCdpPort: undefined, workingDir: "" });
   };
 
   const startEdit = (w: Workspace) => {
     setEditingId(w.id);
     setChromeStatus("");
+    setSaveError("");
     setDraft({
       name: w.name, description: w.description,
       standingContext: w.standingContext, memory: w.memory || "",
@@ -69,8 +71,8 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
         setEditingId(null);
         reload();
       }
-    } catch (e: any) {
-      setSaveError(e?.message || "儲存失敗");
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "儲存失敗");
     }
   };
 
