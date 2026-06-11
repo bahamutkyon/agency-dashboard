@@ -32,9 +32,9 @@ function rowToAction(r: any): PendingAction {
   };
 }
 
-export function createRun(input: { sessionId: string; workspaceId: string; goal: string; maxSteps: number; maxWallMs: number }): AutonomyRun {
+export function createRun(input: { sessionId: string; workspaceId: string; goal: string; maxSteps: number; maxWallMs: number; startedAt?: number }): AutonomyRun {
   const id = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  const now = Date.now();
+  const now = input.startedAt ?? Date.now();
   db.prepare(`
     INSERT INTO autonomy_runs (id, session_id, workspace_id, goal, status, step_count, max_steps, started_at, deadline_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, 'planning', 0, ?, ?, ?, ?, ?)
