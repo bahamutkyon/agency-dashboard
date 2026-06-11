@@ -322,7 +322,7 @@ export const api = {
     const p = new URLSearchParams();
     if (q.sessionId) p.set("sessionId", q.sessionId);
     if (q.kind) p.set("kind", q.kind);
-    if (q.before) p.set("before", String(q.before));
+    if (q.before != null) p.set("before", String(q.before));
     return fetch(`/api/activity?${p}`).then(j<{ items: ActivityRow[]; nextBefore?: number }>);
   },
 };
