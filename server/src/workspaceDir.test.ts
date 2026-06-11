@@ -33,4 +33,21 @@ describe("workspaceDir", () => {
   it("validateWorkingDir：外部 tmp 路徑 → OK(null)", () => {
     expect(validateWorkingDir(path.join(os.tmpdir(), "proj"))).toBeNull();
   });
+  // 安全關鍵：沙箱內放 symlink/junction 指向 dashboard，字面在沙箱內但 realpath 逃逸 → 必須被擋
+  it("validateWorkingDir：沙箱內 junction 指向 server → realpath 防逃逸擋下", () => {
+    const linkDir = path.join(process.cwd(), "data", "workspaces", "__symlink_escape_test__");
+    const target = path.join(process.cwd(), "src");
+    fs.rmSync(linkDir, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(linkDir), { recursive: true });
+    try {
+      fs.symlinkSync(target, linkDir, "junction"); // junction 在 Windows 免管理員權限
+    } catch {
+      return; // 環境不允許建 junction → 跳過（不誤判失敗）
+    }
+    try {
+      expect(validateWorkingDir(linkDir)).toBeTruthy(); // 字面在沙箱內，realpath 指向 server/src → 應擋
+    } finally {
+      fs.rmSync(linkDir, { recursive: true, force: true });
+    }
+  });
 });
