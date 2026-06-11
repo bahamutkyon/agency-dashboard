@@ -3,6 +3,8 @@ import fs from "node:fs";
 import type { Workspace } from "./store/types.js";
 
 const SANDBOX_ROOT = path.join(process.cwd(), "data", "workspaces");
+// 路徑層級上限；dirname 終會收斂到 root，此為極端情況的保險絲（正常永遠用不到）。
+const MAX_PATH_DEPTH = 4096;
 
 /**
  * 將路徑正規化為「實體絕對路徑」以抵禦 symlink 逃逸。
@@ -14,8 +16,7 @@ function realAbs(input: string): string {
   let abs = path.resolve(input);
   let suffix = "";
   // 逐層往上找到存在的祖先
-  // 限制迴圈次數避免極端情況下無限迴圈（理論上 dirname 最終會收斂到 root）。
-  for (let i = 0; i < 4096; i++) {
+  for (let i = 0; i < MAX_PATH_DEPTH; i++) {
     try {
       const real = fs.realpathSync(abs);
       return suffix ? path.join(real, suffix) : real;
@@ -61,6 +62,8 @@ export function validateWorkingDir(candidate: string): string | null {
   if (within(sandboxReal, abs)) return null; // 沙箱子目錄一律允許（含 data/workspaces 本身與其下）
   const server = realAbs(process.cwd());
   const repoRoot = realAbs(path.resolve(process.cwd(), ".."));
+  // 刻意列細項（非冗餘）：repoRoot 已涵蓋其下全部，但保留 server/client/data
+  // 是為了縱深防禦 + 讓錯誤訊息能指出使用者撞到的具體目錄。請勿為了精簡而刪。
   const banned = [
     repoRoot,
     server,
