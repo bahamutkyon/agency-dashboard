@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { agentManager } from "../agentManager.js";
 import { loadAgents as loadAgentsImpl } from "../agentLoader.js";
+import { logActivity } from "../store/activity.js";
 import {
   getSession, listSessionsWithCounts, upsertSession,
   getWorkspace, searchSessions, aggregateTags,
@@ -388,6 +389,7 @@ export async function executeDispatch(
   io: any,
 ): Promise<{ consulted: Awaited<ReturnType<typeof runConsult>>; executing: { subSessionId: string; agentId: string }[] }> {
   const pm = getSession(pmSessionId);
+  try { const row = logActivity({ sessionId: pmSessionId, kind: "dispatch", summary: `派工 ${items.length} 項` }); io?.emit("activity:event", row); } catch {}
   const validIds = new Set(loadAgentsImpl().map((a) => a.id));
   const consult = items.filter((i) => i.mode !== "execute" && validIds.has(i.agentId) && i.task);
   const execute = items.filter((i) => i.mode === "execute" && validIds.has(i.agentId) && i.task);

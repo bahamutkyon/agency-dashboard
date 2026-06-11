@@ -28,6 +28,7 @@ import { learningRouter } from "./routes/learning.js";
 import { autonomyRouter } from "./routes/autonomy.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
+import { logActivity, pruneActivity } from "./store/activity.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -94,6 +95,7 @@ const io = new SocketServer(server, { cors: { origin: "*" } });
 // Make io accessible to routers via req.app.get("io")
 app.set("io", io);
 app.set("studyScheduler", studyScheduler);
+agentManager.setIo(io);
 
 // sessionObservers: sessionId → Set of socketIds currently observing that session.
 // sessionForwards: sessionId → the "event" listener attached to the AgentSession.
@@ -205,7 +207,10 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
   cleanupOrphanPromptFiles();
   scheduler.init();
-  scheduler.onFire((s) => io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt }));
+  scheduler.onFire((s) => {
+    io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt });
+    try { const row = logActivity({ kind: "schedule_fired", summary: `排程觸發：${s.name}` }); io.emit("activity:event", row); } catch {}
+  });
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
   studyScheduler.init((payload) => io.emit("learning:progress", payload));
   resumeUnfinishedRuns((r) => {
@@ -220,6 +225,7 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);
   });
+  pruneActivity();
 });
 
 // 給測試用：app.test.ts import 這個 app，用 ephemeral 埠打端點（見上方 VITEST 守衛）。
