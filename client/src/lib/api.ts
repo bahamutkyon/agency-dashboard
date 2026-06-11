@@ -305,6 +305,7 @@ export interface Workspace {
   memory: string;
   enabledMcps: string[];
   chromeCdpPort?: number;
+  workingDir?: string;
   createdAt: number;
 }
 

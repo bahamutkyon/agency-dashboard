@@ -12,6 +12,7 @@ import {
 import { scheduler } from "../scheduler.js";
 import { launchWorkspaceChrome, stopWorkspaceChrome, findPortConflict } from "../chromeLauncher.js";
 import { v4 as uuid } from "uuid";
+import { validateWorkingDir } from "../workspaceDir.js";
 
 /** Helper: extract workspace id from request query or header */
 function ws(req: any): string | undefined {
@@ -33,7 +34,16 @@ workspacesRouter.post("/", (req, res) => {
 });
 
 workspacesRouter.patch("/:id", (req, res) => {
-  const updated = updateWorkspace(req.params.id, req.body || {});
+  const body = req.body || {};
+  // workingDir：trim 一次，驗證與儲存用同一個正規化後的值（避免前後空格語義漂移）
+  if (typeof body.workingDir === "string") {
+    body.workingDir = body.workingDir.trim();
+    if (body.workingDir) {
+      const err = validateWorkingDir(body.workingDir);
+      if (err) return res.status(400).json({ error: err });
+    }
+  }
+  const updated = updateWorkspace(req.params.id, body);
   if (!updated) return res.status(404).json({ error: "not found" });
   res.json(updated);
 });

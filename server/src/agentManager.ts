@@ -14,11 +14,24 @@ import { usageTracker } from "./usageTracker.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
+import { ensureWorkspaceDir } from "./workspaceDir.js";
 import fs from "node:fs";
 import path from "node:path";
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+/** 算出工作區的 cwd（不存在則建立）。mkdir 失敗不阻斷 session 啟動，回 undefined
+ *  讓 AgentSession 退回 process.cwd() 預設行為。start/reattach 共用。 */
+function resolveCwd(ws: { id: string; workingDir?: string } | undefined): string | undefined {
+  if (!ws) return undefined;
+  try {
+    return ensureWorkspaceDir(ws);
+  } catch (e: any) {
+    console.warn(`[agentManager] ensureWorkspaceDir 失敗 ws=${ws.id}:`, e?.message || e);
+    return undefined;
+  }
+}
 
 // In-memory tally so /api/security/status can show "X sessions protected
 // since dashboard start" without parsing logs.
@@ -216,7 +229,9 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=(none)`);
       recordMcp(false, []);
     }
-    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider);
+    // 沙箱：把 agent 的 cwd 指向工作區目錄（不存在則建立）。
+    const cwd = resolveCwd(ws);
+    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider, cwd);
     // Stash workspace id on session so attachPersistence can append memory
     (session as any).workspaceId = wsId;
     const now = Date.now();
@@ -249,7 +264,9 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       console.log(`[agentManager] reattach session=${rec.agentId} provider=${rec.provider} mcp=${names.join(",")}`);
       recordMcp(true, names);
     }
-    const session = new AgentSession(rec.agentId, rec.id, undefined, mcpConfig || undefined, rec.provider);
+    // 沙箱：resume 既有對話時同樣把 cwd 指回工作區目錄。
+    const cwd = resolveCwd(ws);
+    const session = new AgentSession(rec.agentId, rec.id, undefined, mcpConfig || undefined, rec.provider, cwd);
     if (rec.claudeSessionId) (session as any).claudeSessionId = rec.claudeSessionId;
     if (rec.codexThreadId) (session as any).codexThreadId = rec.codexThreadId;
     (session as any).workspaceId = rec.workspaceId;

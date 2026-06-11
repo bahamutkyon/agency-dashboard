@@ -71,6 +71,7 @@ export interface Workspace {
   memory: string;
   enabledMcps: string[];   // names of MCP servers enabled for this workspace
   chromeCdpPort?: number;  // 此工作區專屬 Chrome 的 CDP port（playwright MCP 連這個）
+  workingDir?: string;     // 工作區沙箱工作目錄（sandbox working directory）
   createdAt: number;
 }
 
