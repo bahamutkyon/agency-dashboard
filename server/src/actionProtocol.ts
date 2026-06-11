@@ -20,8 +20,6 @@ export function classifyRisk(kind: ActionKind): Risk {
   return HIGH_RISK_KINDS.includes(kind) ? "high" : "low";
 }
 
-const ACTION_RE = /=== ACTION ===\s*\n([\s\S]*?)\n=== END ACTION ===/g;
-
 /**
  * 從 body 中取出 detail: 之後的全部文字（可能多行）。
  * 若找不到 detail: 行則回空字串。
@@ -37,9 +35,9 @@ function extractDetail(body: string): string {
 
 /** 解析一段文字中的所有 ACTION 區塊。容錯：缺欄位用合理預設、未知 kind → need_input。 */
 export function parseActions(text: string): ParsedAction[] {
+  const ACTION_RE = /=== ACTION ===\s*\n([\s\S]*?)\n=== END ACTION ===/g;
   const out: ParsedAction[] = [];
   let m: RegExpExecArray | null;
-  ACTION_RE.lastIndex = 0;
   while ((m = ACTION_RE.exec(text)) !== null) {
     const body = m[1];
     const kindRaw = (body.match(/^\s*kind:\s*(\S+)/m)?.[1] || "need_input").toLowerCase();

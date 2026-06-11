@@ -50,4 +50,17 @@ describe("parseActions", () => {
   it("無區塊回空陣列", () => {
     expect(parseActions("一般回覆，沒有標記")).toEqual([]);
   });
+  it("kind 大小寫混合 → 正規化", () => {
+    const r = parseActions("=== ACTION ===\nkind: Next_Step\nsummary: x\n=== END ACTION ===");
+    expect(r[0].kind).toBe("next_step");
+  });
+  it("連續呼叫結果一致（無 regex 狀態污染）", () => {
+    const text = "=== ACTION ===\nkind: next_step\nsummary: a\n=== END ACTION ===";
+    parseActions(text);
+    expect(parseActions(text)).toHaveLength(1);
+  });
+  it("多行 detail 內容完整保留", () => {
+    const r = parseActions("=== ACTION ===\nkind: plan\nsummary: 計畫\ndetail: 第一行\n第二行\n第三行\n=== END ACTION ===");
+    expect(r[0].detail).toBe("第一行\n第二行\n第三行");
+  });
 });
