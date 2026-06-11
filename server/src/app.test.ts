@@ -147,4 +147,40 @@ describe("HTTP 端點 smoke", () => {
     });
     expect(r.status).toBe(200);
   });
+
+  it("POST /api/autonomy/runs 非 claude session → 400", async () => {
+    const sid = `test_codex_${Date.now()}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "x", title: "t", provider: "codex", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
+    createdSessionIds.push(sid);
+    const r = await fetch(`${base}/api/autonomy/runs`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: sid, goal: "做事" }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it("GET /api/autonomy/sessions/:sid/run 無 run → null", async () => {
+    const r = await fetch(`${base}/api/autonomy/sessions/__none__/run`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ run: null });
+  });
+
+  it("POST /api/autonomy/runs 不存在 session → 404", async () => {
+    const r = await fetch(`${base}/api/autonomy/runs`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: "__missing__", goal: "g" }),
+    });
+    expect(r.status).toBe(404);
+  });
+
+  it("POST /api/autonomy/runs goal 空 → 400", async () => {
+    const sid = `test_claude_${Date.now()}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "t", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
+    createdSessionIds.push(sid);
+    const r = await fetch(`${base}/api/autonomy/runs`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: sid, goal: "  " }),
+    });
+    expect(r.status).toBe(400);
+  });
 });
