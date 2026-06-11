@@ -7,6 +7,7 @@ export interface Msg {
   content: string;
   ts: number;
   partial?: boolean;
+  tool?: { type: "call" | "result"; name?: string; status?: string; summary: string };
 }
 
 /**
@@ -77,6 +78,19 @@ export function useChatSession(
         case "dispatch:done": {
           const ok = evt.payload?.status === "ok";
           notify(`外包任務${ok ? "完成" : "結束"}`, `${evt.payload?.agentId || "同事"} 已回報,專案經理整理中`, { tag: sessionId });
+          break;
+        }
+        case "tool_call": {
+          const name = evt.payload?.name || "工具";
+          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { type: "call", name, summary: name } }]);
+          break;
+        }
+        case "tool_result": {
+          const toolStatus = evt.payload?.status;
+          const rawText = evt.payload?.text;
+          const fallback = toolStatus === "error" ? "工具錯誤" : "工具完成";
+          const summary = rawText ? String(rawText).slice(0, 80) : fallback;
+          setMessages((prev) => [...prev, { role: "system", content: "", ts: Date.now(), tool: { type: "result", status: toolStatus, summary } }]);
           break;
         }
       }

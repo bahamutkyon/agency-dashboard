@@ -316,7 +316,29 @@ export const api = {
     fetch(`/api/autonomy/actions/${id}/approve`, { method: "POST" }).then(j),
   actionReject: (id: string) =>
     fetch(`/api/autonomy/actions/${id}/reject`, { method: "POST" }).then(j),
+
+  // === 活動時間軸 ===
+  listActivity: (q: { sessionId?: string; kind?: string; before?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.sessionId) p.set("sessionId", q.sessionId);
+    if (q.kind) p.set("kind", q.kind);
+    if (q.before != null) p.set("before", String(q.before));
+    return fetch(`/api/activity?${p}`).then(j<{ items: ActivityRow[]; nextBefore?: number }>);
+  },
 };
+
+export interface ActivityRow {
+  id: string;
+  ts: number;
+  workspaceId: string;
+  sessionId?: string;
+  runId?: string;
+  kind: string;
+  summary: string;
+  detail?: string;
+  status?: string;
+  totalLen?: number;
+}
 
 export interface AgentUsage {
   agentId: string;

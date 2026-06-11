@@ -165,6 +165,24 @@ export function MessageList({
         </div>
       )}
       {messages.map((m, i) => {
+        // 工具 chip：帶 tool 欄位的 system 訊息 → 渲染為緊湊 chip，不走一般泡泡
+        if (m.tool) {
+          const isCall = m.tool.type === "call";
+          const isError = m.tool.status === "error";
+          return (
+            <div key={i} className="flex items-center gap-1 my-0.5 ml-1">
+              {isCall ? (
+                <span className="text-[11px] text-zinc-500">
+                  <span className="mr-1">🔧</span>{m.tool.name}
+                </span>
+              ) : (
+                <span className={`text-[11px] ${isError ? "text-rose-400" : "text-zinc-500"}`}>
+                  ↳ {isError ? "✗" : "✓"} {m.tool.summary}
+                </span>
+              )}
+            </div>
+          );
+        }
         if (m.role === "user" && (m.content.startsWith("[[CONSULT_RESULTS]]") || m.content.startsWith("[[EXEC_REPORT]]") || m.content.startsWith("[[EXEC_ACK]]"))) {
           const label = m.content.startsWith("[[EXEC_ACK]]") ? "（已交辦背景任務給專案經理）"
             : m.content.startsWith("[[EXEC_REPORT]]") ? "（外包任務回報已交給專案經理）"

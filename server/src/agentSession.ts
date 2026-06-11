@@ -38,7 +38,7 @@ export type Provider = "claude" | "codex" | "gemini";
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
 
 export interface SessionEvent {
-  type: "delta" | "message" | "status" | "error" | "result";
+  type: "delta" | "message" | "status" | "error" | "result" | "tool_call" | "tool_result";
   payload: any;
 }
 
@@ -255,8 +255,14 @@ export class AgentSession extends EventEmitter {
       }
       return;
     }
-    if (evt.type === "assistant" && evt.message?.content) {
-      const text = evt.message.content
+    if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
+      const blocks = evt.message.content;
+      for (const b of blocks) {
+        if (b.type === "tool_use") {
+          this.emit("event", { type: "tool_call", payload: { toolUseId: b.id || "", name: b.name || "", input: b.input ?? {} } });
+        }
+      }
+      const text = blocks
         .filter((c: any) => c.type === "text")
         .map((c: any) => c.text)
         .join("");
@@ -272,19 +278,40 @@ export class AgentSession extends EventEmitter {
       const content = evt.message?.content;
       if (Array.isArray(content)) {
         for (const block of content) {
-          if (block.type === "tool_result" && Array.isArray(block.content)) {
-            for (const c of block.content) {
-              if (c.type === "image" && c.source?.type === "base64" && c.source?.data) {
-                this.emit("event", {
-                  type: "tool_image",
-                  payload: {
-                    base64: c.source.data,
-                    mediaType: c.source.media_type || "image/png",
-                    toolUseId: block.tool_use_id || "",
-                  },
-                });
+          if (block.type === "tool_result") {
+            // Existing image extraction (preserved).
+            if (Array.isArray(block.content)) {
+              for (const c of block.content) {
+                if (c.type === "image" && c.source?.type === "base64" && c.source?.data) {
+                  this.emit("event", {
+                    type: "tool_image",
+                    payload: {
+                      base64: c.source.data,
+                      mediaType: c.source.media_type || "image/png",
+                      toolUseId: block.tool_use_id || "",
+                    },
+                  });
+                }
               }
             }
+            // Capture textual tool result for observability.
+            let text = "";
+            if (typeof block.content === "string") {
+              text = block.content;
+            } else if (Array.isArray(block.content)) {
+              text = block.content
+                .filter((c: any) => c.type === "text")
+                .map((c: any) => c.text)
+                .join("\n");
+            }
+            this.emit("event", {
+              type: "tool_result",
+              payload: {
+                toolUseId: block.tool_use_id || "",
+                status: block.is_error ? "error" : "ok",
+                text,
+              },
+            });
           }
         }
       }

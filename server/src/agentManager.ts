@@ -5,6 +5,7 @@ import {
   getWorkspace, getAgentMemory,
   DEFAULT_WORKSPACE_ID, type SessionRecord,
 } from "./store.js";
+import { logActivity, summarizeTool } from "./store/activity.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCraftMemoryFor, getCategoryMemoryFor } from "./learningStore.js";
 import { buildCapabilityBlockFor } from "./learningInjector.js";
@@ -108,10 +109,34 @@ agent-id 是 dashboard 的識別碼。命名規則:部門 prefix + 角色,例如
 
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+/** 把 tool_call/tool_result 事件寫進 activity_log。回傳寫入 row（供廣播）或 null。 */
+export function recordToolActivity(
+  sess: { id: string; agentId: string; workspaceId: string },
+  evt: { type: string; payload: any },
+) {
+  try {
+    if (evt.type === "tool_call") {
+      let detail: string;
+      try { detail = JSON.stringify(evt.payload.input); } catch { detail = String(evt.payload.input); }
+      return logActivity({ workspaceId: sess.workspaceId, sessionId: sess.id, kind: "tool_call",
+        summary: summarizeTool(evt.payload.name, evt.payload.input), detail });
+    }
+    if (evt.type === "tool_result") {
+      return logActivity({ workspaceId: sess.workspaceId, sessionId: sess.id, kind: "tool_result",
+        summary: evt.payload.status === "error" ? "工具錯誤" : "工具完成",
+        status: evt.payload.status, detail: evt.payload.text || "" });
+    }
+  } catch (e: any) { console.warn("[agentManager] recordToolActivity", e?.message); }
+  return null;
+}
+
 export class AgentManager {
   private sessions = new Map<string, AgentSession>();
   // Track when each session was closed (epoch ms). Used for idle eviction.
   private sessionClosedAt = new Map<string, number>();
+  private io?: any;
+
+  setIo(io: any) { this.io = io; }
 
   constructor() {
     // Run idle-session cleanup every 5 minutes in the background.
@@ -431,6 +456,10 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         }
       } else if (evt.type === "rate_limit") {
         usageTracker.recordRateLimit(evt.payload);
+      } else if (evt.type === "tool_call" || evt.type === "tool_result") {
+        const wsId = (s as any).workspaceId as string | undefined;
+        const row = recordToolActivity({ id: s.id, agentId: s.agentId, workspaceId: wsId || "" }, evt);
+        if (row) this.io?.emit("activity:event", row);
       }
     });
   }

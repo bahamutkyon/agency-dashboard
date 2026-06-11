@@ -22,6 +22,7 @@ interface Props {
   onOpenMemoryEditor: () => void;
   onOpenLegacyReview: () => void;
   onOpenWorkflows: () => void;
+  onOpenActivity: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
@@ -106,7 +107,7 @@ function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -233,6 +234,14 @@ function AgentSidebarInner({
           >
             <span>📋</span>
             <span>模板</span>
+          </button>
+          <button
+            onClick={onOpenActivity}
+            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
+            title="活動時間軸總覽"
+          >
+            <span>📡</span>
+            <span>活動</span>
           </button>
           <button
             onClick={onOpenSettings}

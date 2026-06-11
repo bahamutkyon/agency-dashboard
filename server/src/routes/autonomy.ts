@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { agentManager } from "../agentManager.js";
 import { getSession } from "../store.js";
+import { logActivity } from "../store/activity.js";
 import { runConsult } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 import {
@@ -56,7 +57,26 @@ function makeDeps(io: any): AutonomyDeps {
       return res.map((r) => `### ${r.agentId}（${r.status}）\n${r.output || "（無回覆）"}`).join("\n\n");
     },
     now: () => Date.now(),
-    emit: (runId, evt) => { io?.emit("autonomy:event", { runId, ...evt }); },
+    emit: (runId, evt) => {
+      io?.emit("autonomy:event", { runId, ...evt });
+      try {
+        // v1：planning/awaiting_plan_approval/paused 狀態的 run emit 刻意不寫 activity
+        // （核心 timeline 由 run_started/run_done/action_*/工具呼叫構成；避免過早擴充 kind 分類）。
+        const run = (evt as any).run;
+        const action = (evt as any).action;
+        let kind: any = null, summary = "";
+        if (evt.kind === "run" && run) {
+          if (run.status === "running" && run.stepCount === 0) { kind = "run_started"; summary = `自主 run 開始：${(run.goal || "").slice(0, 80)}`; }
+          else if (["done", "stopped", "budget_exhausted", "error"].includes(run.status)) { kind = "run_done"; summary = `自主 run ${run.status}`; }
+          else if (run.status === "running") { kind = "run_step"; summary = `第 ${run.stepCount} 步`; }
+        } else if (evt.kind === "pending") { kind = "action_pending"; summary = action?.summary || "待批動作"; }
+        else if (evt.kind === "action") { kind = action?.status === "rejected" ? "action_rejected" : action?.status === "pending" ? "action_approved" : null; summary = action?.summary || "動作決定"; }
+        if (kind) {
+          const row = logActivity({ workspaceId: run?.workspaceId || "", sessionId: run?.sessionId, runId, kind, summary });
+          io?.emit("activity:event", row);
+        }
+      } catch (e: any) { console.warn("[autonomy] activity log", e?.message); }
+    },
   };
 }
 

@@ -169,6 +169,15 @@ describe("autonomy-loop schema", () => {
   });
 });
 
+describe("observability schema", () => {
+  it("activity_log 表建立成功", () => {
+    const db = new DatabaseSync(":memory:");
+    setupSchema(db);
+    const cols = db.prepare("PRAGMA table_info(activity_log)").all().map((c: any) => c.name);
+    expect(cols).toEqual(expect.arrayContaining(["id", "ts", "workspace_id", "session_id", "run_id", "kind", "summary", "detail", "status", "total_len", "created_at"]));
+  });
+});
+
 describe("autonomous-study schema", () => {
   it("建立 agent_study_prefs / agent_capability_reports / agent_study_schedules", () => {
     const db = freshDb();

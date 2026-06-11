@@ -57,6 +57,9 @@ const OnboardingTour = lazy(() =>
 const AgentMeetingRoom = lazy(() =>
   import("./components/AgentMeetingRoom").then((m) => ({ default: m.AgentMeetingRoom }))
 );
+const ActivityPane = lazy(() =>
+  import("./components/ActivityPane").then((m) => ({ default: m.ActivityPane }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
@@ -75,6 +78,7 @@ type View =
   | { kind: "memory-editor" }
   | { kind: "legacy-review" }
   | { kind: "workflows" }
+  | { kind: "activity" }
   | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
@@ -230,6 +234,7 @@ export default function App() {
   const openMemoryEditor = useCallback(() => setView({ kind: "memory-editor" }), []);
   const openLegacyReview = useCallback(() => setView({ kind: "legacy-review" }), []);
   const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
+  const openActivity = useCallback(() => setView({ kind: "activity" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -400,6 +405,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openWorkflows, toggleSidebar]);
 
+  const onOpenActivityMobile = useCallback(() => {
+    openActivity();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openActivity, toggleSidebar]);
+
   const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
     setView({ kind: v });
   }, []);
@@ -458,6 +468,7 @@ ${message}
               onOpenMemoryEditor={onOpenMemoryEditorMobile}
               onOpenLegacyReview={onOpenLegacyReviewMobile}
               onOpenWorkflows={onOpenWorkflowsMobile}
+              onOpenActivity={onOpenActivityMobile}
               providersAvail={providersAvail}
             />
           </div>
@@ -611,6 +622,11 @@ ${message}
                 onOpenSession={openHistorySession}
                 onLaunchDraftAssistant={onLaunchDraftAssistant}
               />
+            </Suspense>
+          )}
+          {isView("activity") && (
+            <Suspense fallback={LazyFallback}>
+              <ActivityPane key={`act-${reloadKey}`} />
             </Suspense>
           )}
           {isView("chat") && (() => {
