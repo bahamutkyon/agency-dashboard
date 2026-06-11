@@ -25,4 +25,3 @@ export * from "./store/workflows.js";
 export * from "./store/search.js";
 export * from "./store/usage.js";
 export { DEFAULT_WORKSPACE_ID } from "./db.js";
-export * from "./store/autonomy.js";
