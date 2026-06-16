@@ -75,6 +75,13 @@ export async function startRun(
   }
   const plan = pickAction(parseActions(out), "plan");
   if (shouldAutoApprove("plan", run.policy)) {
+    const planPa = createPendingAction({
+      runId: run.id, sessionId, workspaceId, kind: "plan", risk: "high",
+      summary: plan?.summary ?? "執行計畫", detail: plan?.detail ?? out.slice(0, 2000),
+    });
+    decidePendingAction(planPa.id, "approved");
+    markActionExecuted(planPa.id, "已自動核可");
+    deps.emit(run.id, { kind: "action", action: getPendingAction(planPa.id) });
     updateRunStatus(run.id, "running");
     emitRun(deps, run.id);
     await loop(run.id, deps, "計畫已自動核可，請開始執行第一步。");
