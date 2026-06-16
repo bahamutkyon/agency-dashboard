@@ -82,15 +82,21 @@ export function useAutonomy(sessionId: string) {
     }
   };
 
-  const inject = async (text: string) => {
+  const inject = async (text: string): Promise<boolean> => {
     if (run) {
+      setBusy(true);
       try {
         await api.autonomyInject(run.id, text);
         await refresh();
+        return true;
       } catch (e) {
         console.warn("autonomy inject failed", e);
+        return false;
+      } finally {
+        setBusy(false);
       }
     }
+    return false;
   };
 
   const approveAction = async (id: string) => {

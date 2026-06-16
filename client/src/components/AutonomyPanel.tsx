@@ -21,7 +21,7 @@ export function AutonomyPanel({
   onStop: () => void;
   onResume: () => void;
   onInput: (t: string) => void;
-  onInject: (t: string) => void;
+  onInject: (t: string) => Promise<boolean>;
 }) {
   const [goal, setGoal] = useState("");
   const [input, setInput] = useState("");
@@ -101,10 +101,12 @@ export function AutonomyPanel({
             value={injectText}
             onChange={(e) => setInjectText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && injectText.trim()) {
+              if (e.key === "Enter" && !e.shiftKey && injectText.trim() && !busy) {
                 e.preventDefault();
-                onInject(injectText.trim());
-                setInjectText("");
+                const text = injectText.trim();
+                onInject(text).then((ok) => {
+                  if (ok) setInjectText("");
+                });
               }
             }}
             className="flex-1 rounded bg-zinc-900 p-1 text-xs"
@@ -113,8 +115,10 @@ export function AutonomyPanel({
           <button
             disabled={busy || !injectText.trim()}
             onClick={() => {
-              onInject(injectText.trim());
-              setInjectText("");
+              const text = injectText.trim();
+              onInject(text).then((ok) => {
+                if (ok) setInjectText("");
+              });
             }}
             className="rounded bg-amber-700 px-2 text-white text-xs disabled:opacity-40"
           >

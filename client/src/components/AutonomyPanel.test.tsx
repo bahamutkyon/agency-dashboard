@@ -28,7 +28,7 @@ describe("AutonomyPanel", () => {
         onStop={() => {}}
         onResume={() => {}}
         onInput={() => {}}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     expect(screen.getByPlaceholderText(/例如/)).toBeTruthy();
@@ -46,7 +46,7 @@ describe("AutonomyPanel", () => {
         onStop={() => {}}
         onResume={() => {}}
         onInput={() => {}}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     const textarea = screen.getByPlaceholderText(/例如/);
@@ -66,7 +66,7 @@ describe("AutonomyPanel", () => {
         onStop={() => {}}
         onResume={() => {}}
         onInput={() => {}}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     const btn = screen.getByText(/核可計畫並開跑/);
@@ -86,7 +86,7 @@ describe("AutonomyPanel", () => {
         onStop={onStop}
         onResume={() => {}}
         onInput={() => {}}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     expect(screen.getByText(/3\/10/)).toBeTruthy();
@@ -105,7 +105,7 @@ describe("AutonomyPanel", () => {
         onStop={() => {}}
         onResume={onResume}
         onInput={() => {}}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     fireEvent.click(screen.getByText(/續跑/));
@@ -123,7 +123,7 @@ describe("AutonomyPanel", () => {
         onStop={() => {}}
         onResume={() => {}}
         onInput={onInput}
-        onInject={() => {}}
+        onInject={() => Promise.resolve(false)}
       />
     );
     const box = screen.getByPlaceholderText(/補充/);
