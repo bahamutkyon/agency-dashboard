@@ -7,7 +7,7 @@ export type PendingStatus = "pending" | "approved" | "rejected" | "executed" | "
 export interface AutonomyRun {
   id: string; sessionId: string; workspaceId: string; goal: string; status: RunStatus;
   stepCount: number; maxSteps: number; startedAt: number; deadlineAt: number;
-  endedAt?: number; lastError?: string; createdAt: number; updatedAt: number;
+  endedAt?: number; lastError?: string; policy: import("../autonomyPolicy.js").PolicyName; pendingInjection?: string; createdAt: number; updatedAt: number;
 }
 export interface PendingAction {
   id: string; runId?: string; sessionId: string; workspaceId: string; kind: ActionKind; risk: Risk;
@@ -21,7 +21,7 @@ function rowToRun(r: any): AutonomyRun {
   return {
     id: r.id, sessionId: r.session_id, workspaceId: r.workspace_id, goal: r.goal, status: r.status,
     stepCount: r.step_count, maxSteps: r.max_steps, startedAt: r.started_at, deadlineAt: r.deadline_at,
-    endedAt: r.ended_at ?? undefined, lastError: r.last_error ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+    endedAt: r.ended_at ?? undefined, lastError: r.last_error ?? undefined, policy: (r.policy ?? "manual"), pendingInjection: r.pending_injection ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function rowToAction(r: any): PendingAction {
@@ -32,13 +32,13 @@ function rowToAction(r: any): PendingAction {
   };
 }
 
-export function createRun(input: { sessionId: string; workspaceId: string; goal: string; maxSteps: number; maxWallMs: number; startedAt?: number }): AutonomyRun {
+export function createRun(input: { sessionId: string; workspaceId: string; goal: string; maxSteps: number; maxWallMs: number; startedAt?: number; policy?: import("../autonomyPolicy.js").PolicyName }): AutonomyRun {
   const id = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const now = input.startedAt ?? Date.now();
   db.prepare(`
-    INSERT INTO autonomy_runs (id, session_id, workspace_id, goal, status, step_count, max_steps, started_at, deadline_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'planning', 0, ?, ?, ?, ?, ?)
-  `).run(id, input.sessionId, input.workspaceId, input.goal, input.maxSteps, now, now + input.maxWallMs, now, now);
+    INSERT INTO autonomy_runs (id, session_id, workspace_id, goal, status, step_count, max_steps, started_at, deadline_at, policy, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 'planning', 0, ?, ?, ?, ?, ?, ?)
+  `).run(id, input.sessionId, input.workspaceId, input.goal, input.maxSteps, now, now + input.maxWallMs, input.policy ?? "manual", now, now);
   return getRun(id)!;
 }
 export function getRun(id: string): AutonomyRun | undefined {
@@ -88,4 +88,12 @@ export function markActionExecuted(id: string, result: string, ok = true): void 
 /** 把某 run 名下仍 pending 的動作標記為 superseded（重啟時清孤兒卡用）。 */
 export function supersedePendingForRun(runId: string): void {
   db.prepare("UPDATE pending_actions SET status = 'superseded', decided_at = ? WHERE run_id = ? AND status = 'pending'").run(Date.now(), runId);
+}
+
+/** 設定/清除中途插話（自走進行中使用者打字的高優先指示）。 */
+export function setPendingInjection(runId: string, text: string): void {
+  db.prepare("UPDATE autonomy_runs SET pending_injection = ?, updated_at = ? WHERE id = ?").run(text, Date.now(), runId);
+}
+export function clearPendingInjection(runId: string): void {
+  db.prepare("UPDATE autonomy_runs SET pending_injection = NULL, updated_at = ? WHERE id = ?").run(Date.now(), runId);
 }

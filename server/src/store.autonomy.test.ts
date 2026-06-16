@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   createRun, getRun, updateRunStatus, incrementStep, listActiveRuns, getActiveRunForSession,
   createPendingAction, getPendingAction, listPending, decidePendingAction, markActionExecuted,
+  setPendingInjection, clearPendingInjection,
 } from "./store/autonomy.js";
 
 describe("store/autonomy", () => {
@@ -44,5 +45,22 @@ describe("store/autonomy", () => {
     expect(getPendingAction(pa.id)?.status).toBe("executed");
     expect(getPendingAction(pa.id)?.result).toBe("做完了");
     expect(listPending("s6")).toHaveLength(0);
+  });
+});
+
+describe("autonomy store — policy & injection", () => {
+  it("createRun 預設 policy=manual、可指定 balanced", () => {
+    const a = createRun({ sessionId: "s1", workspaceId: "w1", goal: "g", maxSteps: 5, maxWallMs: 1000 });
+    expect(getRun(a.id)!.policy).toBe("manual");
+    const b = createRun({ sessionId: "s1", workspaceId: "w1", goal: "g", maxSteps: 5, maxWallMs: 1000, policy: "balanced" });
+    expect(getRun(b.id)!.policy).toBe("balanced");
+  });
+  it("set/clear pendingInjection", () => {
+    const r = createRun({ sessionId: "s2", workspaceId: "w1", goal: "g", maxSteps: 5, maxWallMs: 1000 });
+    expect(getRun(r.id)!.pendingInjection).toBeUndefined();
+    setPendingInjection(r.id, "改方向：先做 A");
+    expect(getRun(r.id)!.pendingInjection).toBe("改方向：先做 A");
+    clearPendingInjection(r.id);
+    expect(getRun(r.id)!.pendingInjection).toBeUndefined();
   });
 });
