@@ -233,6 +233,8 @@ CREATE TABLE IF NOT EXISTS autonomy_runs (
   deadline_at INTEGER NOT NULL,
   ended_at INTEGER,
   last_error TEXT,
+  policy TEXT NOT NULL DEFAULT 'manual',
+  pending_injection TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -352,6 +354,15 @@ export function applyMigrations(db: DatabaseSync): void {
   // learning_runs.run_kind
   if (tableExists(db, "learning_runs") && !hasColumn(db, "learning_runs", "run_kind")) {
     db.exec("ALTER TABLE learning_runs ADD COLUMN run_kind TEXT NOT NULL DEFAULT 'learning'");
+  }
+  // autonomy_runs：自走政策 + 中途插話
+  if (tableExists(db, "autonomy_runs")) {
+    if (!hasColumn(db, "autonomy_runs", "policy")) {
+      db.exec("ALTER TABLE autonomy_runs ADD COLUMN policy TEXT NOT NULL DEFAULT 'manual'");
+    }
+    if (!hasColumn(db, "autonomy_runs", "pending_injection")) {
+      db.exec("ALTER TABLE autonomy_runs ADD COLUMN pending_injection TEXT");
+    }
   }
 
   // === agent_craft_memory v1 → v2 ===
