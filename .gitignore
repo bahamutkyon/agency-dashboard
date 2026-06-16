@@ -46,3 +46,6 @@ scripts/execute-log.json
 # Awesome skills 整目錄(9.3MB,本機已裝於 ~/.claude/skills/)
 skills-awesome-zh/
 
+# Git worktrees(隔離工作區,不進 repo)
+.worktrees/
+
