@@ -7,7 +7,8 @@ import type { DispatchItem } from "../dispatchParser.js";
 import {
   startRun, approvePlan, approveAction, rejectAction, provideInput, stopRun, resumeRun, type AutonomyDeps,
 } from "../autonomyRunner.js";
-import { getRun, getActiveRunForSession, listPending, getPendingAction, markActionExecuted, decidePendingAction } from "../store/autonomy.js";
+import { getRun, getActiveRunForSession, listPending, getPendingAction, markActionExecuted, decidePendingAction, setPendingInjection } from "../store/autonomy.js";
+import { isPolicyName } from "../autonomyPolicy.js";
 import { executeDispatch } from "./sessions.js";
 import { parseDispatchMarker } from "../dispatchParser.js";
 
@@ -81,14 +82,15 @@ function makeDeps(io: any): AutonomyDeps {
 }
 
 autonomyRouter.post("/runs", async (req, res) => {
-  const { sessionId, goal, maxSteps, maxWallMs } = req.body || {};
+  const { sessionId, goal, maxSteps, maxWallMs, policy } = req.body || {};
   if (!sessionId || typeof goal !== "string" || !goal.trim()) return res.status(400).json({ error: "需要 sessionId 與非空 goal" });
   const sess = getSession(sessionId);
   if (!sess) return res.status(404).json({ error: "session 不存在" });
   if (sess.provider !== "claude") return res.status(400).json({ error: "自主迴圈本期僅支援 claude provider" });
   if (getActiveRunForSession(sessionId)) return res.status(409).json({ error: "此 session 已有進行中的 run" });
+  const pol = isPolicyName(policy) ? policy : "manual";
   const deps = makeDeps(req.app.get("io"));
-  const runId = await startRun(sessionId, sess.workspaceId, goal.trim(), { maxSteps, maxWallMs }, deps);
+  const runId = await startRun(sessionId, sess.workspaceId, goal.trim(), { maxSteps, maxWallMs, policy: pol }, deps);
   res.json({ runId });
 });
 
@@ -140,5 +142,13 @@ autonomyRouter.post("/actions/:id/approve", async (req, res) => {
 autonomyRouter.post("/actions/:id/reject", (req, res) => {
   if (!getPendingAction(req.params.id)) return res.status(404).json({ error: "action 不存在" });
   rejectAction(req.params.id).catch((e) => console.warn("[autonomy] rejectAction", e?.message));
+  res.json({ ok: true });
+});
+autonomyRouter.post("/runs/:id/inject", (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: "run 不存在" });
+  const text = String(req.body?.text || "");
+  if (!text.trim()) return res.status(400).json({ error: "text 不可空" });
+  setPendingInjection(req.params.id, text.trim());
   res.json({ ok: true });
 });

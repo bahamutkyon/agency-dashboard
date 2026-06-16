@@ -196,4 +196,32 @@ describe("HTTP 端點 smoke", () => {
     expect(r.status).toBe(200);
     expect(((await r.json()) as { items: unknown[] }).items).toEqual([]);
   });
+
+  it("POST /api/autonomy/runs 接受 policy=balanced", async () => {
+    const sid = `test_policy_${Date.now()}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "t", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
+    createdSessionIds.push(sid);
+    const r = await fetch(`${base}/api/autonomy/runs`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionId: sid, goal: "測試目標", policy: "balanced", maxSteps: 3, maxWallMs: 5000 }),
+    });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { runId: string };
+    expect(typeof j.runId).toBe("string");
+  });
+
+  it("POST /api/autonomy/runs/:id/inject 寫入插話", async () => {
+    const sid = `test_inject_${Date.now()}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "t", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
+    createdSessionIds.push(sid);
+    const { runId } = await (await fetch(`${base}/api/autonomy/runs`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionId: sid, goal: "g", policy: "manual", maxSteps: 3, maxWallMs: 5000 }),
+    })).json() as { runId: string };
+    const r = await fetch(`${base}/api/autonomy/runs/${runId}/inject`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "改方向" }),
+    });
+    expect(r.status).toBe(200);
+  });
 });
