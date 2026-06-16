@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AutonomyRun } from "../lib/api";
 
 const TERMINAL = ["done", "stopped", "budget_exhausted", "error"];
+const INJECT_ACTIVE = ["running", "paused_for_action"];
 
 export function AutonomyPanel({
   run,
@@ -11,6 +12,7 @@ export function AutonomyPanel({
   onStop,
   onResume,
   onInput,
+  onInject,
 }: {
   run: AutonomyRun | null;
   busy: boolean;
@@ -19,9 +21,11 @@ export function AutonomyPanel({
   onStop: () => void;
   onResume: () => void;
   onInput: (t: string) => void;
+  onInject: (t: string) => void;
 }) {
   const [goal, setGoal] = useState("");
   const [input, setInput] = useState("");
+  const [injectText, setInjectText] = useState("");
 
   if (!run || TERMINAL.includes(run.status)) {
     return (
@@ -88,6 +92,33 @@ export function AutonomyPanel({
             className="rounded bg-sky-700 px-2 text-white"
           >
             送出
+          </button>
+        </div>
+      )}
+      {INJECT_ACTIVE.includes(run.status) && (
+        <div className="my-2 flex gap-1">
+          <input
+            value={injectText}
+            onChange={(e) => setInjectText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && injectText.trim()) {
+                e.preventDefault();
+                onInject(injectText.trim());
+                setInjectText("");
+              }
+            }}
+            className="flex-1 rounded bg-zinc-900 p-1 text-xs"
+            placeholder="插話給 agent（Enter 送出）…"
+          />
+          <button
+            disabled={busy || !injectText.trim()}
+            onClick={() => {
+              onInject(injectText.trim());
+              setInjectText("");
+            }}
+            className="rounded bg-amber-700 px-2 text-white text-xs disabled:opacity-40"
+          >
+            插話
           </button>
         </div>
       )}

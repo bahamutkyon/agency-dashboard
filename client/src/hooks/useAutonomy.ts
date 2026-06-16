@@ -31,10 +31,10 @@ export function useAutonomy(sessionId: string) {
     };
   }, [refresh]);
 
-  const start = async (goal: string) => {
+  const start = async (goal: string, opts?: { policy?: string; maxSteps?: number; maxWallMs?: number }) => {
     setBusy(true);
     try {
-      await api.autonomyStart(sessionId, goal);
+      await api.autonomyStart(sessionId, goal, opts);
       await refresh();
     } finally {
       setBusy(false);
@@ -82,6 +82,17 @@ export function useAutonomy(sessionId: string) {
     }
   };
 
+  const inject = async (text: string) => {
+    if (run) {
+      try {
+        await api.autonomyInject(run.id, text);
+        await refresh();
+      } catch (e) {
+        console.warn("autonomy inject failed", e);
+      }
+    }
+  };
+
   const approveAction = async (id: string) => {
     setBusy(true);
     try {
@@ -111,6 +122,7 @@ export function useAutonomy(sessionId: string) {
     stop,
     resume,
     sendInput,
+    inject,
     approveAction,
     rejectAction,
   };

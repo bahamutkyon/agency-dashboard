@@ -199,6 +199,8 @@ export function MessageList({
         if (m.role === "assistant") cleanContent = cleanContent.replace(/=== DISPATCH ===[\s\S]*?=== END DISPATCH ===/g, "").trim();
         // 移除 ACTION 區塊標記（已由 ActionApprovalCard 呈現），避免泡泡出現結構化協議原文
         if (m.role === "assistant") cleanContent = cleanContent.replace(/=== ACTION ===[\s\S]*?=== END ACTION ===/g, "").trim();
+        // 移除 [[SELF_WALK]] 標記行（自走迴圈已由 AutonomyPanel 啟動，標記本身無需顯示）
+        if (m.role === "assistant") cleanContent = cleanContent.replace(/^\[\[SELF_WALK\]\]\n?/, "").trim();
         return (
           <div
             key={i}

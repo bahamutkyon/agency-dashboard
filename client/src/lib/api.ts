@@ -292,10 +292,10 @@ export const api = {
     fetch(`/api/learning/legacy/category/${encodeURIComponent(category)}`, { method: "DELETE" }).then(j),
 
   // === 自主迴圈 ===
-  autonomyStart: (sessionId: string, goal: string) =>
+  autonomyStart: (sessionId: string, goal: string, opts?: { policy?: string; maxSteps?: number; maxWallMs?: number }) =>
     fetch("/api/autonomy/runs", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, goal }),
+      body: JSON.stringify({ sessionId, goal, ...opts }),
     }).then(j<{ runId: string }>),
   autonomyRun: (sid: string) =>
     fetch(`/api/autonomy/sessions/${sid}/run`).then(j<{ run: AutonomyRun | null }>),
@@ -312,6 +312,11 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     }).then(j),
+  autonomyInject: (runId: string, text: string) =>
+    fetch(`/api/autonomy/runs/${runId}/inject`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).then(j<{ ok: boolean }>),
   actionApprove: (id: string) =>
     fetch(`/api/autonomy/actions/${id}/approve`, { method: "POST" }).then(j),
   actionReject: (id: string) =>

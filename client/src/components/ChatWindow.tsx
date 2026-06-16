@@ -128,8 +128,39 @@ export function ChatWindow({
     useMemoDetection(messages, sessionId, onboardingTargetWorkspaceId, onMemoApplied);
   const { detectedWorkflow, applyingWf, appliedWf, applyWorkflow } =
     useWorkflowDetection(messages, sessionId);
-  const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, approveAction, rejectAction } =
+  const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, inject: autonomyInject, approveAction, rejectAction } =
     useAutonomy(sessionId);
+
+  // SELF_WALK 偵測：PM session（agents-orchestrator）回覆開頭含 [[SELF_WALK]] 且無 active run 時，自動啟動自走。
+  // 防重入：記住已處理的訊息索引，避免重複觸發。
+  const selfWalkTriggeredRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (agentId !== "agents-orchestrator") return;
+    if (!messages.length) return;
+    // 找最後一則 assistant 訊息（非 partial、含 [[SELF_WALK]] 開頭）
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== "assistant" || m.partial) continue;
+      if (!m.content.startsWith("[[SELF_WALK]]")) break;
+      // 已處理過則跳過
+      if (selfWalkTriggeredRef.current.has(i)) break;
+      // 若已有 active run（非終止狀態），不重複啟動
+      const TERMINAL_STATUSES = ["done", "stopped", "budget_exhausted", "error"];
+      if (autonomyRun && !TERMINAL_STATUSES.includes(autonomyRun.status)) break;
+      // 找觸發本次 PM 回覆的最後一則 user 訊息
+      let goal = "";
+      for (let j = i - 1; j >= 0; j--) {
+        if (messages[j].role === "user") {
+          goal = messages[j].content;
+          break;
+        }
+      }
+      if (!goal) break;
+      selfWalkTriggeredRef.current.add(i);
+      autonomyStart(goal, { policy: "balanced", maxSteps: 12, maxWallMs: 15 * 60 * 1000 }).catch(() => {});
+      break;
+    }
+  }, [messages, agentId, autonomyRun, autonomyStart]);
 
   const send = () => {
     const text = input.trim();
@@ -339,6 +370,7 @@ export function ChatWindow({
           onStop={autonomyStop}
           onResume={autonomyResume}
           onInput={autonomySendInput}
+          onInject={autonomyInject}
         />
       </div>
       {autonomyPending.length > 0 && (
