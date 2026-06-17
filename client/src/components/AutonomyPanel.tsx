@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AutonomyRun } from "../lib/api";
 
 const TERMINAL = ["done", "stopped", "budget_exhausted", "error"];
@@ -26,27 +26,43 @@ export function AutonomyPanel({
   const [goal, setGoal] = useState("");
   const [input, setInput] = useState("");
   const [injectText, setInjectText] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  // run 一旦進入進行中狀態，收起閒置展開狀態，確保跑完回到乾淨的一行
+  useEffect(() => {
+    if (run && !TERMINAL.includes(run.status)) setExpanded(false);
+  }, [run?.status]);
 
   if (!run || TERMINAL.includes(run.status)) {
     return (
-      <div className="rounded border border-zinc-700 p-2 text-xs">
-        <div className="mb-1 text-zinc-300">
-          🎯 自主模式：給一個目標，agent 會自己拆步驟、逐步執行（諮詢／工作區內動作自動進行；對外發送、花錢、破壞性動作會先問你）。
-        </div>
-        <textarea
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          placeholder="例如：盤點本週三大平台熱門選題並整理成提案草稿"
-          className="mb-1 w-full rounded bg-zinc-900 p-2 text-zinc-100"
-          rows={2}
-        />
+      <div className="rounded border border-zinc-700 text-xs">
         <button
-          disabled={busy || !goal.trim()}
-          onClick={() => onStart(goal.trim())}
-          className="rounded bg-emerald-700 px-3 py-1 text-white disabled:opacity-40"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex w-full items-center justify-between p-2 text-zinc-300 hover:text-zinc-100"
         >
-          開始自主執行
+          <span>🎯 自走模式</span>
+          <span className="text-zinc-500">{expanded ? "▾" : "▸"}</span>
         </button>
+        {expanded && (
+          <div className="border-t border-zinc-700 p-2">
+            <div className="mb-1 text-zinc-400">
+              給一個目標，agent 會自己拆步驟、逐步執行（諮詢／工作區內動作自動進行；對外發送、花錢、破壞性動作會先問你）。
+            </div>
+            <textarea
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              placeholder="例如：盤點本週三大平台熱門選題並整理成提案草稿"
+              className="mb-1 w-full rounded bg-zinc-900 p-2 text-zinc-100"
+              rows={2}
+            />
+            <button
+              disabled={busy || !goal.trim()}
+              onClick={() => onStart(goal.trim())}
+              className="rounded bg-emerald-700 px-3 py-1 text-white disabled:opacity-40"
+            >
+              開始自主執行
+            </button>
+          </div>
+        )}
       </div>
     );
   }

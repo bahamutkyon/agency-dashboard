@@ -17,7 +17,7 @@ const makeRun = (overrides: Partial<AutonomyRun> = {}): AutonomyRun => ({
 });
 
 describe("AutonomyPanel", () => {
-  it("run=null 顯示目標輸入與開始鈕", () => {
+  it("run=null：預設收摺，展開後顯示目標輸入與開始鈕", () => {
     const onStart = vi.fn();
     render(
       <AutonomyPanel
@@ -31,11 +31,15 @@ describe("AutonomyPanel", () => {
         onInject={() => Promise.resolve(false)}
       />
     );
+    // 預設收摺：目標框不可見
+    expect(screen.queryByPlaceholderText(/例如/)).toBeNull();
+    // 點摺疊列展開
+    fireEvent.click(screen.getByText(/自走模式/));
     expect(screen.getByPlaceholderText(/例如/)).toBeTruthy();
     expect(screen.getByText(/開始自主執行/)).toBeTruthy();
   });
 
-  it("輸入目標後點開始呼叫 onStart", () => {
+  it("展開後輸入目標點開始呼叫 onStart", () => {
     const onStart = vi.fn();
     render(
       <AutonomyPanel
@@ -49,6 +53,7 @@ describe("AutonomyPanel", () => {
         onInject={() => Promise.resolve(false)}
       />
     );
+    fireEvent.click(screen.getByText(/自走模式/));
     const textarea = screen.getByPlaceholderText(/例如/);
     fireEvent.change(textarea, { target: { value: "我的目標" } });
     fireEvent.click(screen.getByText(/開始自主執行/));
