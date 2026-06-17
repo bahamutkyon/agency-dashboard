@@ -386,6 +386,11 @@ export function ChatWindow({
         onRegenerate={regenerate}
       />
 
+      {autonomyRun && !["done", "stopped", "budget_exhausted", "error"].includes(autonomyRun.status) && (
+        <div className="px-4 py-2 border-t border-emerald-700/30 bg-emerald-950/20 text-xs text-emerald-300">
+          🎯 自走中…請用上方插話框跟它說話，或按「喊停」
+        </div>
+      )}
       <Composer
         input={input}
         setInput={setInput}
