@@ -200,26 +200,45 @@ function AgentSidebarInner({
         />
       </div>
 
-      <div className="px-2 py-2 flex flex-wrap gap-1 border-b border-zinc-800">
+      <div className="px-2 py-2 border-b border-zinc-800">
         <button
-          onClick={() => setCat(null)}
-          className={`text-xs px-2 py-1 rounded ${
-            cat === null ? "bg-accent text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-          }`}
+          onClick={() => setShowFilters((v) => !v)}
+          className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-xs flex items-center justify-between"
         >
-          全部 ({agents.length})
+          <span>
+            🔖 {cat ? `篩選：${categories.find((c) => c.id === cat)?.label ?? cat}` : "篩選部門"}
+          </span>
+          <span className="flex items-center gap-2">
+            {cat && (
+              <span
+                role="button"
+                onClick={(e) => { e.stopPropagation(); setCat(null); }}
+                className="text-zinc-500 hover:text-zinc-200"
+                title="清除篩選"
+              >✕</span>
+            )}
+            <span>{showFilters ? "▾" : "▸"}</span>
+          </span>
         </button>
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => setCat(c.id)}
-            className={`text-xs px-2 py-1 rounded ${
-              cat === c.id ? "bg-accent text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-            }`}
-          >
-            {c.label} ({c.count})
-          </button>
-        ))}
+        {showFilters && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            <button
+              onClick={() => setCat(null)}
+              className={`text-xs px-2 py-1 rounded ${cat === null ? "bg-accent text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+            >
+              全部 ({agents.length})
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCat(c.id)}
+                className={`text-xs px-2 py-1 rounded ${cat === c.id ? "bg-accent text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"}`}
+              >
+                {c.label} ({c.count})
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Virtualised agent list — react-window v2 List fills remaining flex space */}
