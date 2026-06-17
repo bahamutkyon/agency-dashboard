@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS agent_memory (
   agent_id TEXT NOT NULL,
   content TEXT NOT NULL DEFAULT '',
   updated_at INTEGER NOT NULL,
+  distilled_from_session_id TEXT,
   PRIMARY KEY (workspace_id, agent_id)
 );
 
@@ -363,6 +364,11 @@ export function applyMigrations(db: DatabaseSync): void {
     if (!hasColumn(db, "autonomy_runs", "pending_injection")) {
       db.exec("ALTER TABLE autonomy_runs ADD COLUMN pending_injection TEXT");
     }
+  }
+  // agent_memory.distilled_from_session_id —— 修 fresh DB 缺欄（BASE_SCHEMA 過去漏建，
+  // store/workspaces.ts 的 getAgentMemory/upsert 會讀寫此欄；舊 DB 已有則 no-op）。
+  if (tableExists(db, "agent_memory") && !hasColumn(db, "agent_memory", "distilled_from_session_id")) {
+    db.exec("ALTER TABLE agent_memory ADD COLUMN distilled_from_session_id TEXT");
   }
 
   // === agent_craft_memory v1 → v2 ===
