@@ -112,6 +112,8 @@ function AgentSidebarInner({
 }: Props) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -147,7 +149,7 @@ function AgentSidebarInner({
         <button
           data-tour="batch-btn"
           onClick={onOpenBatch}
-          className="w-full px-3 py-2 rounded bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-medium flex items-center justify-center gap-2"
+          className="w-full px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center justify-center gap-2"
           title="多位 agent 同時做同一題"
         >
           <span>🎯</span>
@@ -156,102 +158,37 @@ function AgentSidebarInner({
         <button
           data-tour="workflow-btn"
           onClick={onOpenWorkflows}
-          className="w-full px-3 py-2 rounded bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-sm font-medium flex items-center justify-center gap-2"
+          className="w-full px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center justify-center gap-2"
           title="多位 agent 順序接力跑完一個流程"
         >
           <span>🔗</span>
           <span>自動接力</span>
         </button>
         <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={onOpenSchedules}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="設定週期任務"
-          >
-            <span>⏰</span>
-            <span>排程</span>
-          </button>
-          <button
-            onClick={onOpenHistory}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="所有過往對話"
-          >
-            <span>📚</span>
-            <span>歷史</span>
-          </button>
-          <button
-            onClick={onOpenNotes}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="共享筆記/知識庫"
-          >
-            <span>📒</span>
-            <span>筆記</span>
-          </button>
-          <button
-            onClick={onOpenLearning}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="學習審核佇列"
-          >
-            <span>🧠</span>
-            <span>學習</span>
-          </button>
-          <button
-            onClick={onOpenCapabilityLearning}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="能力學習進程"
-          >
-            <span>🎓</span>
-            <span>能力學習</span>
-          </button>
-          <button
-            onClick={onOpenAutonomousStudy}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="常用 agent 定期自主上網研究領域最新做法"
-          >
-            <span>📡</span>
-            <span>自主進修</span>
-          </button>
-          <button
-            onClick={onOpenMemoryEditor}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="直接編輯類層 / 手藝記憶"
-          >
-            <span>✏️</span>
-            <span>記憶編輯</span>
-          </button>
-          <button
-            onClick={onOpenLegacyReview}
-            className="px-2 py-2 rounded bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5 border border-amber-800/40"
-            title="重審 v2 遷移前累積的全域記憶（legacy-global）"
-          >
-            <span>⚠️</span>
-            <span>Legacy 重審</span>
-          </button>
-          <button
-            onClick={onOpenTemplates}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="常用 prompt 模板"
-          >
-            <span>📋</span>
-            <span>模板</span>
-          </button>
-          <button
-            onClick={onOpenActivity}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="活動時間軸總覽"
-          >
-            <span>📡</span>
-            <span>活動</span>
-          </button>
-          <button
-            onClick={onOpenSettings}
-            className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5"
-            title="主題、字體、通知設定"
-          >
-            <span>⚙️</span>
-            <span>設定</span>
-          </button>
+          <button onClick={onOpenSchedules} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="設定週期任務"><span>⏰</span><span>排程</span></button>
+          <button onClick={onOpenHistory} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="所有過往對話"><span>📚</span><span>歷史</span></button>
+          <button onClick={onOpenNotes} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="共享筆記/知識庫"><span>📒</span><span>筆記</span></button>
+          <button onClick={onOpenTemplates} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="常用 prompt 模板"><span>📋</span><span>模板</span></button>
+          <button onClick={onOpenActivity} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="活動時間軸總覽"><span>📡</span><span>活動</span></button>
+          <button onClick={onOpenSettings} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="主題、字體、通知設定"><span>⚙️</span><span>設定</span></button>
         </div>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-xs flex items-center justify-between"
+          title="進階：學習與記憶治理"
+        >
+          <span>⋯ 進階</span>
+          <span>{showAdvanced ? "▾" : "▸"}</span>
+        </button>
+        {showAdvanced && (
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={onOpenLearning} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="學習審核佇列"><span>🧠</span><span>學習</span></button>
+            <button onClick={onOpenCapabilityLearning} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="能力學習進程"><span>🎓</span><span>能力學習</span></button>
+            <button onClick={onOpenAutonomousStudy} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="常用 agent 定期自主上網研究領域最新做法"><span>📡</span><span>自主進修</span></button>
+            <button onClick={onOpenMemoryEditor} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="直接編輯類層 / 手藝記憶"><span>✏️</span><span>記憶編輯</span></button>
+            <button onClick={onOpenLegacyReview} className="px-2 py-2 rounded bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5 border border-amber-800/40" title="重審 v2 遷移前累積的全域記憶（legacy-global）"><span>⚠️</span><span>Legacy 重審</span></button>
+          </div>
+        )}
       </div>
 
       <div className="px-3 pb-3 border-b border-zinc-800" data-tour="agent-search">
