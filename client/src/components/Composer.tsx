@@ -118,6 +118,9 @@ export function Composer({
           </button>
         </div>
       </div>
+      <div className="text-[11px] text-zinc-500 mt-1">
+        💡 可拖曳或貼上圖片/截圖（上限 10MB），可多張 + 文字一起送
+      </div>
     </div>
   );
 }

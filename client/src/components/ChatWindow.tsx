@@ -167,7 +167,7 @@ export function ChatWindow({
     try { await navigator.clipboard.writeText(text); } catch {}
   };
 
-  const { dragActive, setDragActive, uploading, handleFiles } = useFileUpload(setInput, inputRef);
+  const { dragActive, setDragActive, uploading, handleFiles, handlePaste } = useFileUpload(setInput, inputRef);
 
   return (
     <>
@@ -191,6 +191,7 @@ export function ChatWindow({
         setDragActive(false);
         if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
       }}
+      onPaste={handlePaste}
     >
       {dragActive && (
         <div className="absolute inset-0 z-40 bg-accent/20 border-4 border-dashed border-accent flex items-center justify-center pointer-events-none">

@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useState, type Dispatch, type RefObject, type SetStateAction, type ClipboardEvent } from "react";
 import { api } from "../lib/api";
 
 const TEXT_EXT = /\.(md|txt|json|csv|tsv|log|ya?ml|html?|xml|tsx?|jsx?|py|rb|go|rs|sh|bat|sql|css|scss|toml|ini|env)$/i;
@@ -43,7 +43,7 @@ export function useFileUpload(
           const base64 = dataUrl.split(",")[1];
           const { path } = await api.uploadFile(file.name, base64, "base64");
           if (isImage) {
-            additions.push(`請看這張圖片:${path}`);
+            additions.push(`請用 Read 工具讀取這張圖片（讀出其中所有文字）:${path}`);
           } else {
             additions.push(`請用 Read 工具讀取這個檔案:${path}`);
           }
@@ -60,5 +60,22 @@ export function useFileUpload(
     }
   };
 
-  return { dragActive, setDragActive, uploading, handleFiles };
+  /** Ctrl+V 貼上：只攔截剪貼簿中的圖片，走同一條上傳路徑；純文字貼上不干擾。 */
+  const handlePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imgs: File[] = [];
+    for (const it of Array.from(items)) {
+      if (it.kind === "file" && it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) imgs.push(f);
+      }
+    }
+    if (imgs.length > 0) {
+      e.preventDefault();
+      void handleFiles(imgs);
+    }
+  };
+
+  return { dragActive, setDragActive, uploading, handleFiles, handlePaste };
 }
