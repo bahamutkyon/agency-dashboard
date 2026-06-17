@@ -31,7 +31,7 @@ export function AutonomyPanel({
     return (
       <div className="rounded border border-zinc-700 p-2 text-xs">
         <div className="mb-1 text-zinc-300">
-          🎯 自主模式：給一個目標，agent 會自己拆步驟、逐步執行（高風險動作會先問你）。
+          🎯 自主模式：給一個目標，agent 會自己拆步驟、逐步執行（諮詢／工作區內動作自動進行；對外發送、花錢、破壞性動作會先問你）。
         </div>
         <textarea
           value={goal}

@@ -131,50 +131,6 @@ export function ChatWindow({
   const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, inject: autonomyInject, approveAction, rejectAction } =
     useAutonomy(sessionId);
 
-  // SELF_WALK 偵測：PM session（agents-orchestrator）回覆開頭含 [[SELF_WALK]] 且無 active run 時，自動啟動自走。
-  // 防重入：記住已處理的訊息 key（優先用 id，否則用索引），避免重複觸發。
-  // 注意：只在成功啟動後才記入集合，避免暫時性失敗（5xx/網路）後永久鎖死。
-  const selfWalkTriggeredRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (agentId !== "agents-orchestrator") return;
-    if (!messages.length) return;
-    // 找最近一則含 [[SELF_WALK]] 的 assistant 文字訊息（跳過非字串 content 及 partial）
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role !== "assistant" || m.partial) continue;
-      // 修1：型別守衛 — 非字串 content（tool-chip 等）用 continue 跳過而非 break
-      if (typeof m.content !== "string") continue;
-      if (!m.content.startsWith("[[SELF_WALK]]")) break;
-      // 修2：優先用穩定 id 當 key，否則退用索引字串
-      const key = (m as { id?: string }).id != null ? String((m as { id?: string }).id) : String(i);
-      // 已處理過則跳過
-      if (selfWalkTriggeredRef.current.has(key)) break;
-      // 若已有 active run（非終止狀態），不重複啟動
-      const TERMINAL_STATUSES = ["done", "stopped", "budget_exhausted", "error"];
-      if (autonomyRun && !TERMINAL_STATUSES.includes(autonomyRun.status)) break;
-      // 找觸發本次 PM 回覆的最後一則 user 訊息
-      let goal = "";
-      for (let j = i - 1; j >= 0; j--) {
-        if (messages[j].role === "user" && typeof messages[j].content === "string") {
-          goal = messages[j].content as string;
-          break;
-        }
-      }
-      if (!goal) break;
-      // 修2：成功後才記入集合；409（已有 active run）視為已處理；5xx/網路錯誤不記入
-      autonomyStart(goal, { policy: "balanced", maxSteps: 12, maxWallMs: 15 * 60 * 1000 }).then(() => {
-        selfWalkTriggeredRef.current.add(key);
-      }).catch((err: unknown) => {
-        // 409 = 伺服器已有 active run，屬正常去重，視為已處理
-        if (err && typeof err === "object" && "status" in err && (err as { status: number }).status === 409) {
-          selfWalkTriggeredRef.current.add(key);
-        }
-        // 其他錯誤（5xx/網路）不加入集合，允許下次 effect 重試
-      });
-      break;
-    }
-  }, [messages, agentId, autonomyRun, autonomyStart]);
-
   const send = () => {
     const text = input.trim();
     if (!text) return;
@@ -378,7 +334,7 @@ export function ChatWindow({
         <AutonomyPanel
           run={autonomyRun}
           busy={autonomyBusy}
-          onStart={autonomyStart}
+          onStart={(goal) => autonomyStart(goal, { policy: "balanced", maxSteps: 12, maxWallMs: 15 * 60 * 1000 })}
           onApprovePlan={autonomyApprovePlan}
           onStop={autonomyStop}
           onResume={autonomyResume}
