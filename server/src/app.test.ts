@@ -210,7 +210,7 @@ describe("HTTP 端點 smoke", () => {
     expect(typeof j.runId).toBe("string");
   });
 
-  it("POST /api/autonomy/runs/:id/inject 寫入插話", async () => {
+  it("POST /api/autonomy/runs/:id/inject：非執行中 run 回 409、不存在回 404", async () => {
     const sid = `test_inject_${Date.now()}`;
     upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "t", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
     createdSessionIds.push(sid);
@@ -218,10 +218,17 @@ describe("HTTP 端點 smoke", () => {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId: sid, goal: "g", policy: "manual", maxSteps: 3, maxWallMs: 5000 }),
     })).json() as { runId: string };
+    // manual run 停在 awaiting_plan_approval（非 running/paused_for_action）→ 不可插話，應 409 而非靜默 200
     const r = await fetch(`${base}/api/autonomy/runs/${runId}/inject`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: "改方向" }),
     });
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(409);
+    // 不存在的 run → 404
+    const r2 = await fetch(`${base}/api/autonomy/runs/nope_${Date.now()}/inject`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "x" }),
+    });
+    expect(r2.status).toBe(404);
   });
 });

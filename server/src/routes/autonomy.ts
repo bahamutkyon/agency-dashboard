@@ -144,9 +144,15 @@ autonomyRouter.post("/actions/:id/reject", (req, res) => {
   rejectAction(req.params.id).catch((e) => console.warn("[autonomy] rejectAction", e?.message));
   res.json({ ok: true });
 });
+// 只有迴圈會在每輪開頭消化 pending_injection 的狀態才允許插話；
+// 其餘狀態（done/stopped/paused_for_input 等）插話永遠不會被讀取，應回 409 而非靜默 200。
+const INJECT_ELIGIBLE_STATUSES = ["running", "paused_for_action"];
 autonomyRouter.post("/runs/:id/inject", (req, res) => {
   const run = getRun(req.params.id);
   if (!run) return res.status(404).json({ error: "run 不存在" });
+  if (!INJECT_ELIGIBLE_STATUSES.includes(run.status)) {
+    return res.status(409).json({ error: "run 不在可插話狀態" });
+  }
   const text = String(req.body?.text || "");
   if (!text.trim()) return res.status(400).json({ error: "text 不可空" });
   setPendingInjection(req.params.id, text.trim());

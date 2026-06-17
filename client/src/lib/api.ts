@@ -8,6 +8,8 @@ export interface AutonomyRun {
   maxSteps: number;
   startedAt: number;
   deadlineAt: number;
+  policy?: string;
+  pendingInjection?: string;
 }
 
 export interface PendingAction {
