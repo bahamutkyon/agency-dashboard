@@ -28,7 +28,7 @@ summary: <一句話>
 detail: <細節，可多行>
 === END ACTION ===
 規則：
-- 四類動作必須先申報、等核可才可執行：dispatch（派工）、external_send（對外發訊息）、destructive（不可逆/破壞）、spend（花錢/交易/安裝）。**嚴禁**未經核可直接執行這四類。
+- 這四類屬高風險動作，必須先用 ACTION 申報、交由系統處理（系統會依當前政策決定是否需使用者核可）：dispatch（派工）、external_send（對外發訊息）、destructive（不可逆/破壞）、spend（花錢/交易/安裝）。**嚴禁你自己直接執行這四類**，一律走申報。
 - 每完成一步用 next_step 回報；全部達標用 goal_done；缺關鍵資訊用 need_input。`;
 
 function emitRun(deps: AutonomyDeps, runId: string) {

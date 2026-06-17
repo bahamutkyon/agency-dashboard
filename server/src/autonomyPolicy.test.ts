@@ -16,10 +16,18 @@ describe("shouldAutoApprove", () => {
       expect(shouldAutoApprove(k, "manual")).toBe(false);
     }
   });
-  it("conservative 只放行 plan；free 額外放行 destructive", () => {
-    expect(shouldAutoApprove("dispatch", "conservative")).toBe(false);
+  it("conservative 只放行 plan，其餘高風險全攔", () => {
     expect(shouldAutoApprove("plan", "conservative")).toBe(true);
+    expect(shouldAutoApprove("dispatch", "conservative")).toBe(false);
+    expect(shouldAutoApprove("external_send", "conservative")).toBe(false);
+    expect(shouldAutoApprove("spend", "conservative")).toBe(false);
+    expect(shouldAutoApprove("destructive", "conservative")).toBe(false);
+  });
+  it("free 放行 plan/dispatch/destructive，但仍攔 external_send 與 spend", () => {
+    expect(shouldAutoApprove("plan", "free")).toBe(true);
+    expect(shouldAutoApprove("dispatch", "free")).toBe(true);
     expect(shouldAutoApprove("destructive", "free")).toBe(true);
     expect(shouldAutoApprove("external_send", "free")).toBe(false);
+    expect(shouldAutoApprove("spend", "free")).toBe(false);
   });
 });
