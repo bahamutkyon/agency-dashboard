@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
 import { deleteWorkspace, deleteSession, upsertSession, DEFAULT_WORKSPACE_ID } from "./store.js";
+import { createPendingAction, getPendingAction } from "./store/autonomy.js";
 
 // HTTP 端點 smoke 測試：用 ephemeral 埠（listen(0)）起一個臨時 server 打真實路由，
 // 不撞正在跑的 dev server、不需新依賴。會寫 DB 的測試（建工作區/session）在 afterAll
@@ -230,5 +231,20 @@ describe("HTTP 端點 smoke", () => {
       body: JSON.stringify({ text: "x" }),
     });
     expect(r2.status).toBe(404);
+  });
+
+  it("POST /api/autonomy/actions/:id/reject：手動派工(無 runId)會被標記 rejected", async () => {
+    const pa = createPendingAction({
+      sessionId: `test_reject_${Date.now()}`,
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      kind: "dispatch",
+      risk: "high",
+      summary: "測試派工",
+      detail: "- agentId: a\n  mode: consult\n  task: t",
+    });
+    const r = await fetch(`${base}/api/autonomy/actions/${pa.id}/reject`, { method: "POST" });
+    expect(r.status).toBe(200);
+    // 拒絕後不應再是 pending（修好前 bug：手動派工 reject 不被標記，卡片永遠殘留）
+    expect(getPendingAction(pa.id)?.status).toBe("rejected");
   });
 });

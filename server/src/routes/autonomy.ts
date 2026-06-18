@@ -140,7 +140,15 @@ autonomyRouter.post("/actions/:id/approve", async (req, res) => {
   res.json({ ok: true });
 });
 autonomyRouter.post("/actions/:id/reject", (req, res) => {
-  if (!getPendingAction(req.params.id)) return res.status(404).json({ error: "action 不存在" });
+  const pa = getPendingAction(req.params.id);
+  if (!pa) return res.status(404).json({ error: "action 不存在" });
+  // 手動派工（kind=dispatch 且無 runId）→ 直接標記 rejected。
+  // autonomyRunner.rejectAction 只處理 run 名下的動作（開頭即 if(!pa.runId) return），
+  // 故手動派工的拒絕必須在此特例處理，否則卡片永遠停在 pending 不消失。
+  if (pa.kind === "dispatch" && !pa.runId) {
+    decidePendingAction(pa.id, "rejected");
+    return res.json({ ok: true });
+  }
   rejectAction(req.params.id).catch((e) => console.warn("[autonomy] rejectAction", e?.message));
   res.json({ ok: true });
 });
