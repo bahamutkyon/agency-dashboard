@@ -18,6 +18,7 @@ import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
 import { parseDispatchMarker } from "./dispatchParser.js";
 import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
+import { getProjectMemory } from "./store/projects.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -177,6 +178,7 @@ export class AgentManager {
     workspaceId?: string,
     enableAutoFork: boolean = true,
     provider: Provider = "claude",
+    projectId?: string,
   ): AgentSession {
     const wsId = workspaceId || DEFAULT_WORKSPACE_ID;
 
@@ -194,6 +196,15 @@ export class AgentManager {
     let agentMemoryBlock = "";
     if (agentMem && agentMem.content.trim()) {
       agentMemoryBlock = `\n\n# 你對這位使用者的個人理解(同事記憶)\n以下是你跟這位使用者過去合作中累積的關鍵理解 — 包含他是誰、進行中的專案、他的偏好、過去的關鍵決定。請以此為基礎繼續合作,**不要每次都重新自我介紹或重新詢問同樣的事**:\n\n${agentMem.content.trim()}\n`;
+    }
+
+    // 專案記憶：若此 session 歸屬某專案，注入該專案的持久記憶/狀態。
+    let projectMemoryBlock = "";
+    if (projectId) {
+      const pm = getProjectMemory(projectId);
+      if (pm && pm.trim()) {
+        projectMemoryBlock = `\n\n# 本專案的記憶 / 狀態\n以下是這個專案累積的決策、狀態與脈絡，請以此為前提繼續：\n\n${pm.trim()}\n`;
+      }
     }
 
     // 工作區若有專屬登入 Chrome（chromeCdpPort + 勾了 playwright），明確告訴 agent：
@@ -256,7 +267,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
 規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
 `;
 
-    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + chromeBrowserBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
+    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + projectMemoryBlock + chromeBrowserBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.
@@ -289,6 +300,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       agentId,
       title: title || `${agentId} 對話`,
       provider,
+      projectId,
       createdAt: now,
       updatedAt: now,
       messages: [],
