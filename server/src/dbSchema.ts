@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   title TEXT NOT NULL,
   claude_session_id TEXT,
   tags TEXT NOT NULL DEFAULT '[]',
+  project_id TEXT,
   provider TEXT NOT NULL DEFAULT 'claude',
   codex_thread_id TEXT,
   gemini_meta TEXT,
@@ -35,6 +36,16 @@ CREATE TABLE IF NOT EXISTS sessions (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_ws ON sessions(workspace_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  memory TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_projects_ws ON projects(workspace_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -369,6 +380,18 @@ export function applyMigrations(db: DatabaseSync): void {
   // store/workspaces.ts 的 getAgentMemory/upsert 會讀寫此欄；舊 DB 已有則 no-op）。
   if (tableExists(db, "agent_memory") && !hasColumn(db, "agent_memory", "distilled_from_session_id")) {
     db.exec("ALTER TABLE agent_memory ADD COLUMN distilled_from_session_id TEXT");
+  }
+
+  // projects 表 + sessions.project_id（子系統①）
+  if (!tableExists(db, "projects")) {
+    db.exec(`CREATE TABLE projects (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, name TEXT NOT NULL,
+      memory TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    );`);
+    db.exec("CREATE INDEX IF NOT EXISTS idx_projects_ws ON projects(workspace_id, updated_at DESC)");
+  }
+  if (tableExists(db, "sessions") && !hasColumn(db, "sessions", "project_id")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN project_id TEXT");
   }
 
   // === agent_craft_memory v1 → v2 ===
