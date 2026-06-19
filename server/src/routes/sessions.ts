@@ -6,6 +6,7 @@ import {
   getSession, listSessionsWithCounts, upsertSession,
   getWorkspace, searchSessions, aggregateTags,
   getAgentMemory, setAgentMemory, deleteAgentMemory,
+  setSessionProject,
   DEFAULT_WORKSPACE_ID,
 } from "../store.js";
 import { distillAgentMemory } from "../memoryDistiller.js";
@@ -48,7 +49,7 @@ sessionsRouter.get("/sessions/:id", (req, res) => {
 });
 
 sessionsRouter.post("/sessions", (req, res) => {
-  const { agentId, title, provider } = req.body || {};
+  const { agentId, title, provider, projectId } = req.body || {};
   if (!agentId) return res.status(400).json({ error: "agentId required" });
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
@@ -76,7 +77,7 @@ A cinematic portrait of...
   if (provider === "codex" && isCodexAvailable()) chosen = "codex";
   else if (provider === "gemini" && isGeminiAvailable()) chosen = "gemini";
 
-  const session = agentManager.start(agentId, title, extra || undefined, wsId, true, chosen);
+  const session = agentManager.start(agentId, title, extra || undefined, wsId, true, chosen, projectId || undefined);
   res.json({ id: session.id, provider: chosen });
 });
 
@@ -86,12 +87,16 @@ sessionsRouter.delete("/sessions/:id", (req, res) => {
 });
 
 sessionsRouter.patch("/sessions/:id", (req, res) => {
-  const { title, tags } = req.body || {};
+  const { title, tags, projectId } = req.body || {};
   const cur = getSession(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const next = { ...cur };
   if (typeof title === "string") next.title = title;
   if (Array.isArray(tags)) next.tags = tags.map((t) => String(t)).filter(Boolean);
+  if (projectId !== undefined) {
+    setSessionProject(req.params.id, projectId || null);
+    next.projectId = projectId || undefined;
+  }
   next.updatedAt = Date.now();
   // Pass empty messages array to avoid wiping them — upsertSession only
   // touches messages when given a non-empty array.
@@ -373,7 +378,8 @@ ${catalog}
 `;
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId, false);
+  const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
+  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId, false, "claude", orchProjectId || undefined);
   res.json({ id: session.id });
 });
 

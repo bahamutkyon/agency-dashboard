@@ -27,6 +27,7 @@ import { workflowsRouter, runsRouter } from "./routes/workflows.js";
 import { learningRouter } from "./routes/learning.js";
 import { autonomyRouter } from "./routes/autonomy.js";
 import { activityRouter } from "./routes/activity.js";
+import { projectsRouter } from "./routes/projects.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
@@ -90,6 +91,9 @@ app.use("/api/autonomy", autonomyRouter);
 
 // Activity log: /api/activity
 app.use("/api/activity", activityRouter);
+
+// Projects CRUD: /api/projects/*
+app.use("/api/projects", projectsRouter);
 
 // --- HTTP server + Socket.IO ---
 

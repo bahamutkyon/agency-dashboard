@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
-import { deleteWorkspace, deleteSession, upsertSession, DEFAULT_WORKSPACE_ID } from "./store.js";
+import { deleteWorkspace, deleteSession, upsertSession, getSession, DEFAULT_WORKSPACE_ID } from "./store.js";
 import { createPendingAction, getPendingAction } from "./store/autonomy.js";
 
 // HTTP 端點 smoke 測試：用 ephemeral 埠（listen(0)）起一個臨時 server 打真實路由，
@@ -231,6 +231,32 @@ describe("HTTP 端點 smoke", () => {
       body: JSON.stringify({ text: "x" }),
     });
     expect(r2.status).toBe(404);
+  });
+
+  it("projects CRUD + 指派 session", async () => {
+    const c = await fetch(`${base}/api/projects?workspace=${DEFAULT_WORKSPACE_ID}`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "E2E 專案" }),
+    });
+    expect(c.status).toBe(200);
+    const { project } = await c.json() as { project: { id: string } };
+    expect(project.id).toBeTruthy();
+    const u = await fetch(`${base}/api/projects/${project.id}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memory: "本專案重點" }),
+    });
+    expect(u.status).toBe(200);
+    const sid = `t_proj_${Date.now()}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "x", title: "t", provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [] });
+    createdSessionIds.push(sid);
+    const a = await fetch(`${base}/api/sessions/${sid}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectId: project.id }),
+    });
+    expect(a.status).toBe(200);
+    expect(getSession(sid)!.projectId).toBe(project.id);
+    // cleanup
+    await fetch(`${base}/api/projects/${project.id}`, { method: "DELETE" });
   });
 
   it("POST /api/autonomy/actions/:id/reject：手動派工(無 runId)會被標記 rejected", async () => {
