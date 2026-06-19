@@ -14,6 +14,7 @@ function rowToSession(r: any, messages: Message[]): SessionRecord {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     tags: parseTags(r.tags),
+    projectId: r.project_id || undefined,
     messages,
   };
 }
@@ -78,22 +79,22 @@ export function upsertSession(s: SessionRecord): void {
     db.prepare(`
       UPDATE sessions SET workspace_id = ?, agent_id = ?, title = ?,
         provider = ?, claude_session_id = ?, codex_thread_id = ?,
-        tags = ?, updated_at = ?
+        tags = ?, project_id = ?, updated_at = ?
       WHERE id = ?
     `).run(
       s.workspaceId || DEFAULT_WORKSPACE_ID, s.agentId, s.title,
       provider, s.claudeSessionId || null, s.codexThreadId || null,
-      JSON.stringify(s.tags || []), s.updatedAt,
+      JSON.stringify(s.tags || []), s.projectId ?? null, s.updatedAt,
       s.id,
     );
   } else {
     db.prepare(`
-      INSERT INTO sessions (id, workspace_id, agent_id, title, provider, claude_session_id, codex_thread_id, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions (id, workspace_id, agent_id, title, provider, claude_session_id, codex_thread_id, tags, project_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       s.id, s.workspaceId || DEFAULT_WORKSPACE_ID, s.agentId, s.title,
       provider, s.claudeSessionId || null, s.codexThreadId || null,
-      JSON.stringify(s.tags || []),
+      JSON.stringify(s.tags || []), s.projectId ?? null,
       s.createdAt, s.updatedAt,
     );
   }
@@ -125,4 +126,8 @@ export function setSessionCodexThread(sessionId: string, codexThreadId: string):
 export function deleteSession(id: string): void {
   db.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
   db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+}
+
+export function setSessionProject(sessionId: string, projectId: string | null): void {
+  db.prepare("UPDATE sessions SET project_id = ? WHERE id = ?").run(projectId, sessionId);
 }

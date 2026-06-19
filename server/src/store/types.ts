@@ -20,6 +20,7 @@ export interface SessionRecord {
   updatedAt: number;
   messages: Message[];
   tags?: string[];
+  projectId?: string;
 }
 
 /** Session 摘要：list view 需要的欄位 + 訊息數 + 最後一句預覽，但不含全部訊息。 */
