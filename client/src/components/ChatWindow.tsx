@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "../lib/socket";
 import { api, type SessionRecord } from "../lib/api";
+import { getActiveWorkspace } from "../lib/workspace";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
+import { ProjectMemoryModal } from "./ProjectMemoryModal";
 import { ActionApprovalCard } from "./ActionApprovalCard";
 import { AutonomyPanel } from "./AutonomyPanel";
 import { MessageList } from "./MessageList";
@@ -16,6 +18,7 @@ import { useTemplates } from "../hooks/useTemplates";
 import { useNotes } from "../hooks/useNotes";
 import { useTags } from "../hooks/useTags";
 import { useSessionSummary } from "../hooks/useSessionSummary";
+import { useProjects } from "../hooks/useProjects";
 
 interface Props {
   sessionId: string;
@@ -72,8 +75,16 @@ export function ChatWindow({
 }: Props) {
   const [input, setInput] = useState("");
   const [showMemory, setShowMemory] = useState(false);
+  const [showProjectMemory, setShowProjectMemory] = useState(false);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [sessionProjectId, setSessionProjectId] = useState<string | null | undefined>(undefined);
   const [dismissedForks, setDismissedForks] = useState<Set<number>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 專案清單
+  const workspaceId = getActiveWorkspace();
+  const { projects, create: createProject, refresh: refreshProjects } = useProjects(workspaceId);
 
   // 對話核心狀態與 socket 串流抽到 useChatSession。
   const { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef } =
@@ -93,9 +104,40 @@ export function ChatWindow({
       setMessages(rec.messages || []);
       setTags(rec.tags || []);
       if (rec.status) setStatus(rec.status);
+      setSessionProjectId(rec.projectId ?? null);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId]);
+
+  // 點擊下拉外部時關閉
+  useEffect(() => {
+    if (!showProjectDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showProjectDropdown]);
+
+  // 指派 session 到專案（或取消）
+  const assignProject = async (projectId: string | null) => {
+    setShowProjectDropdown(false);
+    await api.setSessionProject(sessionId, projectId);
+    setSessionProjectId(projectId);
+  };
+
+  // 新建專案並立即指派
+  const createAndAssign = async () => {
+    setShowProjectDropdown(false);
+    const name = window.prompt("新專案名稱：");
+    if (!name?.trim()) return;
+    const project = await createProject(name.trim());
+    await api.setSessionProject(sessionId, project.id);
+    setSessionProjectId(project.id);
+    await refreshProjects();
+  };
 
   // detect agent IDs the orchestrator (or anyone) recommends — anything in
   // backticks that matches a known agent id. Only shown for orchestrator chats
@@ -169,6 +211,11 @@ export function ChatWindow({
 
   const { dragActive, setDragActive, uploading, handleFiles, handlePaste } = useFileUpload(setInput, inputRef);
 
+  // 目前 session 歸屬的專案物件
+  const currentProject = sessionProjectId
+    ? projects.find((p) => p.id === sessionProjectId) ?? null
+    : null;
+
   return (
     <>
       {showMemory && (
@@ -177,6 +224,16 @@ export function ChatWindow({
           agentId={agentId}
           agentName={agentName}
           onClose={() => setShowMemory(false)}
+        />
+      )}
+      {showProjectMemory && currentProject && (
+        <ProjectMemoryModal
+          project={currentProject}
+          onClose={() => setShowProjectMemory(false)}
+          onSaved={(updated) => {
+            // 更新本地 projects 快取中的記憶
+            void refreshProjects();
+          }}
         />
       )}
     <div
@@ -224,6 +281,57 @@ export function ChatWindow({
           <div className="text-xs text-zinc-500">session: {sessionId.slice(0, 8)}</div>
         </div>
         <div className="flex items-center gap-3">
+          {/* === 專案選擇器 === */}
+          <div className="relative" ref={projectDropdownRef}>
+            <button
+              onClick={() => setShowProjectDropdown((v) => !v)}
+              className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 flex items-center gap-1"
+              title="指派此對話到專案"
+            >
+              📁 {currentProject ? currentProject.name : "未分類"} ▾
+            </button>
+            {showProjectDropdown && (
+              <div className="absolute right-0 top-full mt-1 z-30 bg-zinc-900 border border-zinc-700 rounded shadow-xl min-w-[180px] py-1">
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => assignProject(p.id)}
+                    className={`w-full text-left text-xs px-3 py-1.5 hover:bg-zinc-800 flex items-center gap-1.5 ${
+                      sessionProjectId === p.id ? "text-accent font-medium" : "text-zinc-300"
+                    }`}
+                  >
+                    📁 {p.name}
+                    {sessionProjectId === p.id && <span className="ml-auto text-accent">✓</span>}
+                  </button>
+                ))}
+                {projects.length > 0 && <div className="my-1 border-t border-zinc-800" />}
+                <button
+                  onClick={() => void createAndAssign()}
+                  className="w-full text-left text-xs px-3 py-1.5 hover:bg-zinc-800 text-emerald-400"
+                >
+                  ＋ 新專案
+                </button>
+                {sessionProjectId && (
+                  <button
+                    onClick={() => void assignProject(null)}
+                    className="w-full text-left text-xs px-3 py-1.5 hover:bg-zinc-800 text-zinc-500"
+                  >
+                    ✕ 取消歸屬（未分類）
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {/* 專案記憶入口（僅當已歸屬時顯示） */}
+          {currentProject && (
+            <button
+              onClick={() => setShowProjectMemory(true)}
+              className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"
+              title={`看/編輯「${currentProject.name}」的專案記憶`}
+            >
+              📁 專案記憶
+            </button>
+          )}
           <button
             onClick={() => setShowMemory(true)}
             className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300"

@@ -39,6 +39,15 @@ export interface CategoryMeta {
 
 export type Provider = "claude" | "codex" | "gemini";
 
+export interface Project {
+  id: string;
+  workspaceId: string;
+  name: string;
+  memory: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SessionRecord {
   id: string;
   agentId: string;
@@ -49,6 +58,7 @@ export interface SessionRecord {
   updatedAt: number;
   messages: { role: "user" | "assistant" | "system"; content: string; ts: number }[];
   tags?: string[];
+  projectId?: string;
 }
 
 export interface RoutingDecision {
@@ -323,6 +333,26 @@ export const api = {
     fetch(`/api/autonomy/actions/${id}/approve`, { method: "POST" }).then(j),
   actionReject: (id: string) =>
     fetch(`/api/autonomy/actions/${id}/reject`, { method: "POST" }).then(j),
+
+  // === 專案管理 ===
+  listProjects: (workspace: string) =>
+    fetch(`/api/projects?workspace=${encodeURIComponent(workspace)}`).then(j<{ projects: Project[] }>),
+  createProject: (workspace: string, name: string) =>
+    fetch(`/api/projects?workspace=${encodeURIComponent(workspace)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then(j<{ project: Project }>),
+  updateProject: (id: string, patch: { name?: string; memory?: string }) =>
+    fetch(`/api/projects/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j<{ project: Project }>),
+  deleteProject: (id: string) => fetch(`/api/projects/${id}`, { method: "DELETE" }).then(j),
+  setSessionProject: (sessionId: string, projectId: string | null) =>
+    fetch(`/api/sessions/${sessionId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId }),
+    }).then(j<SessionRecord>),
 
   // === 活動時間軸 ===
   listActivity: (q: { sessionId?: string; kind?: string; before?: number } = {}) => {
