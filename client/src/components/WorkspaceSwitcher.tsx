@@ -103,7 +103,7 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-96 bg-panel border border-zinc-700 rounded-lg shadow-lg z-30 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-x-2 top-[calc(3rem_+_env(safe-area-inset-top))] md:absolute md:inset-x-auto md:right-0 md:top-full md:mt-1 md:w-96 bg-panel border border-zinc-700 rounded-lg shadow-lg z-30 max-h-[80vh] overflow-y-auto">
           {editingId ? (
             <div className="p-4 space-y-3">
               <div className="text-sm font-medium">
