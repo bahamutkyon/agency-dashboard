@@ -1,8 +1,20 @@
 import path from "node:path";
+import os from "node:os";
 import fs from "node:fs";
 import type { Workspace } from "./store/types.js";
 
-const SANDBOX_ROOT = path.join(process.cwd(), "data", "workspaces");
+// 沙箱根目錄「刻意」放在 dashboard 的 git repo 之外。
+// 起因（2026-06-27 跨工作區記憶洩漏 bug）：沙箱原本在 <repo>/server/data/workspaces，
+// 也就是落在 dashboard 自己的 git repo 內。spawn 出去的 claude 子程序會沿 cwd 往上找到
+// 該 repo 根，於是「載入了 dashboard 這個專案的 Claude Code auto-memory」——那份開發記憶
+// 記著使用者所有事業（世華仲介、個人IP自媒體…），導致每個工作區的 agent 都被汙染。
+// auto-memory 綁專案根目錄，--setting-sources 關不掉、--bare 會連帶弄壞登入。實測證明：
+// 只要 cwd 在任何「帶 auto-memory 的專案」之外即可乾淨隔離。每個工作區各自一個 repo 外
+// 目錄 → 各自獨立的 claude 專案命名空間，工作區之間也天然互不串記憶。
+// 可用 AGENCY_WORKSPACES_DIR 覆蓋（部署/測試彈性）。
+export const SANDBOX_ROOT = process.env.AGENCY_WORKSPACES_DIR
+  ? path.resolve(process.env.AGENCY_WORKSPACES_DIR)
+  : path.join(os.homedir(), ".agency-dashboard", "workspaces");
 // 路徑層級上限；dirname 終會收斂到 root，此為極端情況的保險絲（正常永遠用不到）。
 const MAX_PATH_DEPTH = 4096;
 
@@ -81,7 +93,7 @@ export function validateWorkingDir(candidate: string): string | null {
   // 用實體路徑（解 symlink）判斷，避免「沙箱內放 symlink 指向 server」之類的逃逸。
   const abs = realAbs(candidate);
   const sandboxReal = realAbs(SANDBOX_ROOT);
-  if (within(sandboxReal, abs)) return null; // 沙箱子目錄一律允許（含 data/workspaces 本身與其下）
+  if (within(sandboxReal, abs)) return null; // 沙箱根（SANDBOX_ROOT，repo 外）本身與其下一律允許
   const server = realAbs(process.cwd());
   const repoRoot = realAbs(path.resolve(process.cwd(), ".."));
   // 刻意列細項（非冗餘）：repoRoot 已涵蓋其下全部，但保留 server/client/data

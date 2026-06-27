@@ -2,11 +2,21 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
-import { resolveWorkspaceDir, ensureWorkspaceDir, validateWorkingDir } from "./workspaceDir.js";
+import { resolveWorkspaceDir, ensureWorkspaceDir, validateWorkingDir, SANDBOX_ROOT } from "./workspaceDir.js";
 
 describe("workspaceDir", () => {
-  it("無 workingDir → 預設沙箱 data/workspaces/<id>", () => {
-    expect(resolveWorkspaceDir({ id: "ws1" })).toBe(path.join(process.cwd(), "data", "workspaces", "ws1"));
+  it("無 workingDir → 預設沙箱 SANDBOX_ROOT/<id>", () => {
+    expect(resolveWorkspaceDir({ id: "ws1" })).toBe(path.join(SANDBOX_ROOT, "ws1"));
+  });
+  // 回歸（2026-06-27 跨工作區記憶洩漏）：預設沙箱「絕不可」落在 dashboard 的 repo 內，
+  // 否則 spawn 的 claude 會載入該 repo 的 Claude Code auto-memory，把使用者所有事業
+  // 的記憶汙染到每個工作區。這條鎖住「沙箱在 repo 之外」這個安全不變量。
+  it("回歸：預設沙箱必須在 repo 之外（防 auto-memory 跨工作區洩漏）", () => {
+    const dir = resolveWorkspaceDir({ id: "ws1" });
+    const repoRoot = path.resolve(process.cwd(), ".."); // server 的上一層 = repo 根
+    const rel = path.relative(repoRoot, dir);
+    const insideRepo = rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    expect(insideRepo).toBe(false);
   });
   it("有 workingDir → 該絕對路徑", () => {
     const custom = path.join(os.tmpdir(), "wsX");
@@ -17,7 +27,7 @@ describe("workspaceDir", () => {
   it("workingDir 非法（指向 server）→ 退回預設沙箱", () => {
     const evil = path.join(process.cwd(), "src");
     expect(resolveWorkspaceDir({ id: "ws1", workingDir: evil }))
-      .toBe(path.join(process.cwd(), "data", "workspaces", "ws1"));
+      .toBe(path.join(SANDBOX_ROOT, "ws1"));
   });
   it("ensureWorkspaceDir 會建立目錄", () => {
     const custom = path.join(os.tmpdir(), "ws_ensure_" + Date.now());
@@ -34,8 +44,8 @@ describe("workspaceDir", () => {
   it("validateWorkingDir：repo 根 → 回錯誤", () => {
     expect(validateWorkingDir(path.resolve(process.cwd(), ".."))).toBeTruthy();
   });
-  it("validateWorkingDir：data/workspaces 子目錄 → OK(null)", () => {
-    expect(validateWorkingDir(path.join(process.cwd(), "data", "workspaces", "ws1"))).toBeNull();
+  it("validateWorkingDir：沙箱（SANDBOX_ROOT）子目錄 → OK(null)", () => {
+    expect(validateWorkingDir(path.join(SANDBOX_ROOT, "ws1"))).toBeNull();
   });
   it("validateWorkingDir：外部 tmp 路徑 → OK(null)", () => {
     expect(validateWorkingDir(path.join(os.tmpdir(), "proj"))).toBeNull();
@@ -54,7 +64,7 @@ describe("workspaceDir", () => {
   });
   // 安全關鍵：沙箱內放 symlink/junction 指向 dashboard，字面在沙箱內但 realpath 逃逸 → 必須被擋
   it("validateWorkingDir：沙箱內 junction 指向 server → realpath 防逃逸擋下", () => {
-    const linkDir = path.join(process.cwd(), "data", "workspaces", "__symlink_escape_test__");
+    const linkDir = path.join(SANDBOX_ROOT, "__symlink_escape_test__");
     const target = path.join(process.cwd(), "src");
     fs.rmSync(linkDir, { recursive: true, force: true });
     fs.mkdirSync(path.dirname(linkDir), { recursive: true });
