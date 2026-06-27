@@ -87,11 +87,35 @@ export interface ExecuteDeps {
 
 const EXECUTE_MAX_MS = 30 * 60 * 1000; // 單項外包執行最長 30 分鐘
 
+/**
+ * 外包執行的指令包裝：在原任務後追加「完成自驗 + 證據」要求。
+ *
+ * 起因：execute 是非同步、無人值守的背景執行，做完沒有人即時盯著。若不強制
+ * 自驗附證據，最常見的失敗是 agent「說做完、其實沒做好」，而 PM 只會照單轉達。
+ * 這段把「交辦出去的事可信」這條鏈補起來——回報必含可檢查的證據，禁止無驗證的
+ * 「應該沒問題」。只用於 execute（外包）；consult 是同步顧問、使用者當場會看，不套。
+ */
+export function buildExecutePrompt(task: string): string {
+  return `${task}
+
+---
+⚠️ 這是「外包執行」任務，完成後沒有人會即時盯著，你必須自己把關。回報的最後務必附上一段【完成自驗】，格式如下，不可省略：
+
+【完成自驗】
+- 我做了什麼：（具體、可檢查的動作，不要含糊）
+- 怎麼確認有效：（實際驗證方式——跑了什麼命令／打開哪個頁面／比對什麼結果）
+- 證據：（命令輸出、檔案路徑、截圖、連結等；真的沒有就明說「無客觀證據」）
+- 還沒把握／未完成：（誠實列出；沒有就寫「無」）
+- 結論：已驗證完成 ／ 部分完成（說明） ／ 未完成（說明）
+
+規則：禁用「應該沒問題」「大概可以」「看起來沒問題」這類沒驗證的措辭；沒有實際驗證就標「未驗證」，不要假裝完成。`;
+}
+
 // 預設依賴：開背景真 session（吃工作區 Chrome/MCP）並掛 result 監聽。
 const defaultExecuteDeps: ExecuteDeps = {
   start: (item, workspaceId) => {
     const s = agentManager.start(item.agentId, `🛠️ 外包執行：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
-    agentManager.send(s.id, item.task);
+    agentManager.send(s.id, buildExecutePrompt(item.task));
     return s.id;
   },
   attachDone: (subSessionId, cb) => {

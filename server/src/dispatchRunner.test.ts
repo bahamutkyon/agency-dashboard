@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { mapWithConcurrency, runConsult, startExecute } from "./dispatchRunner.js";
+import { mapWithConcurrency, runConsult, startExecute, buildExecutePrompt } from "./dispatchRunner.js";
 import type { DispatchItem } from "./dispatchParser.js";
+
+describe("buildExecutePrompt（外包自驗+證據）", () => {
+  it("保留原任務、追加【完成自驗】證據區塊與必填欄位", () => {
+    const p = buildExecutePrompt("把這 10 件電容同步到 FB");
+    expect(p).toContain("把這 10 件電容同步到 FB"); // 原任務不可被吃掉
+    expect(p).toContain("【完成自驗】");
+    expect(p).toContain("證據");
+    expect(p).toContain("結論：已驗證完成");
+    // 禁止無驗證措辭的規則要在
+    expect(p).toMatch(/應該沒問題|未驗證/);
+  });
+});
 
 describe("mapWithConcurrency", () => {
   it("保序回傳、全部完成", async () => {
