@@ -286,6 +286,16 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_log(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_log(session_id, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_ws ON activity_log(workspace_id, ts DESC);
+
+CREATE TABLE IF NOT EXISTS cockpit_briefings (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  content TEXT,
+  raw TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cockpit_created ON cockpit_briefings(created_at DESC);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {
