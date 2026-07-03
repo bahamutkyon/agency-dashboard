@@ -26,8 +26,8 @@ export function getWorkspace(id: string): Workspace | undefined {
   return r ? rowToWorkspace(r) : undefined;
 }
 
-export function createWorkspace(input: { name: string; description?: string; standingContext?: string }): Workspace {
-  const id = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+export function createWorkspace(input: { name: string; description?: string; standingContext?: string; id?: string }): Workspace {
+  const id = input.id || `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   db.prepare(`
     INSERT INTO workspaces (id, name, description, standing_context, created_at)
     VALUES (?, ?, ?, ?, ?)
