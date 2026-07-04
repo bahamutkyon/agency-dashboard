@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
 import { deleteWorkspace, deleteSession, upsertSession, getSession, DEFAULT_WORKSPACE_ID, createRun, getRun, updateRun, deleteWorkflow } from "./store.js";
 import { createPendingAction, getPendingAction } from "./store/autonomy.js";
 import { reconcileWorkflowRunsOnBoot } from "./workflowRunner.js";
+import { GUARD_TOKEN, setShellwardClient } from "./guard.js";
 
 // HTTP 端點 smoke 測試：用 ephemeral 埠（listen(0)）起一個臨時 server 打真實路由，
 // 不撞正在跑的 dev server、不需新依賴。會寫 DB 的測試（建工作區/session）在 afterAll
@@ -384,6 +385,120 @@ describe("HTTP 端點 smoke", () => {
       }),
     });
     expect(resp.status).toBe(400);
+  });
+});
+
+// ── /api/guard — 路由層 ──────────────────────────────────────────────────────
+
+describe("/api/guard", () => {
+  // 每個測試前後清理 env 並重設 client
+  let savedGateMode: string | undefined;
+  let savedGate: string | undefined;
+
+  beforeEach(() => {
+    savedGateMode = process.env.SHELLWARD_GATE_MODE;
+    savedGate = process.env.SHELLWARD_GATE;
+    // 預設 shadow（移除可能遺留的 enforce）
+    delete process.env.SHELLWARD_GATE_MODE;
+    delete process.env.SHELLWARD_GATE;
+    // 重設為安全的 fake client
+    setShellwardClient({ checkCommand: async () => ({ available: true, safe: true }) });
+  });
+
+  afterEach(() => {
+    if (savedGateMode !== undefined) process.env.SHELLWARD_GATE_MODE = savedGateMode;
+    else delete process.env.SHELLWARD_GATE_MODE;
+    if (savedGate !== undefined) process.env.SHELLWARD_GATE = savedGate;
+    else delete process.env.SHELLWARD_GATE;
+    // 重設為安全的 fake client，避免污染後續測試
+    setShellwardClient({ checkCommand: async () => ({ available: true, safe: true }) });
+  });
+
+  it("POST /api/guard/check — token 錯 → 403", async () => {
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": "wrong-token-value" },
+      body: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" } }),
+    });
+    expect(r.status).toBe(403);
+  });
+
+  it("POST /api/guard/check — Bash 危險指令 + enforce → deny", async () => {
+    setShellwardClient({
+      checkCommand: async () => ({ available: true, safe: false, reason: "rm -rf detected", ruleId: "rm_rf_root" }),
+    });
+    process.env.SHELLWARD_GATE_MODE = "enforce";
+
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": GUARD_TOKEN },
+      body: JSON.stringify({ tool_name: "Bash", tool_input: { command: "rm -rf /" } }),
+    });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { decision: string; reason?: string };
+    expect(j.decision).toBe("deny");
+    expect(j.reason).toBeTruthy();
+  });
+
+  it("POST /api/guard/check — Bash 危險指令 + shadow（預設）→ allow", async () => {
+    setShellwardClient({
+      checkCommand: async () => ({ available: true, safe: false, reason: "suspicious" }),
+    });
+    // shadow is default — no env var set
+
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": GUARD_TOKEN },
+      body: JSON.stringify({ tool_name: "Bash", tool_input: { command: "rm -rf /" } }),
+    });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { decision: string };
+    expect(j.decision).toBe("allow");
+  });
+
+  it("POST /api/guard/check — Bash 安全指令 → allow（enforce & shadow 均）", async () => {
+    setShellwardClient({ checkCommand: async () => ({ available: true, safe: true }) });
+    process.env.SHELLWARD_GATE_MODE = "enforce";
+
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": GUARD_TOKEN },
+      body: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls -la" } }),
+    });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { decision: string };
+    expect(j.decision).toBe("allow");
+  });
+
+  it("POST /api/guard/check — 缺 tool_name（body 壞）+ shadow → allow（fail-closed）", async () => {
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": GUARD_TOKEN },
+      body: JSON.stringify({ command: "ls" }), // 缺 tool_name
+    });
+    expect(r.status).toBe(200); // 絕不 500
+    const j = await r.json() as { decision: string };
+    expect(j.decision).toBe("allow"); // shadow fail-closed → allow
+  });
+
+  it("POST /api/guard/check — 缺 tool_name（body 壞）+ enforce → deny（fail-closed）", async () => {
+    process.env.SHELLWARD_GATE_MODE = "enforce";
+
+    const r = await fetch(`${base}/api/guard/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-guard-token": GUARD_TOKEN },
+      body: JSON.stringify({ command: "ls" }), // 缺 tool_name
+    });
+    expect(r.status).toBe(200); // 絕不 500
+    const j = await r.json() as { decision: string };
+    expect(j.decision).toBe("deny"); // enforce fail-closed → deny
+  });
+
+  it("GET /api/guard/decisions — 回陣列（debug 端點）", async () => {
+    const r = await fetch(`${base}/api/guard/decisions`);
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(Array.isArray(j)).toBe(true);
   });
 });
 

@@ -31,6 +31,7 @@ import { autonomyRouter } from "./routes/autonomy.js";
 import { activityRouter } from "./routes/activity.js";
 import { projectsRouter } from "./routes/projects.js";
 import { cockpitRouter } from "./routes/cockpit.js";
+import { guardRouter } from "./routes/guard.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
@@ -118,6 +119,11 @@ app.use("/api/projects", projectsRouter);
 
 // Cockpit briefing: /api/cockpit
 app.use("/api/cockpit", cockpitRouter);
+
+// Guard check (shellward hook): /api/guard/check, /api/guard/decisions
+// Note: hook POST has no Origin header → isOriginAllowed(undefined)===true → passes origin guard.
+// Authentication is handled by x-guard-token header inside the router.
+app.use("/api/guard", guardRouter);
 
 // --- HTTP server + Socket.IO ---
 
