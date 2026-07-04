@@ -39,6 +39,35 @@ export interface CategoryMeta {
 
 export type Provider = "claude" | "codex" | "gemini";
 
+export interface BriefingItem {
+  title: string;
+  body: string;
+  workspaceId?: string;
+  discussSeed?: string;
+  action?: { type: "approve" | "reject"; proposalIds: string[] };
+}
+
+export interface BriefingSection {
+  kind: "decisions" | "new_items" | "status" | "learning";
+  title: string;
+  items: BriefingItem[];
+}
+
+export interface Briefing {
+  date: string;
+  generatedAt: number;
+  sections: BriefingSection[];
+}
+
+export interface BriefingRow {
+  id: string;
+  date: string;
+  content: Briefing | null;
+  raw: string;
+  status: "ok" | "parse_failed" | "error";
+  createdAt: number;
+}
+
 export interface Project {
   id: string;
   workspaceId: string;
@@ -362,6 +391,11 @@ export const api = {
     if (q.before != null) p.set("before", String(q.before));
     return fetch(`/api/activity?${p}`).then(j<{ items: ActivityRow[]; nextBefore?: number }>);
   },
+
+  // === 駕駛艙簡報 ===
+  cockpit: () => fetch("/api/cockpit").then(j<{ briefing: BriefingRow | null }>),
+  cockpitRefresh: () =>
+    fetch("/api/cockpit/refresh", { method: "POST" }).then(j<{ ok: boolean; throttled?: boolean; briefing: BriefingRow }>),
 };
 
 export interface ActivityRow {
