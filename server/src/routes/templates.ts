@@ -30,7 +30,16 @@ templatesRouter.patch("/:id", (req, res) => {
   const all = listTemplates();
   const cur = all.find((t) => t.id === req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
-  const next = { ...cur, ...req.body, id: cur.id, createdAt: cur.createdAt, updatedAt: Date.now() };
+  // Whitelist only user-editable fields; never allow id/workspaceId/createdAt.
+  const { name, body, agentId, tags } = req.body || {};
+  const next = {
+    ...cur,
+    ...(name !== undefined && { name: String(name) }),
+    ...(body !== undefined && { body: String(body) }),
+    ...(agentId !== undefined && { agentId }),
+    ...(tags !== undefined && { tags: Array.isArray(tags) ? tags.map(String) : cur.tags }),
+    updatedAt: Date.now(),
+  };
   upsertTemplate(next);
   res.json(next);
 });

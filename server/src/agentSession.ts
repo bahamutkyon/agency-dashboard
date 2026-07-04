@@ -103,6 +103,8 @@ export class AgentSession extends EventEmitter {
   codexThreadId?: string;
   private codexBuf = "";
   private codexCurrent = "";
+  /** True once we have already emitted a "message" event in this codex turn. */
+  private codexEmitted = false;
 
   // Gemini-specific state — we manage history ourselves since gemini-cli's
   // multi-turn support is patchy. Keep the running transcript so subsequent
@@ -111,6 +113,8 @@ export class AgentSession extends EventEmitter {
   geminiSessionId?: string;
   private geminiBuf = "";
   private geminiCurrent = "";
+  /** True once we have already emitted a "message" event in this gemini turn. */
+  private geminiEmitted = false;
 
   constructor(
     agentId: string,
@@ -386,6 +390,7 @@ export class AgentSession extends EventEmitter {
     this.setStatus("starting");
     this.codexBuf = "";
     this.codexCurrent = "";
+    this.codexEmitted = false;
 
     // For first turn, prepend system prompt into the user message (codex
     // doesn't have an --append-system-prompt flag). On subsequent turns
@@ -420,8 +425,10 @@ export class AgentSession extends EventEmitter {
       this.setStatus("error");
     });
     child.on("close", (code) => {
-      // Emit any leftover assistant text not delivered as item.completed
-      if (this.codexCurrent && this.codexCurrent.trim()) {
+      // Only emit fallback message when no message was already emitted this
+      // turn (pure-delta path). Avoids double-write when item.completed
+      // already emitted the message inside routeCodexEvent.
+      if (!this.codexEmitted && this.codexCurrent && this.codexCurrent.trim()) {
         this.emit("event", { type: "message", payload: { role: "assistant", content: this.codexCurrent } });
       }
       // Emit synthetic result
@@ -458,6 +465,7 @@ export class AgentSession extends EventEmitter {
         // emit as one chunk (codex doesn't stream)
         this.emit("event", { type: "delta", payload: evt.text });
         this.emit("event", { type: "message", payload: { role: "assistant", content: evt.text } });
+        this.codexEmitted = true;
       }
       return;
     }
@@ -475,6 +483,7 @@ export class AgentSession extends EventEmitter {
     this.setStatus("starting");
     this.geminiBuf = "";
     this.geminiCurrent = "";
+    this.geminiEmitted = false;
 
     // For first turn, prepend system prompt as context
     let prompt = userText;
@@ -553,12 +562,14 @@ export class AgentSession extends EventEmitter {
       } else {
         this.geminiCurrent = evt.content;
         this.emit("event", { type: "message", payload: { role: "assistant", content: evt.content } });
+        this.geminiEmitted = true;
       }
       return;
     }
     if (evt.type === "result") {
-      // ensure we emit a final assistant message even if all chunks were deltas
-      if (this.geminiCurrent) {
+      // Only emit fallback message when no full-message event was emitted this
+      // turn (pure-delta path). Avoids double-write for non-delta turns.
+      if (!this.geminiEmitted && this.geminiCurrent) {
         this.emit("event", { type: "message", payload: { role: "assistant", content: this.geminiCurrent } });
       }
       return;

@@ -30,7 +30,15 @@ notesRouter.patch("/:id", (req, res) => {
   const all = listNotes();
   const cur = all.find((n) => n.id === req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
-  const next = { ...cur, ...req.body, id: cur.id, createdAt: cur.createdAt, updatedAt: Date.now() };
+  // Whitelist only user-editable fields; never allow id/workspaceId/createdAt.
+  const { title, body, pinned } = req.body || {};
+  const next = {
+    ...cur,
+    ...(title !== undefined && { title: String(title) }),
+    ...(body !== undefined && { body: String(body) }),
+    ...(pinned !== undefined && { pinned: Boolean(pinned) }),
+    updatedAt: Date.now(),
+  };
   upsertNote(next);
   res.json(next);
 });

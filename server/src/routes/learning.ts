@@ -387,6 +387,10 @@ learningRouter.get("/study/schedules", (_req, res) => res.json(listStudySchedule
 learningRouter.patch("/study/schedules/:tier", (req, res) => {
   const tier = req.params.tier;
   if (tier !== "hot" && tier !== "cold") return res.status(400).json({ error: "tier 須 hot/cold" });
+  // Validate cron expression when provided (mirrors POST /schedules validation).
+  if (req.body?.cron !== undefined && !cron.validate(req.body.cron)) {
+    return res.status(400).json({ error: "cron 格式錯誤" });
+  }
   updateStudySchedule(tier, {
     enabled: typeof req.body?.enabled === "boolean" ? req.body.enabled : undefined,
     cron: req.body?.cron, perRunCap: req.body?.perRunCap,

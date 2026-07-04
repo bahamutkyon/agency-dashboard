@@ -5,7 +5,9 @@
 import { recordUsageTurn, recordRateLimitState, getUsageSummary } from "./store.js";
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Use local date (sv-SE locale produces YYYY-MM-DD) so UTC+8 users don't
+  // have usage before 08:00 counted toward the previous day.
+  return new Intl.DateTimeFormat("sv-SE").format(new Date());
 }
 
 class UsageTracker {

@@ -48,7 +48,16 @@ workflowsRouter.post("/", (req, res) => {
 workflowsRouter.patch("/:id", (req, res) => {
   const cur = getWorkflow(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
-  const next = { ...cur, ...req.body, id: cur.id, createdAt: cur.createdAt, updatedAt: Date.now() };
+  // Whitelist only user-editable fields; never allow id/workspaceId/createdAt.
+  const { name, description, steps, maxConcurrency } = req.body || {};
+  const next = {
+    ...cur,
+    ...(name !== undefined && { name: String(name) }),
+    ...(description !== undefined && { description: String(description) }),
+    ...(steps !== undefined && { steps }),
+    ...(maxConcurrency !== undefined && { maxConcurrency: Number(maxConcurrency) }),
+    updatedAt: Date.now(),
+  };
   upsertWorkflow(next);
   res.json(next);
 });

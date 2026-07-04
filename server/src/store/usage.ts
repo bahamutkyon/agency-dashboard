@@ -42,23 +42,29 @@ export function recordUsageTurn(date: string, deltas: Partial<Omit<DailyEntry, "
   }
 }
 
+/** Local YYYY-MM-DD (sv-SE locale trick) — consistent with usageTracker.ts */
+function localDateStr(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat("sv-SE").format(d);
+}
+
 export function getUsageSummary() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   const todayRow = db.prepare("SELECT * FROM usage_daily WHERE date = ?").get(today) as any;
   const totals = db.prepare(`
     SELECT SUM(cost_usd) as cost, SUM(input_tokens) as input, SUM(output_tokens) as output,
            SUM(cache_creation_tokens) as cc, SUM(cache_read_tokens) as cr, SUM(turns) as turns
     FROM usage_daily
   `).get() as any;
+  // Use SQLite localtime modifier so the 7-day window matches local midnight.
   const last7Rows = db.prepare(`
-    SELECT * FROM usage_daily WHERE date >= date('now', '-6 days') ORDER BY date ASC
+    SELECT * FROM usage_daily WHERE date >= date('now','localtime','-6 days') ORDER BY date ASC
   `).all() as any[];
   const last7Map = new Map<string, DailyEntry>();
   for (const r of last7Rows) last7Map.set(r.date, rowToDaily(r));
   const last7: DailyEntry[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    const k = d.toISOString().slice(0, 10);
+    const k = localDateStr(d);
     last7.push(last7Map.get(k) || {
       date: k, costUSD: 0, inputTokens: 0, outputTokens: 0,
       cacheCreationTokens: 0, cacheReadTokens: 0, turns: 0,

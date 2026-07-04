@@ -104,35 +104,42 @@ class Scheduler {
   }
 
   private async fire(scheduleId: string) {
-    const all = listSchedules();
-    const s = all.find((x) => x.id === scheduleId);
-    if (!s || !s.enabled) return;
-    console.log(`[scheduler] FIRE "${s.name}" → ${s.agentId}`);
+    try {
+      const all = listSchedules();
+      const s = all.find((x) => x.id === scheduleId);
+      if (!s || !s.enabled) return;
+      console.log(`[scheduler] FIRE "${s.name}" → ${s.agentId}`);
 
-    s.lastRunAt = Date.now();
-    upsertSchedule(s);
+      s.lastRunAt = Date.now();
+      upsertSchedule(s);
 
-    const standing = getWorkspace(s.workspaceId)?.standingContext || "";
-    const session = agentManager.start(
-      s.agentId,
-      `[排程 ${new Date().toLocaleString("zh-TW", { hour12: false })}] ${s.name}`,
-      standing || undefined,
-      s.workspaceId,
-      false, // no auto-fork in unattended scheduled runs
-    );
+      const standing = getWorkspace(s.workspaceId)?.standingContext || "";
+      const session = agentManager.start(
+        s.agentId,
+        `[排程 ${new Date().toLocaleString("zh-TW", { hour12: false })}] ${s.name}`,
+        standing || undefined,
+        s.workspaceId,
+        false, // no auto-fork in unattended scheduled runs
+      );
 
-    // attach a one-shot completion listener so we know when this run finishes
-    const sess = agentManager.get(session.id);
-    if (sess) {
-      sess.on("event", (evt) => {
-        if (evt.type === "result") {
-          console.log(`[scheduler] DONE "${s.name}" (session ${session.id.slice(0, 8)})`);
-          this.listeners.forEach((cb) => cb(s));
-        }
-      });
+      // Attach a one-shot completion listener and remove it after the first
+      // result event, preventing leaks when the session is later reused.
+      const sess = agentManager.get(session.id);
+      if (sess) {
+        const onEvent = (evt: { type: string }) => {
+          if (evt.type === "result") {
+            sess.removeListener("event", onEvent);
+            console.log(`[scheduler] DONE "${s.name}" (session ${session.id.slice(0, 8)})`);
+            this.listeners.forEach((cb) => cb(s));
+          }
+        };
+        sess.on("event", onEvent);
+      }
+
+      agentManager.send(session.id, s.prompt);
+    } catch (err: any) {
+      console.error(`[scheduler] fire error for schedule ${scheduleId}:`, err?.message ?? err);
     }
-
-    agentManager.send(session.id, s.prompt);
   }
 
   /**
