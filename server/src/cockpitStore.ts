@@ -32,7 +32,7 @@ export function saveBriefing(input: {
 
 export function getLatestBriefing(): BriefingRow | null {
   const r = db.prepare(
-    `SELECT * FROM cockpit_briefings ORDER BY created_at DESC LIMIT 1`
+    `SELECT * FROM cockpit_briefings ORDER BY created_at DESC, rowid DESC LIMIT 1`
   ).get() as any;
   if (!r) return null;
   return {

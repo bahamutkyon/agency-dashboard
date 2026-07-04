@@ -273,4 +273,18 @@ describe("HTTP 端點 smoke", () => {
     // 拒絕後不應再是 pending（修好前 bug：手動派工 reject 不被標記，卡片永遠殘留）
     expect(getPendingAction(pa.id)?.status).toBe("rejected");
   });
+
+  it("GET /api/cockpit 無簡報時回 null（或既有簡報）", async () => {
+    const r = await fetch(`${base}/api/cockpit`);
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j).toHaveProperty("briefing");
+  });
+
+  it("POST /api/cockpit/refresh 觸發後回 ok 且 GET 拿得到", async () => {
+    const r = await fetch(`${base}/api/cockpit/refresh`, { method: "POST" });
+    expect(r.status).toBe(200);
+    const j = (await r.json()) as { ok: boolean };
+    expect(j.ok).toBe(true);
+  });
 });
