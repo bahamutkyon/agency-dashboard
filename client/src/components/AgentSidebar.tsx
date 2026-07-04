@@ -10,6 +10,7 @@ interface Props {
   sessionCounts?: Record<string, number>;
   onPick: (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => void;
   onAskOrchestrator: () => void;
+  onOpenCockpit: () => void;
   onOpenSchedules: () => void;
   onOpenHistory: () => void;
   onOpenTemplates: () => void;
@@ -105,7 +106,7 @@ function AgentRow({ ariaAttributes, index, style, filtered, liveAgentIds, sessio
 
 function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
-  onPick, onAskOrchestrator, onOpenSchedules,
+  onPick, onAskOrchestrator, onOpenCockpit, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
   onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity,
   providersAvail,
@@ -165,6 +166,7 @@ function AgentSidebarInner({
           <span>自動接力</span>
         </button>
         <div className="grid grid-cols-3 gap-2">
+          <button onClick={onOpenCockpit} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="今日總管簡報"><span>🧭</span><span>駕駛艙</span></button>
           <button onClick={onOpenSchedules} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="設定週期任務"><span>⏰</span><span>排程</span></button>
           <button onClick={onOpenHistory} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="所有過往對話"><span>📚</span><span>歷史</span></button>
           <button onClick={onOpenNotes} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="共享筆記/知識庫"><span>📒</span><span>筆記</span></button>

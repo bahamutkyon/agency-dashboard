@@ -23,7 +23,7 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
     api.mcpServers().then(setMcpServers).catch(() => {});
   }, []);
 
-  const reload = () => api.workspaces().then(setList).catch(() => {});
+  const reload = () => api.workspaces().then((ws) => setList(ws.filter((w) => !w.id.startsWith("__")))).catch(() => {});
   useEffect(() => { reload(); }, []);
 
   const switchTo = (id: string) => {

@@ -9,7 +9,8 @@ import { CommandPalette } from "./components/CommandPalette";
 import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
-import { api, type AgentMeta, type CategoryMeta } from "./lib/api";
+import { setActiveWorkspace } from "./lib/workspace";
+import { api, type AgentMeta, type CategoryMeta, type BriefingItem } from "./lib/api";
 
 // ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
 const ChatWindow = lazy(() =>
@@ -60,11 +61,15 @@ const AgentMeetingRoom = lazy(() =>
 const ActivityPane = lazy(() =>
   import("./components/ActivityPane").then((m) => ({ default: m.ActivityPane }))
 );
+const CockpitPanel = lazy(() =>
+  import("./components/CockpitPanel").then((m) => ({ default: m.CockpitPanel }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
 
 type View =
+  | { kind: "cockpit" }
   | { kind: "chat"; sessionId: string }
   | { kind: "schedules" }
   | { kind: "history" }
@@ -96,7 +101,7 @@ export default function App() {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [view, setView] = useState<View | null>(null);
+  const [view, setView] = useState<View | null>({ kind: "cockpit" });
   const [reloadKey, setReloadKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     // Mobile (<768px): default closed unless user explicitly opened before.
@@ -178,7 +183,7 @@ export default function App() {
   // workspace) and force-reload the active panel by bumping reloadKey.
   const onWorkspaceSwitched = useCallback(() => {
     setTabs([]);
-    setView(null);
+    setView({ kind: "cockpit" });
     setReloadKey((k) => k + 1);
   }, []);
 
@@ -222,6 +227,23 @@ export default function App() {
     setView({ kind: "chat", sessionId: id });
   }, []);
 
+  // 從駕駛艙簡報的某個項目「展開討論」：若有 workspaceId 先切換工作區,
+  // 再開一場新的專案經理對話,把 discussSeed(或標題)當第一句話丟進去。
+  const onCockpitDiscuss = useCallback(async (item: BriefingItem) => {
+    if (item.workspaceId) {
+      setActiveWorkspace(item.workspaceId);
+      onWorkspaceSwitched();
+    }
+    const { id } = await api.startOrchestrator();
+    setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", status: "idle" }]);
+    setView({ kind: "chat", sessionId: id });
+    const seed = item.discussSeed || item.title;
+    setTimeout(() => {
+      getSocket().emit("session:send", { sessionId: id, text: seed });
+    }, 500);
+  }, [onWorkspaceSwitched]);
+
+  const openCockpit = useCallback(() => setView({ kind: "cockpit" }), []);
   const openSchedules = useCallback(() => setView({ kind: "schedules" }), []);
   const openHistory = useCallback(() => setView({ kind: "history" }), []);
   const openTemplates = useCallback(() => setView({ kind: "templates" }), []);
@@ -345,6 +367,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [askOrchestrator, toggleSidebar]);
 
+  const onOpenCockpitMobile = useCallback(() => {
+    openCockpit();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openCockpit, toggleSidebar]);
+
   const onOpenSchedulesMobile = useCallback(() => {
     openSchedules();
     if (window.innerWidth < 768) toggleSidebar();
@@ -456,6 +483,7 @@ ${message}
               sessionCounts={sessionCounts}
               onPick={onPickAgentMobile}
               onAskOrchestrator={onAskOrchestratorMobile}
+              onOpenCockpit={onOpenCockpitMobile}
               onOpenSchedules={onOpenSchedulesMobile}
               onOpenHistory={onOpenHistoryMobile}
               onOpenTemplates={onOpenTemplatesMobile}
@@ -544,6 +572,11 @@ ${message}
         </div>
 
         <div className="flex-1 overflow-hidden">
+          {isView("cockpit") && (
+            <Suspense fallback={LazyFallback}>
+              <CockpitPanel key={`ck-${reloadKey}`} onDiscuss={onCockpitDiscuss} />
+            </Suspense>
+          )}
           {isView("schedules") && (
             <Suspense fallback={LazyFallback}>
               <SchedulePanel key={`s-${reloadKey}`} agents={agents} />
