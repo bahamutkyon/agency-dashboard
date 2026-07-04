@@ -108,8 +108,41 @@ export interface TagInfo {
 
 import { getActiveWorkspace } from "./workspace";
 
+/** Structured API error that includes the HTTP status code. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/** Registered callbacks invoked whenever a 401 response is received. */
+const unauthorizedCallbacks = new Set<() => void>();
+
+/**
+ * Subscribe to 401 Unauthorized responses from any API call.
+ * Returns an unsubscribe function.
+ *
+ * @example
+ * const unsub = onUnauthorized(() => setBannerVisible(true));
+ * // later: unsub();
+ */
+export function onUnauthorized(cb: () => void): () => void {
+  unauthorizedCallbacks.add(cb);
+  return () => unauthorizedCallbacks.delete(cb);
+}
+
 async function j<T>(r: Response): Promise<T> {
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) {
+    const text = await r.text();
+    if (r.status === 401) {
+      for (const cb of unauthorizedCallbacks) cb();
+    }
+    throw new ApiError(r.status, text);
+  }
   return r.json() as Promise<T>;
 }
 

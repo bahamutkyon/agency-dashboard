@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type AgentMeta } from "../lib/api";
-import { getSocket } from "../lib/socket";
+import { getSocket, joinSession, leaveSession } from "../lib/socket";
 import { MarkdownView } from "./MarkdownView";
 
 interface Props {
@@ -23,6 +23,8 @@ export function BatchPanel({ agents }: Props) {
   const [category, setCategory] = useState<string | null>(null);
   const [panes, setPanes] = useState<Pane[]>([]);
   const buffersRef = useRef<Record<string, string>>({});
+  /** Tracks session IDs joined in the current batch so we can leaveSession on cleanup. */
+  const joinedBatchRef = useRef<string[]>([]);
 
   const cats = useMemo(() => {
     const set = new Set(agents.map((a) => a.category));
@@ -61,11 +63,13 @@ export function BatchPanel({ agents }: Props) {
     }));
     setPanes(initial);
     buffersRef.current = {};
+    joinedBatchRef.current = [];
     setStep("running");
 
-    // join all sessions, then send the same prompt to each
+    // join all sessions via joinSession so they're tracked for auto-rejoin on reconnect
     for (const s of sessions) {
-      sock.emit("session:join", s.sessionId);
+      joinSession(s.sessionId);
+      joinedBatchRef.current.push(s.sessionId);
     }
     setTimeout(() => {
       for (const s of sessions) {
@@ -102,7 +106,13 @@ export function BatchPanel({ agents }: Props) {
       }));
     };
     sock.on("session:event", handler);
-    return () => { sock.off("session:event", handler); };
+    return () => {
+      sock.off("session:event", handler);
+      // Remove batch sessions from the rejoin set so stale sessions don't
+      // get re-joined on the next reconnect after the batch is done.
+      for (const id of joinedBatchRef.current) leaveSession(id);
+      joinedBatchRef.current = [];
+    };
   }, [step]);
 
   const reset = () => {

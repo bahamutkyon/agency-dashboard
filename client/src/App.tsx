@@ -10,7 +10,7 @@ import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
 import { setActiveWorkspace } from "./lib/workspace";
-import { api, type AgentMeta, type CategoryMeta, type BriefingItem } from "./lib/api";
+import { api, onUnauthorized, type AgentMeta, type CategoryMeta, type BriefingItem } from "./lib/api";
 
 // ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
 const ChatWindow = lazy(() =>
@@ -101,6 +101,8 @@ export default function App() {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
+  const [unauthorizedBanner, setUnauthorizedBanner] = useState(false);
+  const [agentsLoadError, setAgentsLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>({ kind: "cockpit" });
   const [reloadKey, setReloadKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
@@ -138,6 +140,13 @@ export default function App() {
     return () => window.removeEventListener("agency:show-tour", h);
   }, []);
 
+  // Show a global banner whenever any API call returns 401 Unauthorized.
+  // This surfaces the "dashboard 綠燈卻跳 API 401" problem that was previously
+  // completely silent because every .catch(()=>{}) swallowed the error.
+  useEffect(() => {
+    return onUnauthorized(() => setUnauthorizedBanner(true));
+  }, []);
+
   // global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -162,6 +171,9 @@ export default function App() {
     api.agents().then(({ agents, categories }) => {
       setAgents(agents);
       setCategories(categories);
+    }).catch((e: unknown) => {
+      console.error("[App] 載入 agent 列表失敗:", e);
+      setAgentsLoadError(e instanceof Error ? e.message : "載入失敗");
     });
   }, []);
 
@@ -175,7 +187,10 @@ export default function App() {
       const counts: Record<string, number> = {};
       for (const s of all) counts[s.agentId] = (counts[s.agentId] || 0) + 1;
       setSessionCounts(counts);
-    }).catch(() => {});
+    }).catch((e: unknown) => {
+      if (!alive) return;
+      console.error("[App] 載入 session 數量失敗:", e);
+    });
     return () => { alive = false; };
   }, [reloadKey, tabs.length, view?.kind]);
 
@@ -452,7 +467,36 @@ ${message}
   const isView = (k: View["kind"]) => view?.kind === k;
 
   return (
-    <div className="h-screen flex">
+    <div className="h-screen flex flex-col">
+      {/* 401 Unauthorized global banner */}
+      {unauthorizedBanner && (
+        <div className="flex items-center justify-between px-4 py-2 bg-rose-900/90 border-b border-rose-700 text-rose-100 text-sm z-50 flex-shrink-0">
+          <span>
+            ⚠️ 連線需要重新授權（401）——請檢查 server 授權狀態或重新整理頁面
+          </span>
+          <button
+            onClick={() => setUnauthorizedBanner(false)}
+            className="ml-4 text-rose-300 hover:text-white font-bold px-2"
+            aria-label="關閉授權提示"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {/* Agent list load error banner */}
+      {agentsLoadError && agents.length === 0 && (
+        <div className="flex items-center justify-between px-4 py-2 bg-amber-900/80 border-b border-amber-700 text-amber-100 text-sm z-50 flex-shrink-0">
+          <span>⚠️ Agent 列表載入失敗：{agentsLoadError}</span>
+          <button
+            onClick={() => setAgentsLoadError(null)}
+            className="ml-4 text-amber-300 hover:text-white font-bold px-2"
+            aria-label="關閉錯誤提示"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <div className="flex-1 flex min-h-0">
       {tourOpen && (
         <Suspense fallback={null}>
           <OnboardingTour onClose={onTourClose} />
@@ -695,6 +739,7 @@ ${message}
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }

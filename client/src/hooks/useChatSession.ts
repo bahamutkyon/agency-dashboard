@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getSocket } from "../lib/socket";
+import { getSocket, joinSession, leaveSession } from "../lib/socket";
 import { notify } from "../lib/notifications";
 
 export interface Msg {
@@ -29,7 +29,9 @@ export function useChatSession(
   // socket subscription
   useEffect(() => {
     const sock = getSocket();
-    sock.emit("session:join", sessionId);
+    // Use joinSession so the session is tracked for automatic rejoin after
+    // reconnect (mobile lock-screen / Tailscale glitch / network switch).
+    joinSession(sessionId);
 
     const handler = (evt: any) => {
       if (evt.sessionId !== sessionId) return;
@@ -96,7 +98,10 @@ export function useChatSession(
       }
     };
     sock.on("session:event", handler);
-    return () => { sock.off("session:event", handler); };
+    return () => {
+      leaveSession(sessionId);
+      sock.off("session:event", handler);
+    };
   }, [sessionId, onStatusChange, agentName]);
 
   // autoscroll
