@@ -1,4 +1,5 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useState } from "react";
+import { useVisiblePolling } from "../hooks/useVisiblePolling";
 
 interface UsageSummary {
   today: { date: string; costUSD: number; inputTokens: number; outputTokens: number; turns: number };
@@ -31,13 +32,10 @@ function UsageBarInner() {
   const [u, setU] = useState<UsageSummary | null>(null);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    const fetch1 = () => fetch("/api/usage").then((r) => r.json()).then((d) => alive && setU(d)).catch(() => {});
-    fetch1();
-    const t = setInterval(fetch1, 15000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+  useVisiblePolling(
+    () => { fetch("/api/usage").then((r) => r.json()).then((d) => setU(d)).catch(() => {}); },
+    15000
+  );
 
   if (!u) return <div className="px-3 text-xs text-zinc-500">載入用量…</div>;
 

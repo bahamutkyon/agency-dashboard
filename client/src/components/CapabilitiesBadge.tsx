@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useVisiblePolling } from "../hooks/useVisiblePolling";
 
 type Tier = "baseline" | "recommended" | "optional";
 
@@ -47,17 +48,10 @@ export function CapabilitiesBadge() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("skills");
 
-  useEffect(() => {
-    let alive = true;
-    const refresh = () =>
-      fetch("/api/capabilities")
-        .then((r) => r.json())
-        .then((d) => alive && setS(d))
-        .catch(() => {});
-    refresh();
-    const t = setInterval(refresh, 30000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+  useVisiblePolling(
+    () => { fetch("/api/capabilities").then((r) => r.json()).then((d) => setS(d)).catch(() => {}); },
+    30000
+  );
 
   if (!s) return <div className="px-2 text-xs text-zinc-500">🧠 …</div>;
 

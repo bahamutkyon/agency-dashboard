@@ -104,9 +104,14 @@ export function useChatSession(
     };
   }, [sessionId, onStatusChange, agentName]);
 
-  // autoscroll
+  // autoscroll — stick-to-bottom: only scroll if user is already near the bottom
   useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 80) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   return { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef, streamingRef };

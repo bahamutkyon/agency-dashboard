@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useVisiblePolling } from "../hooks/useVisiblePolling";
 
 interface SecurityStatus {
   healthy: boolean;
@@ -27,17 +28,10 @@ export function SecurityBadge() {
   const [s, setS] = useState<SecurityStatus | null>(null);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    const refresh = () =>
-      fetch("/api/security/status")
-        .then((r) => r.json())
-        .then((d) => alive && setS(d))
-        .catch(() => {});
-    refresh();
-    const t = setInterval(refresh, 10000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+  useVisiblePolling(
+    () => { fetch("/api/security/status").then((r) => r.json()).then((d) => setS(d)).catch(() => {}); },
+    10000
+  );
 
   if (!s) {
     return <div className="px-2 text-xs text-zinc-500">🛡️ …</div>;

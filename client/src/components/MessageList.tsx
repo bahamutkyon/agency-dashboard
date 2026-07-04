@@ -236,7 +236,7 @@ export function MessageList({
 
             {/* per-message actions */}
             {m.role !== "system" && !m.partial && (
-              <div className={`flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition ${
+              <div className={`flex gap-1 mt-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition ${
                 m.role === "user" ? "justify-end" : ""
               }`}>
                 <button

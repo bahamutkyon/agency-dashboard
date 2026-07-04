@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useVisiblePolling } from "../hooks/useVisiblePolling";
 import { api, type AgentMeta, type SearchHit, type SessionRecord, type TagInfo } from "../lib/api";
 
 interface Props {
@@ -56,11 +57,7 @@ export function HistoryPanel({ agents, onOpen }: Props) {
     api.tags().then(setAllTags).catch(() => {});
   };
 
-  useEffect(() => {
-    reload();
-    const t = setInterval(reload, 5000);
-    return () => clearInterval(t);
-  }, []);
+  useVisiblePolling(reload, 5000);
 
   // debounced search
   useEffect(() => {
