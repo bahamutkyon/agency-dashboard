@@ -369,12 +369,20 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       const ws = getWorkspace(wsIdForMcp);
       const fresh = buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort);
       if (fresh !== s.mcpConfigJson) {
+        // 搶救佇列：stop() 會清空 queue，但佇列訊息已落庫。
+        // 先取快照，stop() 後重新 send（AgentSession.send，不重複落庫），
+        // 確保 MCP 重生不丟失已排隊但尚未送達的訊息。
+        const savedQueue = [...s.queuedMessages];
         const oldNames = s.mcpConfigJson ? Object.keys(JSON.parse(s.mcpConfigJson).mcpServers || {}) : [];
         const newNames = fresh ? Object.keys(JSON.parse(fresh).mcpServers || {}) : [];
         console.log(`[agentManager] session=${sessionId.slice(0, 8)} MCP refresh: ${oldNames.join(",") || "(none)"} → ${newNames.join(",") || "(none)"}`);
         s.mcpConfigJson = fresh || undefined;
         // Force respawn so next claude invocation picks up new --mcp-config
         s.stop();
+        // 把搶救的佇列訊息重新注入（順序保留），當前訊息最後 enqueue。
+        for (const msg of savedQueue) {
+          s.send(msg);
+        }
       }
     }
 

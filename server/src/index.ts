@@ -148,9 +148,20 @@ io.use((socket, next) => {
   if (token) {
     const auth = socket.handshake.auth || {};
     const q = socket.handshake.query || {};
+    // Cookie fallback — mirrors HTTP remoteAccess middleware. Browser sets
+    // agency_token cookie after first auth via ?token= query param; subsequent
+    // WebSocket connections can rely on it without re-sending the token.
+    const cookieHeader = typeof socket.handshake.headers.cookie === "string"
+      ? socket.handshake.headers.cookie : "";
+    const fromCookie = cookieHeader
+      .split(";")
+      .map((s) => s.trim())
+      .find((c) => c.startsWith("agency_token="))
+      ?.slice("agency_token=".length) || "";
     const provided =
       (typeof auth.token === "string" && auth.token) ||
       (typeof q.token === "string" ? q.token : Array.isArray(q.token) ? q.token[0] : "") ||
+      fromCookie ||
       "";
     if (!provided || provided !== token) {
       console.warn(`[remoteAccess/ws] bad token from ${ip}`);

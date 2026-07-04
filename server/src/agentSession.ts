@@ -98,6 +98,9 @@ export class AgentSession extends EventEmitter {
   private buf = "";
   /** Claude `--append-system-prompt-file` 用的暫存檔路徑（session 級，可重用）。 */
   private promptFilePath?: string;
+  /** stop() 主動殺掉的那個 child 引用。close handler 見到時判定為刻意停止，
+   *  不覆蓋 setStatus("closed") 為 "error"（idle TTL 回收誤報 error 的根因）。 */
+  private stoppingChild?: ChildProcess;
 
   // Codex-specific state
   codexThreadId?: string;
@@ -175,8 +178,16 @@ export class AgentSession extends EventEmitter {
     this.dispatch(next);
   }
 
+  /** 供 agentManager 在 MCP 重生前搶救佇列用的唯讀視圖。
+   *  呼叫端應自行 spread（[...s.queuedMessages]）取快照，stop() 之後原陣列即清空。 */
+  get queuedMessages(): readonly string[] {
+    return this.queue;
+  }
+
   stop(): void {
     if (this.child) {
+      // 記錄即將被 kill 的 child，讓 close handler 知道這是刻意的（不誤報 "error"）
+      this.stoppingChild = this.child;
       try { this.child.kill(); } catch {}
       this.child = undefined;
     }
@@ -268,6 +279,16 @@ export class AgentSession extends EventEmitter {
       this.emit("event", { type: "error", payload: `spawn error: ${err.message}` });
     });
     child.on("close", (code) => {
+      // 若是 stop() 主動 kill，stoppingChild 會指向同一個 child。
+      // stop() 已呼叫 setStatus("closed")，這裡不可再 emit "error" 覆蓋它。
+      const wasDeliberate = (this.stoppingChild === child);
+      if (wasDeliberate) this.stoppingChild = undefined;
+      if (wasDeliberate) {
+        this.child = undefined;
+        this.cleanupPromptFile();
+        return;
+      }
+      // 非主動停止（自然結束或真正 crash）→ 依 exit code 決定狀態。
       this.emit("event", { type: "status", payload: code === 0 ? "closed" : "error" });
       this.status = code === 0 ? "closed" : "error";
       this.child = undefined;

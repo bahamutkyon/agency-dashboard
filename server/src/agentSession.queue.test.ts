@@ -150,4 +150,66 @@ describe("AgentSession 送信佇列", () => {
     expect((s as any).queue.length).toBe(0);
     expect(s.status).toBe("closed");
   });
+
+  // ===== Fix #2：MCP 重生前搶救佇列 =====
+
+  it("queuedMessages getter 回傳未送訊息（不含已 dispatch 的第一則）", () => {
+    const s = new AgentSession("a");
+    s.send("m1"); // sent → busy
+    s.send("m2"); // queued
+    s.send("m3"); // queued
+    expect([...s.queuedMessages]).toEqual(["m2", "m3"]);
+  });
+
+  it("queuedMessages 在 idle 時為空", () => {
+    const s = new AgentSession("a");
+    expect([...s.queuedMessages]).toEqual([]);
+  });
+
+  it("stop() 前取 queuedMessages 快照 + 重新 send 可恢復佇列（MCP 重生不丟訊息）", () => {
+    const s = new AgentSession("a");
+    s.send("m1"); // sent → busy
+    s.send("m2"); // queued
+    s.send("m3"); // queued
+
+    // MCP 重生流程：先救出佇列，再 stop，再重新注入
+    const saved = [...s.queuedMessages];
+    expect(saved).toEqual(["m2", "m3"]);
+
+    s.stop(); // 清空佇列，status = "closed"
+    expect((s as any).queue.length).toBe(0);
+
+    // 重新注入（如 agentManager MCP restart 流程）
+    for (const msg of saved) s.send(msg);
+
+    // m2 被立即 dispatch（重生 child），m3 進佇列
+    expect(wasSent("m2")).toBe(true);
+    expect([...s.queuedMessages]).toEqual(["m3"]);
+
+    // 完成 m2 回合 → 送 m3
+    completeTurn(s);
+    expect(wasSent("m3")).toBe(true);
+  });
+
+  it("stop() 後重新 send 接著排入當前訊息 → 順序 m2, m3, current", () => {
+    const s = new AgentSession("a");
+    s.send("m1");  // sent
+    s.send("m2");  // queued
+    s.send("m3");  // queued
+
+    const saved = [...s.queuedMessages];
+    s.stop();
+    for (const msg of saved) s.send(msg); // re-inject: m2 dispatched, m3 queued
+    s.send("current"); // queued after m3
+
+    expect([...s.queuedMessages]).toEqual(["m3", "current"]);
+
+    completeTurn(s); // drain m3
+    completeTurn(s); // drain current
+
+    const order = writes.map((w) =>
+      w.includes("m1") ? "m1" : w.includes("m2") ? "m2" : w.includes("m3") ? "m3" : w.includes("current") ? "current" : "?"
+    );
+    expect(order).toEqual(["m1", "m2", "m3", "current"]);
+  });
 });

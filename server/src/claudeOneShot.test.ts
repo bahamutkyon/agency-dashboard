@@ -89,4 +89,30 @@ describe("runClaudeOneShot", () => {
     const written = Buffer.concat(child.stdin.writes).toString("utf8");
     expect(written).toBe("餵給模型的內容");
   });
+
+  // Fix #5：spawn 時帶 sanitizedChildEnv，不洩漏 ACCESS_TOKEN
+  it("spawn options 帶 env 且不含 ACCESS_TOKEN（縱深防禦一致性）", async () => {
+    const child = makeFakeChild();
+    let capturedOptions: any = undefined;
+    const spawn = vi.fn((args, options) => {
+      capturedOptions = options;
+      setImmediate(() => child.emit("close", 0));
+      return child as any;
+    });
+
+    const original = process.env.ACCESS_TOKEN;
+    process.env.ACCESS_TOKEN = "super-secret-dashboard-token";
+    try {
+      await runClaudeOneShot(["-p"], { spawn, input: "hi" });
+    } finally {
+      if (original === undefined) delete process.env.ACCESS_TOKEN;
+      else process.env.ACCESS_TOKEN = original;
+    }
+
+    // spawn 應帶 env（非 undefined）
+    expect(capturedOptions).toBeTruthy();
+    expect(capturedOptions?.env).toBeTruthy();
+    // ACCESS_TOKEN 不應出現在子程序 env
+    expect(capturedOptions?.env?.ACCESS_TOKEN).toBeUndefined();
+  });
 });

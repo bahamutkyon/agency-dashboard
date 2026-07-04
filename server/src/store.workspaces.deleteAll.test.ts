@@ -35,6 +35,9 @@ function seedAll(wsId: string) {
     .run(`pa_${wsId}`, sessId, wsId, "dispatch", "high", "x", "pending", 1000);
   db.prepare("INSERT OR IGNORE INTO agent_craft_memory (agent_id, workspace_id, scope, content, updated_at) VALUES (?, ?, ?, ?, ?)")
     .run("test-agent", wsId, "workspace", "craft", 1000);
+  // category_capability_memory workspace-scope（Fix #4 補刪驗證）
+  db.prepare("INSERT OR IGNORE INTO category_capability_memory (category, workspace_id, scope, content, updated_at) VALUES (?, ?, ?, ?, ?)")
+    .run("test-category", wsId, "workspace", "cat-mem", 1000);
   db.prepare("INSERT OR IGNORE INTO activity_log (id, ts, workspace_id, kind, summary, created_at) VALUES (?, ?, ?, ?, ?, ?)")
     .run(`al_${wsId}`, 1000, wsId, "tool_call", "act", 1000);
   db.prepare("INSERT OR IGNORE INTO schedules (id, workspace_id, name, agent_id, prompt, cron, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -48,7 +51,7 @@ function seedAll(wsId: string) {
 }
 
 describe("deleteWorkspace — 全表清理", () => {
-  it("刪除工作區同時清空所有關聯表（14 個表）", () => {
+  it("刪除工作區同時清空所有關聯表（含 category_capability_memory）", () => {
     const ws = createWorkspace({ name: "del-all-test" });
     const wsId = ws.id;
     const sessId = `sess_${wsId}`;
@@ -71,12 +74,33 @@ describe("deleteWorkspace — 全表清理", () => {
     expect(db.prepare("SELECT id FROM autonomy_runs WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM pending_actions WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM agent_craft_memory WHERE workspace_id = ? AND scope = 'workspace'").get(wsId)).toBeUndefined();
+    // Fix #4：category_capability_memory workspace-scope 也應被清除
+    expect(db.prepare("SELECT id FROM category_capability_memory WHERE workspace_id = ? AND scope = 'workspace'").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM activity_log WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM learning_proposals WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     // 原本已有的表
     expect(db.prepare("SELECT id FROM schedules WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM templates WHERE workspace_id = ?").get(wsId)).toBeUndefined();
     expect(db.prepare("SELECT id FROM notes WHERE workspace_id = ?").get(wsId)).toBeUndefined();
+  });
+
+  it("全域 category_capability_memory（scope='global'）不受工作區刪除影響", () => {
+    const ws = createWorkspace({ name: "del-cat-global-test" });
+    const wsId = ws.id;
+
+    // 插入 global scope 的 category memory
+    db.prepare("INSERT OR IGNORE INTO category_capability_memory (category, workspace_id, scope, content, updated_at) VALUES (?, ?, ?, ?, ?)")
+      .run("global-category", "", "global", "全域類別記憶", 1000);
+
+    deleteWorkspace(wsId);
+
+    const globalRow = db.prepare(
+      "SELECT scope FROM category_capability_memory WHERE category = 'global-category' AND workspace_id = '' AND scope = 'global'"
+    ).get();
+    expect(globalRow).toBeTruthy();
+
+    // 清理測試資料
+    db.prepare("DELETE FROM category_capability_memory WHERE category = 'global-category' AND workspace_id = ''").run();
   });
 
   it("全域 agent_craft_memory（scope != 'workspace'）不受影響", () => {

@@ -118,6 +118,8 @@ export function deleteWorkspace(id: string): boolean {
     // agent_craft_memory：只刪 workspace-scope 條目；
     // scope='global'/'legacy-global' 的全域記憶不受工作區刪除影響
     db.prepare("DELETE FROM agent_craft_memory WHERE workspace_id = ? AND scope = 'workspace'").run(id);
+    // category_capability_memory：同樣只刪 workspace-scope；global scope 不受影響
+    db.prepare("DELETE FROM category_capability_memory WHERE workspace_id = ? AND scope = 'workspace'").run(id);
     db.prepare("DELETE FROM activity_log WHERE workspace_id = ?").run(id);
     db.prepare("DELETE FROM learning_proposals WHERE workspace_id = ?").run(id);
     // ——————————————————————————————————————————————————————————————————

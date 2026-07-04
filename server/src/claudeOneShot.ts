@@ -13,6 +13,7 @@
  */
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { spawnClaude } from "./claudeProcess.js";
+import { sanitizedChildEnv } from "./childEnv.js";
 
 export type SpawnClaudeFn = (args: string[], options?: Partial<SpawnOptions>) => ChildProcess;
 
@@ -61,7 +62,7 @@ export function runClaudeOneShot(
 
     let child: ChildProcess;
     try {
-      child = spawn(args);
+      child = spawn(args, { env: sanitizedChildEnv() });
     } catch (e: any) {
       // 極少數 spawn 同步 throw（例如參數錯誤）也要接住，不外洩。
       finish({ ok: false, stdout: "", error: e?.message || String(e) });
