@@ -11,6 +11,7 @@ import { loadRemoteConfig, buildRemoteAccessMiddleware } from "./remoteAccess.js
 import { resumeUnfinishedRuns } from "./capabilityLearning.js";
 import { learningScheduler } from "./learningScheduler.js";
 import { studyScheduler } from "./studyScheduler.js";
+import { cockpitScheduler } from "./cockpitScheduler.js";
 import { getRun } from "./store.js";
 import path from "node:path";
 import fs from "node:fs";
@@ -225,6 +226,7 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   });
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
   studyScheduler.init((payload) => io.emit("learning:progress", payload));
+  cockpitScheduler.init();
   resumeUnfinishedRuns((r) => {
     io.emit("learning:progress", {
       runId: r.id, status: r.status, total: r.total, done: r.done,
