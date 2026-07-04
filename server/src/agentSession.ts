@@ -68,6 +68,9 @@ export class AgentSession extends EventEmitter {
    *  enabledMcps change — read at every spawnClaudeChild call. */
   mcpConfigJson?: string;
   status: SessionStatus = "idle";
+  /** 最後活動時間（毫秒 epoch）。send() 與 result 事件時更新。
+   *  供 agentManager 判斷 idle 子程序是否超過 TTL 而需回收。 */
+  lastActivityAt: number = Date.now();
 
   /** 工作區工作目錄（沙箱）。spawn 時作為 child 的 cwd；未設則回退 process.cwd()。 */
   private cwd?: string;
@@ -110,6 +113,7 @@ export class AgentSession extends EventEmitter {
   }
 
   send(text: string): void {
+    this.lastActivityAt = Date.now(); // 使用者送出訊息，重置 idle 計時器
     console.log(`[AgentSession ${this.id.slice(0,8)}] send (${this.provider}, status=${this.status})`);
     if (this.status === "busy") {
       this.emit("event", { type: "error", payload: "Session is busy" });
@@ -320,6 +324,7 @@ export class AgentSession extends EventEmitter {
     }
     if (evt.type === "result") {
       this.emit("event", { type: "result", payload: evt });
+      this.lastActivityAt = Date.now(); // 回合結束，重置 idle 計時器
       this.setStatus("idle");
       return;
     }

@@ -100,13 +100,27 @@ export function deleteAgentMemory(workspaceId: string, agentId: string): boolean
 
 export function deleteWorkspace(id: string): boolean {
   if (id === DEFAULT_WORKSPACE_ID) return false; // protect default
-  const tx = db.prepare("BEGIN"); tx.run();
+  db.prepare("BEGIN").run();
   try {
+    // messages 透過 session_id 關聯，先刪再刪 sessions
     db.prepare("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE workspace_id = ?)").run(id);
     db.prepare("DELETE FROM sessions WHERE workspace_id = ?").run(id);
     db.prepare("DELETE FROM schedules WHERE workspace_id = ?").run(id);
     db.prepare("DELETE FROM templates WHERE workspace_id = ?").run(id);
     db.prepare("DELETE FROM notes WHERE workspace_id = ?").run(id);
+    // 以下為原本漏刪的表 ——————————————————————————————————————————————
+    db.prepare("DELETE FROM projects WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM workflows WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM workflow_runs WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM agent_memory WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM autonomy_runs WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM pending_actions WHERE workspace_id = ?").run(id);
+    // agent_craft_memory：只刪 workspace-scope 條目；
+    // scope='global'/'legacy-global' 的全域記憶不受工作區刪除影響
+    db.prepare("DELETE FROM agent_craft_memory WHERE workspace_id = ? AND scope = 'workspace'").run(id);
+    db.prepare("DELETE FROM activity_log WHERE workspace_id = ?").run(id);
+    db.prepare("DELETE FROM learning_proposals WHERE workspace_id = ?").run(id);
+    // ——————————————————————————————————————————————————————————————————
     db.prepare("DELETE FROM workspaces WHERE id = ?").run(id);
     db.prepare("COMMIT").run();
     return true;

@@ -108,7 +108,12 @@ agent-id 是 dashboard 的識別碼。命名規則:部門 prefix + 角色,例如
 - 使用者會看到提示並選擇接受或忽略,你只是「建議」
 `;
 
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes — evict closed/error sessions from memory
+/** 閒置 Claude 子程序 TTL：超過後殺掉子程序，但保留 DB 紀錄與 claudeSessionId，
+ *  下次 send() 可透過 --resume 無感恢復。可用 IDLE_SESSION_TTL_MS env 覆蓋（ms）。 */
+const IDLE_SESSION_TTL_MS = process.env.IDLE_SESSION_TTL_MS
+  ? Math.max(0, Number(process.env.IDLE_SESSION_TTL_MS))
+  : 30 * 60 * 1000;
 
 /** 把 tool_call/tool_result 事件寫進 activity_log。回傳寫入 row（供廣播）或 null。 */
 export function recordToolActivity(
@@ -148,12 +153,24 @@ export class AgentManager {
     const now = Date.now();
     for (const [id, session] of this.sessions) {
       if (session.status === "closed" || session.status === "error") {
+        // 已關閉/錯誤的 session — 達到記憶體 TTL 後從 Map 清除
         const closedAt = this.sessionClosedAt.get(id) ?? 0;
         if (now - closedAt > SESSION_TTL_MS) {
           session.removeAllListeners();
           this.sessions.delete(id);
           this.sessionClosedAt.delete(id);
-          console.log(`[agentManager] evicted idle session ${id.slice(0, 8)}`);
+          console.log(`[agentManager] evicted closed session ${id.slice(0, 8)} from memory`);
+        }
+      } else if (session.status === "idle" && session.provider === "claude") {
+        // 閒置 Claude 子程序 TTL 回收：
+        // - 只殺子程序（stop()），DB 紀錄與 claudeSessionId 完整保留
+        // - session 留在 Map 中（status 已變 "closed"），下次 send() 仍可找到它
+        //   並透過 spawnClaudeChild() → --resume 無感恢復
+        // - 絕不回收 busy 狀態（正在執行的對話）
+        if (now - session.lastActivityAt > IDLE_SESSION_TTL_MS) {
+          session.stop(); // 殺子程序，session.status 設為 "closed"
+          this.sessionClosedAt.set(id, now); // 讓既有的記憶體清除路徑接手
+          console.log(`[agentManager] TTL-killed idle claude subprocess for session ${id.slice(0, 8)}`);
         }
       }
     }

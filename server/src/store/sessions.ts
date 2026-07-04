@@ -101,10 +101,18 @@ export function upsertSession(s: SessionRecord): void {
 
   // Only replace messages if a non-empty array was passed (preserves existing
   // messages when caller just wants to update title/tags/etc).
+  // 交易包裹：DELETE + 逐條 INSERT 必須原子完成，防止中途 crash 導致訊息部分遺失。
   if (s.messages && s.messages.length > 0) {
-    db.prepare("DELETE FROM messages WHERE session_id = ?").run(s.id);
-    const ins = db.prepare("INSERT INTO messages (session_id, role, content, ts) VALUES (?, ?, ?, ?)");
-    for (const m of s.messages) ins.run(s.id, m.role, m.content, m.ts);
+    db.prepare("BEGIN").run();
+    try {
+      db.prepare("DELETE FROM messages WHERE session_id = ?").run(s.id);
+      const ins = db.prepare("INSERT INTO messages (session_id, role, content, ts) VALUES (?, ?, ?, ?)");
+      for (const m of s.messages) ins.run(s.id, m.role, m.content, m.ts);
+      db.prepare("COMMIT").run();
+    } catch (e) {
+      db.prepare("ROLLBACK").run();
+      throw e;
+    }
   }
 }
 
@@ -124,8 +132,16 @@ export function setSessionCodexThread(sessionId: string, codexThreadId: string):
 }
 
 export function deleteSession(id: string): void {
-  db.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
-  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+  // 交易包裹：確保 messages + session 同時刪除，避免孤兒訊息或半刪狀態。
+  db.prepare("BEGIN").run();
+  try {
+    db.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+    db.prepare("COMMIT").run();
+  } catch (e) {
+    db.prepare("ROLLBACK").run();
+    throw e;
+  }
 }
 
 export function setSessionProject(sessionId: string, projectId: string | null): void {
