@@ -13,7 +13,7 @@ import {
 import { learningScheduler } from "../learningScheduler.js";
 import {
   parseCategoryAgentId, createLearningRun, executeLearningRun,
-  getLearningRun, runLearningTarget, runResearchTarget,
+  getLearningRun, runLearningTarget, runResearchTarget, persistRun,
 } from "../capabilityLearning.js";
 import { computeTiers } from "../studyTiering.js";
 import { setTierOverride, getLatestReport, listStudySchedules, updateStudySchedule } from "../studyStore.js";
@@ -308,6 +308,8 @@ learningRouter.post("/run", (req, res) => {
     });
   }).catch((e) => {
     run.status = "error";
+    // 同步把 DB 狀態改成 error，否則 DB 停在 running，重啟會被 resume 一直重跑。
+    try { persistRun(run); } catch (pe: any) { console.warn("[capability-learning] persistRun(error) 失敗:", pe?.message || pe); }
     io.emit("learning:progress", {
       runId: run.id, status: run.status, total: run.total, done: run.done,
       current: null, failed: run.failed, createdProposals: run.createdProposals,
@@ -407,6 +409,8 @@ learningRouter.post("/study/run", (req, res) => {
     });
   }).catch((e) => {
     run.status = "error";
+    // 同步把 DB 狀態改成 error，否則 DB 停在 running，重啟會被 resume 一直重跑。
+    try { persistRun(run); } catch (pe: any) { console.warn("[study/run] persistRun(error) 失敗:", pe?.message || pe); }
     io?.emit?.("learning:progress", {
       runId: run.id, status: run.status, total: run.total, done: run.done,
       current: null, failed: run.failed, createdProposals: run.createdProposals,

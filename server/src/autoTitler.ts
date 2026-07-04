@@ -3,7 +3,7 @@
  * session that still has its default title, spawn a quick claude call to
  * generate a concise title + tags, then patch the session.
  */
-import { spawnClaude } from "./claudeProcess.js";
+import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, upsertSession } from "./store.js";
 import { loadAgents } from "./agentLoader.js";
 
@@ -60,23 +60,15 @@ TITLE: 標題
 TAGS: tag1 / tag2 / tag3
 `;
 
-  const child = spawnClaude([
+  // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false（背景任務，靜默略過只 log 一行，絕不拋）。
+  runClaudeOneShot([
     "-p", "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ]);
-
-  let out = "";
-  child.stdout!.on("data", (d) => { out += String(d); });
-  child.stderr!.on("data", () => {});
-  child.stdout!.setEncoding("utf8");
-  child.stdin!.write(Buffer.from(prompt, "utf8"));
-  child.stdin!.end();
-
-  child.on("close", (code) => {
-    if (code !== 0) return;
+  ], { input: prompt, timeoutMs: 180_000 }).then((r) => {
+    if (!r.ok) { console.warn(`[auto-titler] ${sessionId.slice(0, 8)} 失敗：${r.error}`); return; }
     try {
-      const j = JSON.parse(out);
+      const j = JSON.parse(r.stdout);
       const text = String(j.result || "");
       const tm = text.match(/TITLE:\s*(.+)/);
       const gm = text.match(/TAGS:\s*(.+)/);

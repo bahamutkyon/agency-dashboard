@@ -128,41 +128,24 @@ ${transcript.slice(0, 30000)}
 
 只輸出結論本身,不要重複轉述對話。`;
 
-  // Use a one-shot claude call (no agent persona) for cheap/fast summarization
-  const { spawnClaude } = await import("../claudeProcess.js");
-  const child = spawnClaude([
+  // Use a one-shot claude call (no agent persona) for cheap/fast summarization.
+  // 走 runClaudeOneShot：spawn 失敗 / 逾時都會安全回 ok:false，不會 uncaught 崩掉 server。
+  const { runClaudeOneShot } = await import("../claudeOneShot.js");
+  const r = await runClaudeOneShot([
     "-p",
     "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ]);
-
-  let out = "";
-  let err = "";
-  let summarySettled = false;
-  const summaryDone = (code: number | null) => {
-    if (summarySettled) return;
-    summarySettled = true;
-    if (code !== 0) {
-      return res.status(500).json({ error: err || `claude exited ${code}` });
-    }
-    try {
-      const j = JSON.parse(out);
-      res.json({ summary: j.result || "(空)" });
-    } catch (e: any) {
-      res.status(500).json({ error: `parse error: ${e.message}`, raw: out.slice(0, 500) });
-    }
-  };
-  child.stdout!.setEncoding("utf8");
-  child.stdout!.on("data", (d) => {
-    out += String(d);
-    if (out.length > 5_000_000) { child.kill(); if (!summarySettled) { summarySettled = true; res.status(500).json({ error: "輸出超過上限" }); } }
-  });
-  child.stderr!.on("data", (d) => { err += String(d); });
-  child.stdin!.write(Buffer.from(prompt, "utf8"));
-  child.stdin!.end();
-
-  child.on("close", summaryDone);
+  ], { input: prompt, timeoutMs: 180_000 });
+  if (!r.ok) {
+    return res.status(500).json({ error: r.error || "claude 失敗" });
+  }
+  try {
+    const j = JSON.parse(r.stdout);
+    res.json({ summary: j.result || "(空)" });
+  } catch (e: any) {
+    res.status(500).json({ error: `parse error: ${e.message}`, raw: r.stdout.slice(0, 500) });
+  }
 });
 
 // =========== Agent Memory(同事記憶 / Layer 2) ===========
@@ -290,36 +273,20 @@ ${labelled.slice(0, 25000)}
 
 用繁體中文,Markdown 結構化。`;
 
-  const { spawnClaude } = await import("../claudeProcess.js");
-  const child = spawnClaude([
+  // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false，不會 uncaught 崩掉 server。
+  const { runClaudeOneShot } = await import("../claudeOneShot.js");
+  const r = await runClaudeOneShot([
     "-p", "--output-format", "json",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ]);
-
-  let out = ""; let err = "";
-  let mergeSettled = false;
-  const mergeDone = (code: number | null) => {
-    if (mergeSettled) return;
-    mergeSettled = true;
-    if (code !== 0) return res.status(500).json({ error: err || `exit ${code}` });
-    try {
-      const j = JSON.parse(out);
-      res.json({ merged: j.result || "(空)" });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  };
-  child.stdout!.setEncoding("utf8");
-  child.stdout!.on("data", (d) => {
-    out += String(d);
-    if (out.length > 5_000_000) { child.kill(); if (!mergeSettled) { mergeSettled = true; res.status(500).json({ error: "輸出超過上限" }); } }
-  });
-  child.stderr!.on("data", (d) => { err += String(d); });
-  child.stdin!.write(Buffer.from(mergePrompt, "utf8"));
-  child.stdin!.end();
-
-  child.on("close", mergeDone);
+  ], { input: mergePrompt, timeoutMs: 180_000 });
+  if (!r.ok) return res.status(500).json({ error: r.error || "claude 失敗" });
+  try {
+    const j = JSON.parse(r.stdout);
+    res.json({ merged: j.result || "(空)" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Orchestrator (Project Manager) — uses the built-in `agents-orchestrator`

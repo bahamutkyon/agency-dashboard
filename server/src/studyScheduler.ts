@@ -33,6 +33,8 @@ export async function runScheduledTier(
 class StudyScheduler {
   private tasks = new Map<string, ScheduledTask>();
   private sink: Sink = () => {};
+  // overlap guard：同一層（hot/cold）上一輪還在跑就跳過本次，避免慢排程堆疊、併發打 claude。
+  private running = new Set<string>();
 
   /** server 啟動時呼叫一次，注入 socket 進度推送函式。 */
   init(sink: Sink) {
@@ -47,8 +49,15 @@ class StudyScheduler {
     for (const s of listStudySchedules()) {
       if (s.enabled && cron.validate(s.cron)) {
         const task = cron.schedule(s.cron, () => {
-          runScheduledTier(s.tier, s.perRunCap, runResearchTarget, this.sink).catch((e) =>
-            console.warn(`[study-scheduler] ${s.tier} failed:`, e?.message || e));
+          // overlap guard：同一層上一輪還在跑就跳過本次。
+          if (this.running.has(s.tier)) {
+            console.log(`[study-scheduler] SKIP ${s.tier}（上一輪仍在跑）`);
+            return;
+          }
+          this.running.add(s.tier);
+          runScheduledTier(s.tier, s.perRunCap, runResearchTarget, this.sink)
+            .catch((e) => console.warn(`[study-scheduler] ${s.tier} failed:`, e?.message || e))
+            .finally(() => this.running.delete(s.tier));
         }, { timezone: process.env.SCHEDULER_TZ || "Asia/Taipei" });
         this.tasks.set(s.tier, task);
         console.log(`[study-scheduler] registered ${s.tier} (${s.cron})`);

@@ -202,8 +202,12 @@ function insertRunToDB(run: LearningRun): void {
   );
 }
 
-/** 把 LearningRun 的當前狀態 UPDATE 進 DB（每次進度變化時呼叫）。 */
-function persistRun(run: LearningRun): void {
+/**
+ * 把 LearningRun 的當前狀態 UPDATE 進 DB（每次進度變化時呼叫）。
+ * export 供 routes 的背景執行 catch 區塊在失敗時把 DB 狀態一起改成 error，
+ * 否則 DB 停在 running，server 重啟會被 resumeUnfinishedRuns 一直撿回來重跑。
+ */
+export function persistRun(run: LearningRun): void {
   db.prepare(`
     UPDATE learning_runs
     SET status = ?, done = ?, current = ?, failed = ?, created_proposals = ?, updated_at = ?

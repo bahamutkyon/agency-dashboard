@@ -13,6 +13,8 @@ type ProgressSink = (payload: any) => void;
 class LearningScheduler {
   private tasks = new Map<string, ScheduledTask>();
   private sink: ProgressSink = () => {};
+  // overlap guard：同一排程上一輪還在跑就跳過本次，避免慢排程堆疊、重複學習/併發打 claude。
+  private running = new Set<string>();
 
   /** server 啟動時呼叫一次，注入 socket 進度推送函式。 */
   init(sink: ProgressSink) {
@@ -46,6 +48,12 @@ class LearningScheduler {
   private async fire(id: string) {
     const s = getLearningSchedule(id);
     if (!s || !s.enabled || s.targets.length === 0) return;
+    // overlap guard：上一輪同排程還在跑就跳過本次。
+    if (this.running.has(id)) {
+      console.log(`[learning-scheduler] SKIP "${s.name}"（上一輪仍在跑）`);
+      return;
+    }
+    this.running.add(id);
     console.log(`[learning-scheduler] FIRE "${s.name}" (${s.targets.length} targets)`);
     upsertLearningSchedule({ ...s, lastRunAt: Date.now() });
     const run = createLearningRun(s.targets);
@@ -57,6 +65,8 @@ class LearningScheduler {
       }));
     } catch (e: any) {
       console.warn(`[learning-scheduler] run "${s.name}" failed:`, e?.message || e);
+    } finally {
+      this.running.delete(id);
     }
   }
 }

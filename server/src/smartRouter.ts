@@ -207,6 +207,12 @@ Respond with JSON only (no commentary):
       clearTimeout(timeout);
       resolve({ provider: "claude", reason: fallbackReason, source: "fallback" });
     };
+    // 掛 error handler：spawn 失敗（ENOENT / PATH 漂移）時 error 是 EventEmitter error 事件，
+    // 未處理會變成 uncaught exception 讓整台 server 崩潰。這裡安全退回 Claude 分流。
+    child.on("error", (e) => {
+      console.warn(`[smartRouter] spawn 失敗，退回 Claude：${e?.message || e}`);
+      routerFail("LLM 分類程序啟動失敗,預設使用 Claude"); // routerFail 內部會 clearTimeout
+    });
     child.stdout!.setEncoding("utf8");
     child.stderr!.setEncoding("utf8");
     child.stdout!.on("data", (d) => {

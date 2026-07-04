@@ -10,7 +10,7 @@
  *   - 結果**取代**舊 memory,不是 append(避免無限累積)
  *   - 蒸餾失敗不噴錯給使用者,只 log
  */
-import { spawnClaude } from "./claudeProcess.js";
+import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, getAgentMemory, setAgentMemory } from "./store.js";
 import { loadAgents } from "./agentLoader.js";
 
@@ -87,48 +87,36 @@ ${transcript.slice(0, 12000)}
 
 請直接輸出新版同事記憶 markdown,不要解釋,不要 code fence:`;
 
-  return new Promise((resolve) => {
-    // Use Haiku for cost — fast & cheap; this is a background distillation task
-    const child = spawnClaude([
-      "-p", "--output-format", "json",
-      "--model", "claude-haiku-4-5-20251001",
-      "--no-session-persistence",
-      "--disable-slash-commands",
-    ]);
+  // Use Haiku for cost — fast & cheap; this is a background distillation task。
+  // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false，只 log 不拋（背景任務不該崩 server）。
+  const r = await runClaudeOneShot([
+    "-p", "--output-format", "json",
+    "--model", "claude-haiku-4-5-20251001",
+    "--no-session-persistence",
+    "--disable-slash-commands",
+  ], { input: prompt, timeoutMs: 180_000 });
 
-    let out = "";
-    child.stdout!.on("data", (d) => { out += String(d); });
-    child.stderr!.on("data", () => {});
-    child.stdout!.setEncoding("utf8");
-    child.stdin!.write(Buffer.from(prompt, "utf8"));
-    child.stdin!.end();
+  if (!r.ok) {
+    console.warn(`[memoryDistiller] claude 失敗 for session ${sessionId.slice(0, 8)}: ${r.error}`);
+    return { ok: false, error: r.error || "claude 失敗" };
+  }
+  try {
+    const j = JSON.parse(r.stdout);
+    const text = String(j.result || "").trim();
+    if (!text) {
+      return { ok: false, error: "空回應" };
+    }
+    // Strip leading/trailing markdown code fences if present
+    const cleaned = text
+      .replace(/^```(?:markdown|md)?\s*\n?/i, "")
+      .replace(/\n?```\s*$/i, "")
+      .trim();
 
-    child.on("close", (code) => {
-      if (code !== 0) {
-        console.warn(`[memoryDistiller] claude exit ${code} for session ${sessionId.slice(0, 8)}`);
-        resolve({ ok: false, error: `claude exit ${code}` });
-        return;
-      }
-      try {
-        const j = JSON.parse(out);
-        const text = String(j.result || "").trim();
-        if (!text) {
-          resolve({ ok: false, error: "空回應" });
-          return;
-        }
-        // Strip leading/trailing markdown code fences if present
-        const cleaned = text
-          .replace(/^```(?:markdown|md)?\s*\n?/i, "")
-          .replace(/\n?```\s*$/i, "")
-          .trim();
-
-        setAgentMemory(workspaceId, agentId, cleaned, sessionId);
-        console.log(`[memoryDistiller] updated memory for (${workspaceId}, ${agentId}) — ${cleaned.length} chars`);
-        resolve({ ok: true, newMemory: cleaned });
-      } catch (e: any) {
-        console.warn("[memoryDistiller] parse failed:", e.message);
-        resolve({ ok: false, error: e.message });
-      }
-    });
-  });
+    setAgentMemory(workspaceId, agentId, cleaned, sessionId);
+    console.log(`[memoryDistiller] updated memory for (${workspaceId}, ${agentId}) — ${cleaned.length} chars`);
+    return { ok: true, newMemory: cleaned };
+  } catch (e: any) {
+    console.warn("[memoryDistiller] parse failed:", e.message);
+    return { ok: false, error: e.message };
+  }
 }
