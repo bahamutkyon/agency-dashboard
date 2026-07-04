@@ -38,6 +38,13 @@ export function cleanupOrphanPromptFiles() {
 export type Provider = "claude" | "codex" | "gemini";
 export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
 
+/** send() 的結果：
+ *  - "sent"     ：session 空閒，已立即送出（觸發本回合）
+ *  - "queued"   ：session 忙碌，已排入佇列，回到 idle 時會自動抽出送達（不再丟棄）
+ *  - "rejected" ：佇列已滿（異常保護），本則未排入、未送出
+ */
+export type SendResult = "sent" | "queued" | "rejected";
+
 export interface SessionEvent {
   type: "delta" | "message" | "status" | "error" | "result" | "tool_call" | "tool_result";
   payload: any;
@@ -74,6 +81,16 @@ export class AgentSession extends EventEmitter {
 
   /** 工作區工作目錄（沙箱）。spawn 時作為 child 的 cwd；未設則回退 process.cwd()。 */
   private cwd?: string;
+
+  /**
+   * 忙碌時進來的訊息佇列（FIFO）。舊行為是 busy 就 emit error 並「丟棄」該訊息，
+   * 造成「DB 歷史有這句、模型沒收到」的永久不一致（尤其派工回報 EXEC_REPORT
+   * 在 PM 忙碌時直接消失、永不轉達）。改為排隊：回到 idle 時抽一則自動送出，
+   * 呼叫端不必再關心 busy。
+   */
+  private queue: string[] = [];
+  /** 佇列上限。超過視為異常堆積（呼叫端瘋狂灌訊息），emit error 並拒收溢出，避免失控。 */
+  private static readonly MAX_QUEUE = 50;
 
   // Claude-specific state
   claudeSessionId?: string;
@@ -112,13 +129,25 @@ export class AgentSession extends EventEmitter {
     this.cwd = cwd;
   }
 
-  send(text: string): void {
+  send(text: string): SendResult {
     this.lastActivityAt = Date.now(); // 使用者送出訊息，重置 idle 計時器
     console.log(`[AgentSession ${this.id.slice(0,8)}] send (${this.provider}, status=${this.status})`);
-    if (this.status === "busy") {
-      this.emit("event", { type: "error", payload: "Session is busy" });
-      return;
+    // busy / starting（回合進行中）→ 排隊而非丟棄。回到 idle 時 drainQueue() 抽出送達。
+    if (this.status === "busy" || this.status === "starting") {
+      if (this.queue.length >= AgentSession.MAX_QUEUE) {
+        this.emit("event", { type: "error", payload: `送信佇列已滿（>${AgentSession.MAX_QUEUE}），本則訊息未排入` });
+        return "rejected";
+      }
+      this.queue.push(text);
+      console.log(`[AgentSession ${this.id.slice(0,8)}] busy → 排隊（queue=${this.queue.length}）`);
+      return "queued";
     }
+    this.dispatch(text);
+    return "sent";
+  }
+
+  /** 實際把一則訊息送給對應 provider（不做 busy 判斷；呼叫端已確保可送）。 */
+  private dispatch(text: string): void {
     if (this.provider === "claude") {
       if (!this.child) this.spawnClaudeChild();
       this.writeClaudeMessage(text);
@@ -130,10 +159,28 @@ export class AgentSession extends EventEmitter {
     }
   }
 
+  /**
+   * 回到 idle 時抽一則佇列訊息送出（觸發下一回合）。一次只抽一則——送出後 status
+   * 轉回 busy，剩餘的等下一次回到 idle 再抽，天然序列化、依序送達，不會併發灌爆子程序。
+   */
+  private drainQueue(): void {
+    if (this.status !== "idle") return;
+    const next = this.queue.shift();
+    if (next === undefined) return;
+    console.log(`[AgentSession ${this.id.slice(0,8)}] idle → 抽出佇列訊息送出（剩 ${this.queue.length}）`);
+    this.dispatch(next);
+  }
+
   stop(): void {
     if (this.child) {
       try { this.child.kill(); } catch {}
       this.child = undefined;
+    }
+    // 明確 teardown：清掉未送出的佇列，避免 closed 狀態下佇列永遠不會被抽乾而變死佇列。
+    // （TTL 回收的 idle session 佇列為空；真正未送的訊息也不會殘留在記憶體。）
+    if (this.queue.length) {
+      console.warn(`[AgentSession ${this.id.slice(0,8)}] stop() 清掉 ${this.queue.length} 則未送佇列訊息`);
+      this.queue = [];
     }
     this.cleanupPromptFile();
     this.setStatus("closed");
@@ -161,6 +208,9 @@ export class AgentSession extends EventEmitter {
   private setStatus(s: SessionStatus) {
     this.status = s;
     this.emit("event", { type: "status", payload: s });
+    // 回到 idle 是唯一的抽佇列時機：涵蓋 claude(result 事件) 與 codex/gemini(child close)
+    // 三種 backend 的回合結束路徑，確保「idle 時佇列一定會被抽乾」，無死佇列。
+    if (s === "idle") this.drainQueue();
   }
 
   // ============== Claude backend ==============

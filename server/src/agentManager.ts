@@ -378,10 +378,6 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       }
     }
 
-    // Persist the original (clean) user message — don't bloat history with
-    // auto-injected note context.
-    appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });
-
     // Auto-inject relevant workspace notes into what we actually send to claude.
     const wsId = (s as any).workspaceId as string | undefined;
     let augmented = text;
@@ -395,7 +391,19 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         injectedNotes = relevant.map((n) => ({ title: n.title }));
       }
     }
-    s.send(augmented);
+
+    // 先送（或排隊）再落庫：只有 session 確實接受了訊息（sent / queued，兩者都保證
+    // 最終會送達模型——busy 現在會排隊、回 idle 抽乾）才把使用者訊息寫入 DB。
+    // 這樣杜絕舊有的「落庫了但因 busy 被丟棄、永遠不會送」的 DB↔模型永久分岔。
+    // 唯一不落庫的情況是 rejected（佇列爆滿的異常保護），此時本就沒送出。
+    const result = s.send(augmented);
+    if (result === "rejected") {
+      return { ok: false };
+    }
+
+    // Persist the original (clean) user message — don't bloat history with
+    // auto-injected note context.
+    appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });
     return { ok: true, injectedNotes };
   }
 
