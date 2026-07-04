@@ -49,3 +49,10 @@ skills-awesome-zh/
 # Git worktrees(隔離工作區,不進 repo)
 .worktrees/
 
+# 臨時備份與生成物
+*.bak
+*.migrated
+**/data/_incident_backup_*/
+**/*.db-wal
+**/*.db-shm
+
