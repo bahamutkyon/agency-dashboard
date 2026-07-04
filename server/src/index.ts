@@ -7,7 +7,8 @@ import { agentManager } from "./agentManager.js";
 import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { scheduler } from "./scheduler.js";
 import { workflowRunner, reconcileWorkflowRunsOnBoot } from "./workflowRunner.js";
-import { loadRemoteConfig, buildRemoteAccessMiddleware } from "./remoteAccess.js";
+import { loadRemoteConfig, buildRemoteAccessMiddleware, isIpAllowed, normalizeIp } from "./remoteAccess.js";
+import { isOriginAllowed } from "./originGuard.js";
 import { resumeUnfinishedRuns } from "./capabilityLearning.js";
 import { learningScheduler } from "./learningScheduler.js";
 import { studyScheduler } from "./studyScheduler.js";
@@ -42,9 +43,27 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app = express();
 app.set("trust proxy", "loopback");  // for accurate req.ip behind localhost
-app.use(cors());
+// CORS: reflect only trusted origins (localhost / Tailscale / LAN / env
+// allowlist). This stops evil.com from reading responses. Simple requests
+// (e.g. a form POST) aren't blocked by CORS, so we add a hard Origin check
+// below for state-changing methods.
+app.use(cors({ origin: (o, cb) => cb(null, isOriginAllowed(o)), credentials: true }));
 app.use(express.json({ limit: "20mb" })); // bumped for base64 file uploads
 app.use(buildRemoteAccessMiddleware(REMOTE_CFG));
+
+// Anti drive-by hard block: any state-changing request (non GET/HEAD/OPTIONS)
+// carrying an untrusted Origin is rejected outright — CORS alone cannot stop
+// the side effects of a cross-site simple POST. GET/HEAD are read-only and a
+// missing Origin means native/same-origin (see originGuard rationale).
+app.use((req, res, next) => {
+  const m = req.method;
+  if (m === "GET" || m === "HEAD" || m === "OPTIONS") return next();
+  if (!isOriginAllowed(req.headers.origin)) {
+    console.warn(`[originGuard] blocked ${m} ${req.path} origin=${req.headers.origin}`);
+    return res.status(403).json({ error: "origin not allowed" });
+  }
+  return next();
+});
 
 // 服務 server/data/uploads/ 下的檔案(使用者拖曳上傳的 + agent 截圖)
 // 讓 <img src="/api/uploads/xxx.png"> 在對話內 inline 顯示
@@ -103,7 +122,43 @@ app.use("/api/cockpit", cockpitRouter);
 // --- HTTP server + Socket.IO ---
 
 const server = createServer(app);
-const io = new SocketServer(server, { cors: { origin: "*" } });
+const io = new SocketServer(server, {
+  // Same Origin trust decision as HTTP; reflect only allowed origins.
+  cors: { origin: (o, cb) => cb(null, isOriginAllowed(o)), credentials: true },
+  // engine.io handshake gate: reject websocket upgrades from unknown origins
+  // before any socket event can run (blocks drive-by session:send).
+  allowRequest: (req, cb) => {
+    const ok = isOriginAllowed(req.headers.origin);
+    cb(ok ? null : "origin not allowed", ok);
+  },
+});
+
+// Remote-access enforcement for websockets. The Express IP/token middleware
+// does NOT cover socket.io, so replicate it at the handshake layer. Only active
+// when remote access is enabled — local-only mode (bound to 127.0.0.1) stays
+// wide open so localhost keeps working with zero friction.
+io.use((socket, next) => {
+  if (!REMOTE_CFG.enabled) return next();
+  const ip = normalizeIp(socket.handshake.address || "");
+  if (!isIpAllowed(ip, REMOTE_CFG.allowRanges)) {
+    console.warn(`[remoteAccess/ws] denied IP=${ip}`);
+    return next(new Error("IP not allowed"));
+  }
+  const token = process.env.ACCESS_TOKEN;
+  if (token) {
+    const auth = socket.handshake.auth || {};
+    const q = socket.handshake.query || {};
+    const provided =
+      (typeof auth.token === "string" && auth.token) ||
+      (typeof q.token === "string" ? q.token : Array.isArray(q.token) ? q.token[0] : "") ||
+      "";
+    if (!provided || provided !== token) {
+      console.warn(`[remoteAccess/ws] bad token from ${ip}`);
+      return next(new Error("missing or invalid access token"));
+    }
+  }
+  return next();
+});
 
 // Make io accessible to routers via req.app.get("io")
 app.set("io", io);

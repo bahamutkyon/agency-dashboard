@@ -15,6 +15,7 @@
  * as Claude Code. No API key needed for our user (Plus subscription).
  */
 import { spawn, execSync, ChildProcess } from "node:child_process";
+import { sanitizedChildEnv } from "./childEnv.js";
 
 let CODEX_PATH: string | null = null;
 let CODEX_AVAILABLE: boolean | null = null;
@@ -89,7 +90,7 @@ export function spawnCodexTurn(opts: CodexTurnOptions): ChildProcess {
 
   const child = spawn(fullPath, args, {
     cwd: opts.cwd || process.cwd(),
-    env: process.env,
+    env: sanitizedChildEnv(),
     stdio: ["pipe", "pipe", "pipe"],
     // shell:true needed on Windows to find/run codex.cmd through PATHEXT
     shell: process.platform === "win32",

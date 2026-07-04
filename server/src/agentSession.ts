@@ -7,6 +7,7 @@ import { v4 as uuid } from "uuid";
 import { spawnClaude } from "./claudeProcess.js";
 import { spawnCodexTurn, parseCodexLine } from "./codexProcess.js";
 import { spawnGeminiTurn, parseGeminiLine } from "./geminiProcess.js";
+import { sanitizedChildEnv } from "./childEnv.js";
 
 /**
  * Claude CLI 的 --append-system-prompt 走命令列 arg，Windows CreateProcessW
@@ -197,7 +198,7 @@ export class AgentSession extends EventEmitter {
     this.setStatus("starting");
     const child = spawnClaude(args, {
       cwd: opts?.cwd || this.cwd || process.cwd(),
-      env: process.env,
+      env: sanitizedChildEnv(),
     });
     child.stdout!.setEncoding("utf8");
     child.stderr!.setEncoding("utf8");

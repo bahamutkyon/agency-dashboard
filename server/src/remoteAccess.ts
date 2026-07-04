@@ -86,7 +86,7 @@ function ipv4ToInt(ip: string): number | null {
   return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
 }
 
-function matchesCidr(ip: string, cidr: string): boolean {
+export function matchesCidr(ip: string, cidr: string): boolean {
   if (!cidr.includes("/")) {
     // single IP
     return ip === cidr;
@@ -102,7 +102,7 @@ function matchesCidr(ip: string, cidr: string): boolean {
   return (ipNum & mask) === (baseNum & mask);
 }
 
-function normalizeIp(ip: string | undefined): string {
+export function normalizeIp(ip: string | undefined): string {
   if (!ip) return "";
   // Express may give "::ffff:192.168.1.5" for IPv4 over IPv6
   if (ip.startsWith("::ffff:")) return ip.slice(7);

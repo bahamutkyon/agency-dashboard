@@ -19,6 +19,7 @@
  * ourselves to avoid project-coupling weirdness.
  */
 import { spawn, execSync, ChildProcess } from "node:child_process";
+import { sanitizedChildEnv } from "./childEnv.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
@@ -136,7 +137,7 @@ export function spawnGeminiTurn(opts: GeminiTurnOptions): ChildProcess {
   if (jsPath) {
     child = spawn(process.execPath, [jsPath, ...args], {
       cwd: cleanCwd,
-      env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: "true" },
+      env: { ...sanitizedChildEnv(), GEMINI_CLI_TRUST_WORKSPACE: "true" },
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
@@ -144,7 +145,7 @@ export function spawnGeminiTurn(opts: GeminiTurnOptions): ChildProcess {
   } else {
     child = spawn(fullPath, args, {
       cwd: cleanCwd,
-      env: { ...process.env, GEMINI_CLI_TRUST_WORKSPACE: "true" },
+      env: { ...sanitizedChildEnv(), GEMINI_CLI_TRUST_WORKSPACE: "true" },
       stdio: ["pipe", "pipe", "pipe"],
       shell: process.platform === "win32",
       windowsHide: true,
