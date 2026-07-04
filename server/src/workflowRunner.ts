@@ -20,6 +20,7 @@ import { EventEmitter } from "node:events";
 import { agentManager } from "./agentManager.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
+  listWorkflowRunsByStatus,
   MAX_LOOP_ITERATIONS,
   type Workflow, type WorkflowRun, type WorkflowStep, type Provider,
 } from "./store.js";
@@ -452,3 +453,20 @@ export function descendantsOf(id: string, steps: WorkflowStep[]): Set<string> {
 }
 
 export const workflowRunner = new WorkflowRunner();
+
+/**
+ * 開機對帳：把 DB 裡 status='running' 或 status='paused' 的 workflow_runs
+ * 標記為 'error'（in-memory AbortController/paused Map 重啟後已消失，無法安全繼續）。
+ * 比照 autonomyRunner.pauseRunningRunsOnBoot 模式。
+ * 回傳受影響的 run 數。
+ */
+export function reconcileWorkflowRunsOnBoot(): number {
+  const running = listWorkflowRunsByStatus("running");
+  const paused = listWorkflowRunsByStatus("paused");
+  const total = running.length + paused.length;
+  const msg = "server restarted — 請重新啟動 workflow run";
+  for (const r of [...running, ...paused]) {
+    updateRun(r.id, { status: "error", error: msg, endedAt: Date.now() });
+  }
+  return total;
+}

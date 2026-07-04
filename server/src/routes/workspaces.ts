@@ -8,7 +8,9 @@ import {
   listSchedules,
   upsertWorkflow,
   DEFAULT_WORKSPACE_ID,
+  type WorkflowStep,
 } from "../store.js";
+import { normalizeSteps, validateGraph } from "../workflowRunner.js";
 import { scheduler } from "../scheduler.js";
 import { launchWorkspaceChrome, stopWorkspaceChrome, findPortConflict } from "../chromeLauncher.js";
 import { v4 as uuid } from "uuid";
@@ -378,13 +380,31 @@ workflowDraftRouter.post("/draft/apply", (req, res) => {
     }
     if (!s.prompt) return res.status(400).json({ error: "step missing prompt" });
   }
+  // Preserve all DAG fields (id, dependsOn, dependsOnMode, pauseBefore,
+  // skipIfMatch, retries, provider); normalize ids/deps; validate graph.
+  const rawSteps: WorkflowStep[] = (workflow.steps || []).map((s: any) => {
+    const step: WorkflowStep = { agentId: s.agentId, prompt: s.prompt };
+    if (s.id !== undefined) step.id = s.id;
+    if (s.dependsOn !== undefined) step.dependsOn = s.dependsOn;
+    if (s.dependsOnMode !== undefined) step.dependsOnMode = s.dependsOnMode;
+    if (s.pauseBefore !== undefined) step.pauseBefore = s.pauseBefore;
+    if (s.skipIfMatch !== undefined) step.skipIfMatch = s.skipIfMatch;
+    if (s.retries !== undefined) step.retries = s.retries;
+    if (s.provider !== undefined) step.provider = s.provider;
+    return step;
+  });
+  const normalizedSteps = normalizeSteps(rawSteps);
+  const graphError = validateGraph(normalizedSteps);
+  if (graphError) return res.status(400).json({ error: graphError });
+
   const now = Date.now();
   const wf = {
     id: uuid(),
     workspaceId,
     name: workflow.name,
     description: workflow.description || "",
-    steps: workflow.steps.map((s: any) => ({ agentId: s.agentId, prompt: s.prompt })),
+    maxConcurrency: workflow.maxConcurrency,
+    steps: normalizedSteps,
     createdAt: now,
     updatedAt: now,
   };

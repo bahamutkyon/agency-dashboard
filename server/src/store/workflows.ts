@@ -102,3 +102,9 @@ export function updateRun(id: string, patch: Partial<Pick<WorkflowRun, "status" 
     next.error || null, next.endedAt || null, id,
   );
 }
+
+/** 列出所有狀態為指定值的 workflow_runs（跨所有 workflow）。用於開機對帳。 */
+export function listWorkflowRunsByStatus(status: WorkflowRun["status"]): WorkflowRun[] {
+  const rows = db.prepare("SELECT * FROM workflow_runs WHERE status = ?").all(status) as any[];
+  return rows.map(rowToRun);
+}

@@ -6,7 +6,7 @@ import { loadAgents } from "./agentLoader.js";
 import { agentManager } from "./agentManager.js";
 import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { scheduler } from "./scheduler.js";
-import { workflowRunner } from "./workflowRunner.js";
+import { workflowRunner, reconcileWorkflowRunsOnBoot } from "./workflowRunner.js";
 import { loadRemoteConfig, buildRemoteAccessMiddleware } from "./remoteAccess.js";
 import { resumeUnfinishedRuns } from "./capabilityLearning.js";
 import { learningScheduler } from "./learningScheduler.js";
@@ -235,6 +235,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   });
   const pausedCount = pauseRunningRunsOnBoot(listActiveRuns);
   if (pausedCount) console.log(`[autonomy] 重啟：${pausedCount} 個 run 轉為 paused（待使用者續跑/停止）`);
+  const wfErrorCount = reconcileWorkflowRunsOnBoot();
+  if (wfErrorCount) console.log(`[workflow] 重啟：${wfErrorCount} 個 run 已標記為 error（請重新執行）`);
   workflowRunner.on("update", (runId: string) => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);

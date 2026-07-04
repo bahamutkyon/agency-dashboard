@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
-import { deleteWorkspace, deleteSession, upsertSession, getSession, DEFAULT_WORKSPACE_ID } from "./store.js";
+import { deleteWorkspace, deleteSession, upsertSession, getSession, DEFAULT_WORKSPACE_ID, createRun, getRun, updateRun, deleteWorkflow } from "./store.js";
 import { createPendingAction, getPendingAction } from "./store/autonomy.js";
+import { reconcileWorkflowRunsOnBoot } from "./workflowRunner.js";
 
 // HTTP 端點 smoke 測試：用 ephemeral 埠（listen(0)）起一個臨時 server 打真實路由，
 // 不撞正在跑的 dev server、不需新依賴。會寫 DB 的測試（建工作區/session）在 afterAll
@@ -12,6 +13,7 @@ let server: Server;
 let base: string;
 const createdWorkspaceIds: string[] = [];
 const createdSessionIds: string[] = [];
+const createdWorkflowIds: string[] = [];
 
 beforeAll(async () => {
   server = app.listen(0);
@@ -27,6 +29,9 @@ afterAll(() => {
   }
   for (const id of createdSessionIds) {
     try { deleteSession(id); } catch { /* ignore */ }
+  }
+  for (const id of createdWorkflowIds) {
+    try { deleteWorkflow(id); } catch { /* ignore */ }
   }
   server?.close();
 });
@@ -286,5 +291,129 @@ describe("HTTP 端點 smoke", () => {
     expect(r.status).toBe(200);
     const j = (await r.json()) as { ok: boolean };
     expect(j.ok).toBe(true);
+  });
+
+  // ── 問題 A：draft/apply 保留 DAG 欄位 ────────────────────────────────────
+  it("POST /api/workflow/draft/apply 保留 DAG 欄位（id/dependsOn/pauseBefore/maxConcurrency）", async () => {
+    // 取第一個可用 agentId（避免硬編碼不存在的 agent）
+    const agentsResp = await fetch(`${base}/api/agents`);
+    const { agents } = (await agentsResp.json()) as { agents: { id: string }[] };
+    if (agents.length === 0) return; // 若無 agent 跳過
+    const agentId = agents[0].id;
+
+    const resp = await fetch(`${base}/api/workflow/draft/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "test-session-dag",
+        workspaceId: DEFAULT_WORKSPACE_ID,
+        workflow: {
+          name: "__test DAG workflow__",
+          description: "test",
+          maxConcurrency: 3,
+          steps: [
+            { id: "step_a", agentId, prompt: "First step" },
+            { id: "step_b", agentId, dependsOn: ["step_a"], pauseBefore: true, prompt: "Second {{step_a.out}}" },
+          ],
+        },
+      }),
+    });
+    expect(resp.status).toBe(200);
+    const wf = (await resp.json()) as any;
+    expect(wf.id).toBeTruthy();
+    createdWorkflowIds.push(wf.id);
+
+    // 頂層 maxConcurrency 保留
+    expect(wf.maxConcurrency).toBe(3);
+
+    // step_a：id 正確
+    const stepA = (wf.steps as any[]).find((s: any) => s.id === "step_a");
+    expect(stepA).toBeDefined();
+
+    // step_b：DAG 欄位保留
+    const stepB = (wf.steps as any[]).find((s: any) => s.id === "step_b");
+    expect(stepB).toBeDefined();
+    expect(stepB.dependsOn).toEqual(["step_a"]);
+    expect(stepB.pauseBefore).toBe(true);
+  });
+
+  it("POST /api/workflow/draft/apply 循環依賴 → 400", async () => {
+    const agentsResp = await fetch(`${base}/api/agents`);
+    const { agents } = (await agentsResp.json()) as { agents: { id: string }[] };
+    if (agents.length === 0) return;
+    const agentId = agents[0].id;
+
+    const resp = await fetch(`${base}/api/workflow/draft/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "test-cycle",
+        workspaceId: DEFAULT_WORKSPACE_ID,
+        workflow: {
+          name: "__test cycle__",
+          steps: [
+            { id: "a", agentId, prompt: "a", dependsOn: ["b"] },
+            { id: "b", agentId, prompt: "b", dependsOn: ["a"] },
+          ],
+        },
+      }),
+    });
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error: string };
+    expect(body.error).toMatch(/循環|cycle/i);
+  });
+
+  it("POST /api/workflow/draft/apply 依賴不存在的 step → 400", async () => {
+    const agentsResp = await fetch(`${base}/api/agents`);
+    const { agents } = (await agentsResp.json()) as { agents: { id: string }[] };
+    if (agents.length === 0) return;
+    const agentId = agents[0].id;
+
+    const resp = await fetch(`${base}/api/workflow/draft/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "test-missing-dep",
+        workspaceId: DEFAULT_WORKSPACE_ID,
+        workflow: {
+          name: "__test missing dep__",
+          steps: [
+            { id: "a", agentId, prompt: "a", dependsOn: ["nonexistent"] },
+          ],
+        },
+      }),
+    });
+    expect(resp.status).toBe(400);
+  });
+});
+
+// ── 問題 B：workflow run 開機對帳 ──────────────────────────────────────────
+describe("workflow run 開機對帳", () => {
+  it("reconcileWorkflowRunsOnBoot 把 running 的 workflow_run 轉為 error", () => {
+    // 直接用 store 建一個 running run（fake workflowId，FK 未強制）
+    const run = createRun("fake-wf-reconcile-test", DEFAULT_WORKSPACE_ID);
+    expect(run.status).toBe("running");
+
+    const count = reconcileWorkflowRunsOnBoot();
+    expect(count).toBeGreaterThan(0);
+
+    const updated = getRun(run.id);
+    expect(updated?.status).toBe("error");
+    expect(updated?.error).toBeTruthy();
+    expect(updated?.endedAt).toBeTruthy();
+  });
+
+  it("reconcileWorkflowRunsOnBoot 把 paused 的 workflow_run 也轉為 error", () => {
+    // 先建 running run，再手動改成 paused，再 reconcile
+    const run = createRun("fake-wf-reconcile-paused", DEFAULT_WORKSPACE_ID);
+    updateRun(run.id, { status: "paused" });
+    const before = getRun(run.id);
+    expect(before?.status).toBe("paused");
+
+    const count = reconcileWorkflowRunsOnBoot();
+    expect(count).toBeGreaterThan(0);
+
+    const updated = getRun(run.id);
+    expect(updated?.status).toBe("error");
   });
 });
