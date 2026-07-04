@@ -44,3 +44,18 @@ export function getLatestBriefing(): BriefingRow | null {
     createdAt: r.created_at,
   };
 }
+
+export function getLatestOkBriefing(): BriefingRow | null {
+  const r = db.prepare(
+    `SELECT * FROM cockpit_briefings WHERE status='ok' ORDER BY created_at DESC, rowid DESC LIMIT 1`
+  ).get() as any;
+  if (!r) return null;
+  return {
+    id: r.id,
+    date: r.date,
+    content: r.content ? JSON.parse(r.content) : null,
+    raw: r.raw,
+    status: r.status,
+    createdAt: r.created_at,
+  };
+}

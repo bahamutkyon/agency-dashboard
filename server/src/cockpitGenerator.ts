@@ -71,7 +71,7 @@ export async function runCockpit(
   trigger: "daily" | "manual",
   deps: CockpitDeps = { runAgent: defaultRunAgent },
 ): Promise<BriefingRow> {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" }); // YYYY-MM-DD 台北時區
   const generatedAt = Date.now();
   try {
     const pack = buildCockpitContext();

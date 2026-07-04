@@ -393,7 +393,7 @@ export const api = {
   },
 
   // === 駕駛艙簡報 ===
-  cockpit: () => fetch("/api/cockpit").then(j<{ briefing: BriefingRow | null }>),
+  cockpit: () => fetch("/api/cockpit").then(j<{ briefing: BriefingRow | null; lastError?: { status: string; raw: string; at: number } }>),
   cockpitRefresh: () =>
     fetch("/api/cockpit/refresh", { method: "POST" }).then(j<{ ok: boolean; throttled?: boolean; briefing: BriefingRow }>),
 };

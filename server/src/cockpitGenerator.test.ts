@@ -1,9 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { runCockpit } from "./cockpitGenerator.js";
-import { getLatestBriefing } from "./cockpitStore.js";
+import { getLatestBriefing, getLatestOkBriefing } from "./cockpitStore.js";
+import { db } from "./db.js";
 import { createWorkspace, updateWorkspace } from "./store.js";
 
 describe("runCockpit（注入假 agent）", () => {
+  beforeEach(() => {
+    db.exec("DELETE FROM cockpit_briefings");
+  });
   it("解析成功 → 存 status=ok 的簡報", async () => {
     const w = createWorkspace({ name: "測試事業" });
     updateWorkspace(w.id, { memory: "本週要對帳" });
@@ -27,5 +31,20 @@ describe("runCockpit（注入假 agent）", () => {
     const fakeRun = async () => { throw new Error("boom"); };
     const r = await runCockpit("manual", { runAgent: fakeRun });
     expect(r.status).toBe("error");
+  });
+
+  it("error 不覆蓋上一份 ok 簡報（getLatestOkBriefing 仍回第一份）", async () => {
+    const okContent = JSON.stringify({ sections: [
+      { kind: "status", title: "近況", items: [{ title: "ok-item", body: "first ok" }] },
+    ] });
+    const fakeOk = async () => "```json\n" + okContent + "\n```";
+    const fakeErr = async () => { throw new Error("second run boom"); };
+
+    await runCockpit("manual", { runAgent: fakeOk });
+    await runCockpit("manual", { runAgent: fakeErr });
+
+    const okBriefing = getLatestOkBriefing();
+    expect(okBriefing?.status).toBe("ok");
+    expect(okBriefing?.content?.sections[0].items[0].title).toBe("ok-item");
   });
 });

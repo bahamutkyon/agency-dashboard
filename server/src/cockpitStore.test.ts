@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "./db.js";
-import { saveBriefing, getLatestBriefing } from "./cockpitStore.js";
+import { saveBriefing, getLatestBriefing, getLatestOkBriefing } from "./cockpitStore.js";
 import type { Briefing } from "./cockpitTypes.js";
 
 const sample: Briefing = {
@@ -48,6 +48,20 @@ describe("cockpitStore", () => {
       status: "ok",
     });
     expect(getLatestBriefing()?.raw).toBe("new");
+  });
+
+  it("getLatestOkBriefing 跳過 error，返回最近 ok 簡報", async () => {
+    saveBriefing({ date: "2026-07-01", content: sample, raw: "ok-raw", status: "ok" });
+    await new Promise((r) => setTimeout(r, 10));
+    saveBriefing({ date: "2026-07-01", content: null, raw: "boom", status: "error" });
+    const r = getLatestOkBriefing();
+    expect(r?.status).toBe("ok");
+    expect(r?.raw).toBe("ok-raw");
+  });
+
+  it("getLatestOkBriefing 無任何 ok 時回 null", () => {
+    saveBriefing({ date: "2026-07-01", content: null, raw: "boom", status: "error" });
+    expect(getLatestOkBriefing()).toBeNull();
   });
 
   it("parse_failed 也能存/取，content 為 null", () => {
