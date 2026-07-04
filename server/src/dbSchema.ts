@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS workflows (
   workspace_id TEXT NOT NULL,
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
-  spec TEXT NOT NULL,
+  steps TEXT NOT NULL DEFAULT '[]',
   max_concurrency INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -132,11 +132,12 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   workflow_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   status TEXT NOT NULL,
-  step_index INTEGER NOT NULL DEFAULT 0,
+  current_step INTEGER NOT NULL DEFAULT 0,
+  session_ids TEXT NOT NULL DEFAULT '[]',
   step_outputs TEXT NOT NULL DEFAULT '{}',
   error TEXT,
   started_at INTEGER NOT NULL,
-  finished_at INTEGER
+  ended_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS learning_proposals (
