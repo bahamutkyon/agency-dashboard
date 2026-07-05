@@ -14,6 +14,7 @@ import { isCodexAvailable } from "../codexProcess.js";
 import { isGeminiAvailable } from "../geminiProcess.js";
 import { runConsult, startExecute } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
+import { createDelegation, finishDelegation } from "../store/delegations.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
 const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
@@ -458,21 +459,58 @@ export async function executeDispatch(
   // execute：背景跑、不等完成；完成時把結果餵回 PM（PM 貼回報）+ socket 通知前端 toast。
   let executing: { subSessionId: string; agentId: string }[] = [];
   if (execute.length > 0) {
+    // 記帳：execute 開始時建台帳（subSessionId 在 startExecute 之後才知道，故先建再更新）
+    // 旁路：記帳失敗不可讓派工崩，各項獨立 try/catch。
+    const execDelegIds = new Map<string, string>(); // subSessionId → delegationId
     executing = startExecute(execute, workspaceId, pmSessionId, (d) => {
+      // 記帳：完成時 finishDelegation
+      const delegId = execDelegIds.get(d.subSessionId);
+      if (delegId) {
+        try { finishDelegation(delegId, { status: d.status === "ok" ? "done" : "failed", resultExcerpt: d.output.slice(0, 500) }); } catch {}
+      }
       const label = nameOf.get(d.agentId) ?? d.agentId;
       const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
       agentManager.send(d.pmSessionId, report);
       io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
     });
+    // 記帳：startExecute 回傳 handle 後才有 subSessionId，此時建台帳
+    for (const handle of executing) {
+      const item = execute.find((i) => i.agentId === handle.agentId);
+      try {
+        const delegId = createDelegation({
+          pmSessionId, workspaceId,
+          agentId: handle.agentId,
+          mode: "execute",
+          task: item?.task ?? "",
+          subSessionId: handle.subSessionId,
+        });
+        execDelegIds.set(handle.subSessionId, delegId);
+      } catch {}
+    }
   }
 
   // consult：同步並行跑、收齊後餵回 PM 整合（PM 串流經既有 session-room forward 自動到前端）。
   let consulted: Awaited<ReturnType<typeof runConsult>> = [];
   if (consult.length > 0) {
+    // 記帳：consult 開始前建台帳
+    const consultDelegIds = new Map<string, string>(); // agentId+task → delegationId（consult 同步、subSessionId 事後才知）
+    for (const item of consult) {
+      try {
+        const delegId = createDelegation({ pmSessionId, workspaceId, agentId: item.agentId, mode: "consult", task: item.task });
+        consultDelegIds.set(`${item.agentId}||${item.task}`, delegId);
+      } catch {}
+    }
     consulted = await runConsult(consult, workspaceId, {
       concurrency: DISPATCH_CONCURRENCY,
       perItemTimeoutMs: CONSULT_TIMEOUT_MS,
     });
+    // 記帳：consult 完成後 finish
+    for (const r of consulted) {
+      const delegId = consultDelegIds.get(`${r.agentId}||${r.task}`);
+      if (delegId) {
+        try { finishDelegation(delegId, { status: r.status === "ok" ? "done" : "failed", resultExcerpt: r.output.slice(0, 500) }); } catch {}
+      }
+    }
     const labelled = consulted
       .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
       .join("\n\n");

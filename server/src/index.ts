@@ -36,6 +36,8 @@ import { guardRouter } from "./routes/guard.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
+import { reconcileDelegationsOnBoot } from "./store/delegations.js";
+import { delegationsRouter } from "./routes/delegations.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -120,6 +122,9 @@ app.use("/api/projects", projectsRouter);
 
 // Cockpit briefing: /api/cockpit
 app.use("/api/cockpit", cockpitRouter);
+
+// Delegation ledger: /api/delegations
+app.use("/api/delegations", delegationsRouter);
 
 // Guard check (shellward hook): /api/guard/check, /api/guard/decisions
 // Note: hook POST has no Origin header → isOriginAllowed(undefined)===true → passes origin guard.
@@ -312,6 +317,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   if (pausedCount) console.log(`[autonomy] 重啟：${pausedCount} 個 run 轉為 paused（待使用者續跑/停止）`);
   const wfErrorCount = reconcileWorkflowRunsOnBoot();
   if (wfErrorCount) console.log(`[workflow] 重啟：${wfErrorCount} 個 run 已標記為 error（請重新執行）`);
+  const delegOrphanCount = reconcileDelegationsOnBoot();
+  if (delegOrphanCount) console.log(`[delegation] 重啟：${delegOrphanCount} 筆在途派工已標記為 orphaned（server 重啟前未完成）`);
   workflowRunner.on("update", (runId: string) => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);

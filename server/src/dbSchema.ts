@@ -297,6 +297,22 @@ CREATE TABLE IF NOT EXISTS cockpit_briefings (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_cockpit_created ON cockpit_briefings(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS delegations (
+  id TEXT PRIMARY KEY,
+  pm_session_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  task TEXT NOT NULL,
+  status TEXT NOT NULL,
+  sub_session_id TEXT,
+  result_excerpt TEXT,
+  created_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_deleg_pm ON delegations(pm_session_id);
+CREATE INDEX IF NOT EXISTS idx_deleg_status ON delegations(created_at DESC);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {
