@@ -64,6 +64,9 @@ const ActivityPane = lazy(() =>
 const CockpitPanel = lazy(() =>
   import("./components/CockpitPanel").then((m) => ({ default: m.CockpitPanel }))
 );
+const DelegationsPanel = lazy(() =>
+  import("./components/DelegationsPanel").then((m) => ({ default: m.DelegationsPanel }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
@@ -84,6 +87,7 @@ type View =
   | { kind: "legacy-review" }
   | { kind: "workflows" }
   | { kind: "activity" }
+  | { kind: "delegations" }
   | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
@@ -272,6 +276,7 @@ export default function App() {
   const openLegacyReview = useCallback(() => setView({ kind: "legacy-review" }), []);
   const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
   const openActivity = useCallback(() => setView({ kind: "activity" }), []);
+  const openDelegations = useCallback(() => setView({ kind: "delegations" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -452,6 +457,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openActivity, toggleSidebar]);
 
+  const onOpenDelegationsMobile = useCallback(() => {
+    openDelegations();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openDelegations, toggleSidebar]);
+
   const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
     setView({ kind: v });
   }, []);
@@ -541,6 +551,7 @@ ${message}
               onOpenLegacyReview={onOpenLegacyReviewMobile}
               onOpenWorkflows={onOpenWorkflowsMobile}
               onOpenActivity={onOpenActivityMobile}
+              onOpenDelegations={onOpenDelegationsMobile}
               providersAvail={providersAvail}
             />
           </div>
@@ -704,6 +715,11 @@ ${message}
           {isView("activity") && (
             <Suspense fallback={LazyFallback}>
               <ActivityPane key={`act-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("delegations") && (
+            <Suspense fallback={LazyFallback}>
+              <DelegationsPanel key={`dlg-${reloadKey}`} onOpenSession={openHistorySession} />
             </Suspense>
           )}
           {isView("chat") && (() => {

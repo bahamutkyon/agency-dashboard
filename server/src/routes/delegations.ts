@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { listDelegationsWithProgress } from "../store/delegations.js";
+import { listDelegationsWithProgress, getDelegation, finishDelegation } from "../store/delegations.js";
+import { agentManager } from "../agentManager.js";
 
 export const delegationsRouter = Router();
 
@@ -22,4 +23,19 @@ delegationsRouter.get("/", (req, res) => {
 
   const rows = listDelegationsWithProgress({ workspaceId, pmSessionId, inFlightOnly }, limit);
   res.json(rows);
+});
+
+delegationsRouter.post("/:id/cancel", async (req, res) => {
+  const dlg = getDelegation(req.params.id);
+  if (!dlg) return res.status(404).json({ error: "派工不存在" });
+  // Try to stop the sub-session if it exists; ignore errors (session may already be done)
+  if (dlg.subSessionId) {
+    try {
+      agentManager.stop(dlg.subSessionId);
+    } catch (e: any) {
+      console.warn("[delegations] cancel: stop sub-session failed", e?.message);
+    }
+  }
+  finishDelegation(dlg.id, { status: "failed", resultExcerpt: "使用者取消" });
+  res.json({ ok: true });
 });

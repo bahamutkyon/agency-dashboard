@@ -12,6 +12,15 @@ export interface AutonomyRun {
   pendingInjection?: string;
 }
 
+export interface DispatchItem {
+  agentId: string;
+  mode: "consult" | "execute";
+  task: string;
+  context?: string;
+  deliverable?: string;
+  accept?: string[];
+}
+
 export interface PendingAction {
   id: string;
   runId?: string;
@@ -21,6 +30,7 @@ export interface PendingAction {
   summary: string;
   detail?: string;
   status: string;
+  parsedItems?: DispatchItem[];
 }
 
 export interface AgentMeta {
@@ -391,10 +401,21 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     }).then(j<{ ok: boolean }>),
-  actionApprove: (id: string) =>
-    fetch(`/api/autonomy/actions/${id}/approve`, { method: "POST" }).then(j),
+  actionApprove: (id: string, payload?: { items?: DispatchItem[] }) =>
+    fetch(`/api/autonomy/actions/${id}/approve`, {
+      method: "POST",
+      ...(payload ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : {}),
+    }).then(j),
   actionReject: (id: string) =>
     fetch(`/api/autonomy/actions/${id}/reject`, { method: "POST" }).then(j),
+  cancelDelegation: (id: string) =>
+    fetch(`/api/delegations/${id}/cancel`, { method: "POST" }).then(j<{ ok: boolean }>),
+  listDelegations: (opts: { workspace?: string; inFlight?: boolean } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.workspace) p.set("workspace", opts.workspace);
+    if (opts.inFlight) p.set("inFlight", "1");
+    return fetch(`/api/delegations?${p}`).then(j<DelegationWithProgress[]>);
+  },
 
   // === 專案管理 ===
   listProjects: (workspace: string) =>
@@ -581,4 +602,23 @@ export interface LearningProposal {
   status: "pending" | "approved" | "rejected";
   createdAt: number;
   decidedAt: number | null;
+}
+
+export interface DelegationWithProgress {
+  id: string;
+  pmSessionId: string;
+  workspaceId: string;
+  agentId: string;
+  mode: "consult" | "execute";
+  task: string;
+  status: "queued" | "running" | "done" | "failed" | "orphaned";
+  subSessionId?: string;
+  resultExcerpt?: string;
+  createdAt: number;
+  endedAt?: number;
+  progress?: {
+    toolCalls: number;
+    lastActivityAt: number | null;
+    lastAction: string | null;
+  };
 }

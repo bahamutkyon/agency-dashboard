@@ -115,7 +115,15 @@ autonomyRouter.get("/sessions/:sid/run", (req, res) => {
   res.json({ run: getActiveRunForSession(req.params.sid) ?? null });
 });
 autonomyRouter.get("/sessions/:sid/pending", (req, res) => {
-  res.json({ pending: listPending(req.params.sid) });
+  const pending = listPending(req.params.sid);
+  const enriched = pending.map((pa) => {
+    if (pa.kind === "dispatch" && pa.detail) {
+      const plan = parseDispatchMarker(`=== DISPATCH ===\n${pa.detail}\n=== END DISPATCH ===`);
+      return { ...pa, parsedItems: plan?.items ?? [] };
+    }
+    return pa;
+  });
+  res.json({ pending: enriched });
 });
 autonomyRouter.post("/runs/:id/approve-plan", (req, res) => {
   if (!getRun(req.params.id)) return res.status(404).json({ error: "run 不存在" });
@@ -140,8 +148,15 @@ autonomyRouter.post("/actions/:id/approve", async (req, res) => {
   if (!pa) return res.status(404).json({ error: "action 不存在" });
   // 手動派工（kind=dispatch 且無 runId，非自主 run）→ 走 executeDispatch；其餘交 autonomyRunner。
   if (pa.kind === "dispatch" && !pa.runId) {
-    const plan = parseDispatchMarker(`=== DISPATCH ===\n${pa.detail ?? ""}\n=== END DISPATCH ===`);
-    const items = plan?.items ?? [];
+    // body.items 優先（前端部分核可）；無則 fallback 到原始 detail（向後相容）
+    const bodyItems: DispatchItem[] | undefined = req.body?.items;
+    let items: DispatchItem[];
+    if (bodyItems && Array.isArray(bodyItems) && bodyItems.length > 0) {
+      items = bodyItems;
+    } else {
+      const plan = parseDispatchMarker(`=== DISPATCH ===\n${pa.detail ?? ""}\n=== END DISPATCH ===`);
+      items = plan?.items ?? [];
+    }
     decidePendingAction(pa.id, "approved");
     executeDispatch(pa.sessionId, items, req.app.get("io"))
       .then((out) => markActionExecuted(pa.id, `consult ${out.consulted.length} 項、execute ${out.executing.length} 項`))

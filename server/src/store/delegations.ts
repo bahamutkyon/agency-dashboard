@@ -70,6 +70,12 @@ export function finishDelegation(id: string, result: { status: "done" | "failed"
   `).run(result.status, excerpt, Date.now(), id);
 }
 
+/** 依 id 查一筆派工台帳。找不到回 undefined。 */
+export function getDelegation(id: string): Delegation | undefined {
+  const r = db.prepare("SELECT * FROM delegations WHERE id = ?").get(id) as any;
+  return r ? rowTo(r) : undefined;
+}
+
 export interface ListDelegationsOpts {
   pmSessionId?: string;
   workspaceId?: string;

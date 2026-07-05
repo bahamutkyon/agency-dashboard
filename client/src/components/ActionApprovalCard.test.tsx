@@ -21,4 +21,44 @@ describe("ActionApprovalCard", () => {
     fireEvent.click(screen.getByText(/拒絕/));
     expect(onReject).toHaveBeenCalled();
   });
+
+  it("dispatch 有 parsedItems：只勾 item[0] → onApprove 收到 items=[item[0]]", () => {
+    const onApprove = vi.fn();
+    const parsedItems = [
+      { agentId: "developer", mode: "execute" as const, task: "建登入頁" },
+      { agentId: "designer", mode: "consult" as const, task: "設計稿" },
+    ];
+    render(
+      <ActionApprovalCard
+        action={{ id: "a4", kind: "dispatch", risk: "high", summary: "派工 2 位", status: "pending", sessionId: "s", parsedItems }}
+        busy={false}
+        onApprove={onApprove}
+        onReject={() => {}}
+      />
+    );
+    // Uncheck item[1]
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]); // uncheck designer
+    fireEvent.click(screen.getByRole("button", { name: /核可/ }));
+    expect(onApprove).toHaveBeenCalledWith([{ agentId: "developer", mode: "execute", task: "建登入頁" }]);
+  });
+
+  it("dispatch 有 parsedItems：editedTask 反映到送出值", () => {
+    const onApprove = vi.fn();
+    const parsedItems = [
+      { agentId: "developer", mode: "execute" as const, task: "原始任務" },
+    ];
+    render(
+      <ActionApprovalCard
+        action={{ id: "a5", kind: "dispatch", risk: "high", summary: "派工", status: "pending", sessionId: "s", parsedItems }}
+        busy={false}
+        onApprove={onApprove}
+        onReject={() => {}}
+      />
+    );
+    const input = screen.getByDisplayValue("原始任務");
+    fireEvent.change(input, { target: { value: "修改後任務" } });
+    fireEvent.click(screen.getByRole("button", { name: /核可/ }));
+    expect(onApprove).toHaveBeenCalledWith([{ agentId: "developer", mode: "execute", task: "修改後任務" }]);
+  });
 });
