@@ -18,6 +18,7 @@
  */
 import { EventEmitter } from "node:events";
 import { agentManager } from "./agentManager.js";
+import { withBackgroundSlot } from "./backgroundLimiter.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
   listWorkflowRunsByStatus,
@@ -318,7 +319,11 @@ class WorkflowRunner extends EventEmitter {
         let onAbort: (() => void) | null = null;
 
         try {
-          const output = await Promise.race([
+          // 背景總量限流：workflow step 雖已有 per-run maxConcurrency（預設 2），但仍是
+          // 背景工作、會與排程/派工/學習/幕僚長爭同一份 API 額度。搶到槽才 send，槽持有到
+          // 本次 attempt settle（result / step timeout / spawn error / abort）才 release。
+          // session 已 start（cheap、未打 API），真正 send 延到槽內。
+          const output = await withBackgroundSlot(() => Promise.race([
             new Promise<string>((resolve, reject) => {
               let buffer = "";
               let assistantText = "";
@@ -339,7 +344,7 @@ class WorkflowRunner extends EventEmitter {
             new Promise<string>((_, reject) => {
               setTimeout(() => reject(new Error("step timeout")), baseTimeout * Math.pow(1.5, attempt));
             }),
-          ]);
+          ]), { label: `workflow:${step.id}` });
 
           attemptSucceeded = true;
           outputs[step.id!] = output;

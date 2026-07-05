@@ -9,6 +9,7 @@ import {
   type Schedule,
 } from "./store.js";
 import { agentManager } from "./agentManager.js";
+import { withBackgroundSlot } from "./backgroundLimiter.js";
 
 /**
  * Cron-based scheduler for autonomous agent runs.
@@ -122,21 +123,36 @@ class Scheduler {
         false, // no auto-fork in unattended scheduled runs
       );
 
-      // Attach a one-shot completion listener and remove it after the first
-      // result event, preventing leaks when the session is later reused.
+      // 背景總量限流：排程 fire 是無人值守的背景工作，過去直接開 session 送出、
+      // 無 server 端 guard（scheduler.ts 檔頭註解自承會把使用者排進 rate-limit
+      // lockout）。這裡搶到槽才 send，槽持有到本回合結束（result / 逾時保底）才 release，
+      // 讓排程撞上 workflow/派工時自動排隊而非同時打爆 API。互動聊天不受影響。
       const sess = agentManager.get(session.id);
-      if (sess) {
+      await withBackgroundSlot(() => new Promise<void>((releaseSlot) => {
+        if (!sess) { releaseSlot(); return; }
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          sess.removeListener("event", onEvent);
+          releaseSlot();
+        };
+        // Attach a one-shot completion listener and remove it after the first
+        // result event, preventing leaks when the session is later reused.
         const onEvent = (evt: { type: string }) => {
           if (evt.type === "result") {
-            sess.removeListener("event", onEvent);
             console.log(`[scheduler] DONE "${s.name}" (session ${session.id.slice(0, 8)})`);
             this.listeners.forEach((cb) => cb(s));
+            finish();
           }
         };
+        // 硬逾時保底（30 分鐘）：即使 result 永不來，槽也一定歸還。
+        const timer = setTimeout(finish, 30 * 60 * 1000);
+        timer.unref?.();
         sess.on("event", onEvent);
-      }
-
-      agentManager.send(session.id, s.prompt);
+        agentManager.send(session.id, s.prompt);
+      }), { label: `schedule:${s.name}` });
     } catch (err: any) {
       console.error(`[scheduler] fire error for schedule ${scheduleId}:`, err?.message ?? err);
     }

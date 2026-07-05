@@ -1,4 +1,5 @@
 import { agentManager } from "./agentManager.js";
+import { withBackgroundSlot } from "./backgroundLimiter.js";
 import { getWorkspace, createWorkspace } from "./store.js";
 import { buildCockpitContext } from "./cockpitContext.js";
 import { parseBriefing } from "./cockpitParser.js";
@@ -38,7 +39,8 @@ ${JSON.stringify(pack, null, 2)}
 
 async function defaultRunAgent(prompt: string): Promise<string> {
   ensureCockpitWorkspace();
-  return new Promise<string>((resolve) => {
+  // 背景總量限流：幕僚長簡報是背景生成工作，搶到槽才送、槽持有到 done()（result/逾時）才 release。
+  return withBackgroundSlot(() => new Promise<string>((resolve) => {
     const session = agentManager.start(COCKPIT_AGENT_ID, "🧭 產生總管簡報", undefined, COCKPIT_WORKSPACE_ID, false);
     let collected = "", streamed = "", settled = false;
     const done = (v: string) => {
@@ -56,7 +58,7 @@ async function defaultRunAgent(prompt: string): Promise<string> {
     const t = setTimeout(() => done((collected || streamed).trim()), 5 * 60 * 1000);
     session.on("event", onEvent);
     agentManager.send(session.id, prompt);
-  });
+  }), { label: "cockpit" });
 }
 
 export interface CockpitDeps { runAgent: (prompt: string) => Promise<string>; }

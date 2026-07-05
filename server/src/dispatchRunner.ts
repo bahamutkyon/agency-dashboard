@@ -1,4 +1,5 @@
 import { agentManager } from "./agentManager.js";
+import { withBackgroundSlot } from "./backgroundLimiter.js";
 import type { DispatchItem } from "./dispatchParser.js";
 
 /**
@@ -58,7 +59,10 @@ async function runOneConsult(
   workspaceId: string,
   perItemTimeoutMs: number,
 ): Promise<ConsultResult> {
-  return new Promise<ConsultResult>((resolve) => {
+  // 背景總量限流：搶到槽才真正開 session/送出打 API；槽持有到本回合 finish()
+  // （拿到 result / 逾時 / 錯誤）才 release。這是全域再加一層總量控制，與
+  // mapWithConcurrency 的 per-batch 併發疊加，以更緊者為準。
+  return withBackgroundSlot(() => new Promise<ConsultResult>((resolve) => {
     // enableAutoFork=false：子諮詢不該再外掛 FORK 能力。
     const session = agentManager.start(item.agentId, `🤝 受派諮詢：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
     let collected = "";   // 最終 message 事件的權威全文
@@ -81,7 +85,7 @@ async function runOneConsult(
     const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
     agentManager.send(session.id, buildDispatchBrief(item));
-  });
+  }), { label: `consult:${item.agentId}` });
 }
 
 /** 並行（限流）跑所有 consult 項，回每項原始輸出（含逾時/錯誤標記）。 */
@@ -104,7 +108,8 @@ export async function runOneExecuteAsConsult(
   workspaceId: string,
   perItemTimeoutMs: number,
 ): Promise<ConsultResult> {
-  return new Promise<ConsultResult>((resolve) => {
+  // 背景總量限流：同 runOneConsult，搶到槽才送、槽持有到本回合結束才 release。
+  return withBackgroundSlot(() => new Promise<ConsultResult>((resolve) => {
     const session = agentManager.start(item.agentId, `🛠️ 外包執行（同步）：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
     let collected = "", streamed = "", settled = false;
     const finish = (status: ConsultResult["status"]) => {
@@ -122,7 +127,7 @@ export async function runOneExecuteAsConsult(
     const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
     agentManager.send(session.id, buildExecutePrompt(buildDispatchBrief(item)));
-  });
+  }), { label: `execute-sync:${item.agentId}` });
 }
 
 type RunOneFn = (item: DispatchItem, workspaceId: string, timeoutMs: number) => Promise<ConsultResult>;
@@ -196,7 +201,27 @@ export function buildExecutePrompt(task: string): string {
 const defaultExecuteDeps: ExecuteDeps = {
   start: (item, workspaceId) => {
     const s = agentManager.start(item.agentId, `🛠️ 外包執行：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
-    agentManager.send(s.id, buildExecutePrompt(buildDispatchBrief(item)));
+    // startExecute 原本「無上限」——每項立即 send 打 API，是撞爆限流的主嫌。
+    // 這裡把「送出 + 等本回合結束」包進背景槽：session 立即建立（同步回傳 subSessionId
+    // 給 UI 連結），但真正 send 延到搶到槽才發，槽持有到 result/逾時才 release。
+    // send 延到槽內（下一個 microtask 起），故 startExecute 隨後同步呼叫的 attachDone
+    // 監聽器一定先於 send 掛上，不漏事件。
+    void withBackgroundSlot(() => new Promise<void>((releaseSlot) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        s.removeListener("event", onSlotEvent);
+        releaseSlot();
+      };
+      const onSlotEvent = (evt: any) => { if (evt.type === "result") finish(); };
+      // 硬逾時保底：即使 result 永不來，槽也一定歸還，不會永久佔用。
+      const timer = setTimeout(finish, EXECUTE_MAX_MS);
+      timer.unref?.();
+      s.on("event", onSlotEvent);
+      agentManager.send(s.id, buildExecutePrompt(buildDispatchBrief(item)));
+    }), { label: `execute:${item.agentId}` });
     return s.id;
   },
   attachDone: (subSessionId, cb) => {

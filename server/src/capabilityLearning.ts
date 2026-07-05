@@ -4,6 +4,7 @@
  * 全部寫進既有的 learning_proposals 表，走 Phase 1 的批准 UI。
  */
 import { spawnClaude } from "./claudeProcess.js";
+import { withBackgroundSlot } from "./backgroundLimiter.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCategoryMemory, getCraftMemoryFor } from "./learningStore.js";
 import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
@@ -92,7 +93,10 @@ interface ClaudeRunOptions { tools?: string[]; timeoutMs?: number; }
  * runClaudeOnce / runClaudeWithTools 均委派至此，避免重複實作。
  */
 function runClaudeOnceBase(prompt: string, opts: ClaudeRunOptions = {}): Promise<string> {
-  return new Promise((resolve, reject) => {
+  // 背景總量限流：能力學習/研究是無人值守的批量背景工作（一輪可能跑很多 target），
+  // 過去直接 spawnClaude 打 API、無總量控制。搶到槽才 spawn，槽持有到 child close
+  // /逾時/錯誤（Promise settle）才 release。fn 的錯照常往外拋（withBackgroundSlot 保證 release）。
+  return withBackgroundSlot(() => new Promise<string>((resolve, reject) => {
     const args = [
       "-p", "--output-format", "json", "--model", LEARNING_MODEL,
       "--no-session-persistence", "--disable-slash-commands",
@@ -125,7 +129,7 @@ function runClaudeOnceBase(prompt: string, opts: ClaudeRunOptions = {}): Promise
       try { const j = JSON.parse(out); done(null, String(j.result || "")); }
       catch (e: any) { done(new Error(`解析回應失敗: ${e.message}`)); }
     });
-  });
+  }), { label: "learning" });
 }
 
 /** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */

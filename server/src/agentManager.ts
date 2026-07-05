@@ -12,6 +12,7 @@ import { buildCapabilityBlockFor } from "./learningInjector.js";
 import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
+import { noteRateLimited } from "./backgroundLimiter.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
@@ -501,6 +502,10 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         }
       } else if (evt.type === "rate_limit") {
         usageTracker.recordRateLimit(evt.payload);
+        // 撞到 rate limit → 觸發全域背景退避，讓所有背景/批量子系統自動暫緩，
+        // 不繼續火上加油打爆額度。互動聊天不經過限流器、不受影響。
+        // 用預設退避（不吃 resetsAt，避免把軟訊號當成數小時 lockout 凍住背景）。
+        noteRateLimited();
       } else if (evt.type === "tool_call" || evt.type === "tool_result") {
         const wsId = (s as any).workspaceId as string | undefined;
         const row = recordToolActivity({ id: s.id, agentId: s.agentId, workspaceId: wsId || "" }, evt);
