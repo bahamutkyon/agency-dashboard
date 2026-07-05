@@ -12,7 +12,8 @@ import { buildCapabilityBlockFor } from "./learningInjector.js";
 import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
-import { noteRateLimited } from "./backgroundLimiter.js";
+import { noteRateLimited, withBackgroundSlot } from "./backgroundLimiter.js";
+import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
@@ -144,6 +145,15 @@ export class AgentManager {
   private sessionClosedAt = new Map<string, number>();
   private io?: any;
 
+  /**
+   * 可注入的同事記憶蒸餾鉤子（測試時替換，避免打真 LLM）。
+   * 預設實作：以 withBackgroundSlot 包住 maybeDistillOnReclaim，背景非阻塞、fail-safe。
+   */
+  _distillHook: (sessionId: string, workspaceId: string, agentId: string) => void = (sid, wsId, aid) => {
+    withBackgroundSlot(() => maybeDistillOnReclaim(sid, wsId, aid))
+      .catch((e: any) => console.warn(`[agentManager] reclaim distill error ${sid.slice(0, 8)}:`, e?.message || e));
+  };
+
   setIo(io: any) { this.io = io; }
 
   constructor() {
@@ -173,6 +183,16 @@ export class AgentManager {
           session.stop(); // 殺子程序，session.status 設為 "closed"
           this.sessionClosedAt.set(id, now); // 讓既有的記憶體清除路徑接手
           console.log(`[agentManager] TTL-killed idle claude subprocess for session ${id.slice(0, 8)}`);
+          // 同事記憶自動蒸餾：背景 fail-safe 旁路，不可讓回收迴圈崩
+          const wsId = (session as any).workspaceId as string | undefined;
+          const agentId = (session as any).agentId as string | undefined;
+          if (wsId && agentId) {
+            try {
+              this._distillHook(id, wsId, agentId);
+            } catch (e: any) {
+              console.warn(`[agentManager] _distillHook error for ${id.slice(0, 8)}:`, e?.message || e);
+            }
+          }
         }
       }
     }

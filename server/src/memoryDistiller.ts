@@ -1,14 +1,18 @@
 /**
- * Agent memory distiller — manual trigger only (this version).
+ * Agent memory distiller.
  *
  * 從某個 session 的對話內容(以及該 (workspace, agent) 既有的 memory)
  * 蒸餾出新版同事記憶。Output ≤ 4KB,寫回 agent_memory。
  *
  * 設計原則:
- *   - 手動觸發(POST /api/agent-memory/distill),你按按鈕才跑
+ *   - 手動觸發(POST /api/agent-memory/distill)或 idle TTL 回收時自動觸發
  *   - 用 Haiku(便宜快),不是 Opus
  *   - 結果**取代**舊 memory,不是 append(避免無限累積)
  *   - 蒸餾失敗不噴錯給使用者,只 log
+ *
+ * 自動觸發路徑(idle TTL 回收):
+ *   - agentManager.cleanupIdleSessions 回收閒置 Claude session 時呼叫
+ *     maybeDistillOnReclaim — 背景、fail-safe、去重、短對話跳過
  */
 import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, getAgentMemory, setAgentMemory } from "./store.js";
@@ -118,5 +122,46 @@ ${transcript.slice(0, 12000)}
   } catch (e: any) {
     console.warn("[memoryDistiller] parse failed:", e.message);
     return { ok: false, error: e.message };
+  }
+}
+
+/**
+ * idle TTL 回收後自動蒸餾同事記憶的入口。背景非阻塞、fail-safe。
+ *
+ * Guards（任一成立就跳過，不打 LLM）：
+ *   1. 去重：agent_memory.distilledFromSessionId === sessionId → 已蒸餾過，跳過
+ *   2. 短對話：session 訊息數 < 2 → 對話不夠，跳過
+ *   3. session 不存在 → 跳過
+ *
+ * @param distiller 可注入的蒸餾函式（預設 distillAgentMemory；測試時傳入 fake 避免打真 LLM）
+ */
+export async function maybeDistillOnReclaim(
+  sessionId: string,
+  workspaceId: string,
+  agentId: string,
+  distiller: (sid: string, wsId: string, aid: string) => Promise<DistillResult> = distillAgentMemory,
+): Promise<void> {
+  try {
+    // Guard 1: 去重 — 同一 session 已蒸餾過就跳過
+    const existing = getAgentMemory(workspaceId, agentId);
+    if (existing?.distilledFromSessionId === sessionId) {
+      console.log(`[memoryDistiller] skip reclaim — already distilled from session ${sessionId.slice(0, 8)}`);
+      return;
+    }
+    // Guard 2 & 3: 短對話前置 guard — session 不存在或訊息 < 2 就跳過
+    // （distillAgentMemory 裡也有同樣 guard，但在此提前跳過省一次 LLM 呼叫）
+    const sess = getSession(sessionId);
+    const msgCount = (sess?.messages || []).length;
+    if (msgCount < 2) {
+      console.log(`[memoryDistiller] skip reclaim — too short (msgs=${msgCount}) for session ${sessionId.slice(0, 8)}`);
+      return;
+    }
+    const result = await distiller(sessionId, workspaceId, agentId);
+    if (!result.ok) {
+      console.warn(`[memoryDistiller] reclaim distill failed (${workspaceId}, ${agentId}): ${result.error}`);
+    }
+  } catch (e: any) {
+    // fail-safe: 任何意外錯誤只 log，不拋，確保呼叫端（agentManager 回收迴圈）不受影響
+    console.warn(`[memoryDistiller] maybeDistillOnReclaim error (${sessionId.slice(0, 8)}):`, e?.message || e);
   }
 }
