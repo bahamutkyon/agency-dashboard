@@ -555,6 +555,80 @@ describe("fail-fast abort：step 失敗時 abort 在途兄弟步驟（問題 1�
   }, 5000);
 });
 
+// ===========================================================================
+// approve() DB-resume：重啟後孤兒 paused run 可被救回（必修回歸）
+// ===========================================================================
+describe("approve() DB-resume：this.paused 無該 run → 走 DB resume（模擬重啟）", () => {
+  afterEach(() => {
+    (workflowRunner as any)._testStepRunner = undefined;
+  });
+
+  it("this.paused 沒有該 run → approve 走 DB resume，回傳 newRunId（不再 no-op）", async () => {
+    const wf: Workflow = {
+      id: `wf-db-resume-${Date.now()}`,
+      workspaceId: "ws-db-resume-test",
+      name: "db-resume test",
+      description: "",
+      steps: [
+        { id: "step_1", agentId: "agent", prompt: "step 1", dependsOn: [] },
+        { id: "step_2", agentId: "agent", prompt: "step 2", dependsOn: ["step_1"], pauseBefore: true },
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    upsertWorkflow(wf);
+
+    // 手動在 DB 建立 paused run（模擬重啟後孤兒狀態：step_1 已完成，step_2 paused）
+    const orphanRun = createRun(wf.id, "ws-db-resume-test");
+    updateRun(orphanRun.id, {
+      status: "paused",
+      currentStep: 1,
+      stepOutputs: { step_1: "step1-output" },
+      sessionIds: ["", ""],
+    });
+
+    // 確認 this.paused 中沒有這個 run（模擬重啟後 Map 已清空）
+    expect((workflowRunner as any).paused.has(orphanRun.id)).toBe(false);
+
+    // 注入假執行器（不依賴 agentManager）
+    (workflowRunner as any)._testStepRunner = async (): Promise<string> => "ok";
+
+    // 呼叫 approve → 應走 DB-resume 路徑
+    const result = await workflowRunner.approve(orphanRun.id);
+
+    // 必須回傳 newRunId（非 no-op）
+    expect(result.newRunId).toBeDefined();
+    expect(typeof result.newRunId).toBe("string");
+
+    // 新 run 應存在於 DB
+    const newRunInDb = getRun(result.newRunId!);
+    expect(newRunInDb).not.toBeNull();
+    expect(newRunInDb?.workflowId).toBe(wf.id);
+
+    // 原本的孤兒 run 仍保持 paused（DB-resume 不修改它）
+    const orphanAfter = getRun(orphanRun.id)!;
+    expect(orphanAfter.status).toBe("paused");
+  }, 5000);
+
+  it("this.paused 沒有該 run，但 DB 狀態不是 paused → 回傳空物件（不啟 resume）", async () => {
+    const wf: Workflow = {
+      id: `wf-db-noop-${Date.now()}`,
+      workspaceId: "ws-db-resume-test",
+      name: "db-noop test",
+      description: "",
+      steps: [{ id: "step_1", agentId: "agent", prompt: "step 1", dependsOn: [] }],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    upsertWorkflow(wf);
+    const doneRun = createRun(wf.id, "ws-db-resume-test");
+    updateRun(doneRun.id, { status: "done", endedAt: Date.now() });
+
+    const result = await workflowRunner.approve(doneRun.id);
+    expect(result.newRunId).toBeUndefined();
+  }, 3000);
+});
+
 describe("per-step timeoutMs：step.timeoutMs 生效（問題 2）", () => {
   afterEach(() => {
     (workflowRunner as any)._testStepRunner = undefined;

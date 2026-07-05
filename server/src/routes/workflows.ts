@@ -150,9 +150,9 @@ runsRouter.post("/:id/cancel", (req, res) => {
   res.json({ ok: true });
 });
 
-runsRouter.post("/:id/approve", (req, res) => {
-  workflowRunner.approve(req.params.id);
-  res.json({ ok: true });
+runsRouter.post("/:id/approve", async (req, res) => {
+  const result = await workflowRunner.approve(req.params.id);
+  res.json({ ok: true, ...result });
 });
 
 runsRouter.post("/:id/loop-back", (req, res) => {

@@ -357,7 +357,16 @@ export function WorkflowsPanel({ agents, onOpenSession, onLaunchDraftAssistant }
                   return (
                     <>
                       <button
-                        onClick={async () => { await api.approveRun(activeRun.id); }}
+                        onClick={async () => {
+                          const res = await api.approveRun(activeRun.id);
+                          if (res?.newRunId) {
+                            // 孤兒 paused run（重啟後）：approve 起了一個新 run，切換過去
+                            const allRuns = await api.workflowRuns(activeRun.workflowId);
+                            setRuns((prev) => ({ ...prev, [activeRun.workflowId]: allRuns }));
+                            const newRun = allRuns.find((r) => r.id === res.newRunId);
+                            if (newRun) setActiveRun(newRun);
+                          }
+                        }}
                         className="text-xs px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-medium"
                       >
                         ✓ 批准繼續

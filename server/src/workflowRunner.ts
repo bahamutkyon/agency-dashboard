@@ -177,12 +177,30 @@ class WorkflowRunner extends EventEmitter {
     if (p) this.paused.delete(runId);
   }
 
-  approve(runId: string) {
+  async approve(runId: string): Promise<{ newRunId?: string }> {
     const p = this.paused.get(runId);
     if (p) {
+      // 同 process 內仍活著的 paused run：直接 resume，原 run 續跑
       p.resume();
       this.paused.delete(runId);
+      return {};
     }
+    // 孤兒 paused run（重啟後 this.paused Map 已清空）：
+    // 從 DB 取回 stepOutputs + currentStep，起一個 resume run 接續執行。
+    const dbRun = getRun(runId);
+    if (!dbRun || dbRun.status !== "paused") return {};
+    const wf = getWorkflow(dbRun.workflowId);
+    if (!wf || wf.steps.length === 0) return {};
+    const steps = normalizeSteps(wf.steps);
+    const fromStep = steps[dbRun.currentStep];
+    if (!fromStep?.id) return {};
+    // 起一個新 run：跳過已完成的步驟，從 pausedStep 開始重跑
+    const newRun = await this.run({
+      workflowId: dbRun.workflowId,
+      resumeRunId: runId,
+      fromStepId: fromStep.id,
+    });
+    return { newRunId: newRun.id };
   }
 
   /**
@@ -369,7 +387,10 @@ class WorkflowRunner extends EventEmitter {
           // 背景工作、會與排程/派工/學習/幕僚長爭同一份 API 額度。搶到槽才 send，槽持有到
           // 本次 attempt settle（result / step timeout / spawn error / abort）才 release。
           // session 已 start（cheap、未打 API），真正 send 延到槽內。
-          const output = await withBackgroundSlot(() => Promise.race([
+          const output = await withBackgroundSlot(() => {
+            // 若排隊等槽期間 run 已被 abort，不再送出 API 請求（節省配額）
+            if (signal.aborted) throw new Error("cancelled");
+            return Promise.race([
             new Promise<string>((resolve, reject) => {
               let buffer = "";
               let assistantText = "";
@@ -394,7 +415,8 @@ class WorkflowRunner extends EventEmitter {
                 stepTimeoutMs * Math.pow(1.5, attempt),
               );
             }),
-          ]), { label: `workflow:${step.id}` });
+            ]);
+          }, { label: `workflow:${step.id}` });
 
           attemptSucceeded = true;
           outputs[step.id!] = output;

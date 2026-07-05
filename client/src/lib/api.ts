@@ -297,7 +297,7 @@ export const api = {
       body: yamlText,
     }).then(j<{ workflowId: string; stepCount: number; unknownAgents: string[] }>),
   cancelRun: (id: string) => fetch(`/api/runs/${id}/cancel`, { method: "POST" }).then(j),
-  approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j),
+  approveRun: (id: string) => fetch(`/api/runs/${id}/approve`, { method: "POST" }).then(j<{ ok: boolean; newRunId?: string }>),
   loopBackRun: (id: string, stepId: string) =>
     fetch(`/api/runs/${id}/loop-back`, {
       method: "POST", headers: { "Content-Type": "application/json" },
