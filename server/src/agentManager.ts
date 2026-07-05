@@ -16,7 +16,7 @@ import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
-import { parseDispatchMarker } from "./dispatchParser.js";
+import { parseDispatchMarker, serializeDispatchItem } from "./dispatchParser.js";
 import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
 import { getProjectMemory } from "./store/projects.js";
 import fs from "node:fs";
@@ -34,7 +34,7 @@ export function detectAndEnqueueDispatch(
   const plan = parseDispatchMarker(content);
   if (!plan || !plan.items.length) return;
   const summary = `派工給 ${plan.items.length} 位：${plan.items.map((i) => i.agentId).join("、")}`;
-  const detail = plan.items.map((i) => `- agentId: ${i.agentId}\n  mode: ${i.mode}\n  task: ${i.task}`).join("\n");
+  const detail = plan.items.map(serializeDispatchItem).join("\n");
   // 去重用 detail（含 task），避免「同 agent 不同 task」被誤判重複漏單
   if (listPending(sess.id).some((p) => p.kind === "dispatch" && p.detail === detail)) return;
   createPendingAction({

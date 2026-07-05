@@ -1,6 +1,60 @@
 import { describe, it, expect } from "vitest";
-import { mapWithConcurrency, runConsult, startExecute, buildExecutePrompt } from "./dispatchRunner.js";
+import { mapWithConcurrency, runConsult, startExecute, buildExecutePrompt, buildDispatchBrief } from "./dispatchRunner.js";
 import type { DispatchItem } from "./dispatchParser.js";
+
+describe("buildDispatchBrief（結構化交辦簡報）", () => {
+  it("無選填欄位 → 等同純 task（向後相容）", () => {
+    const item: DispatchItem = { agentId: "a", mode: "consult", task: "做某件事" };
+    expect(buildDispatchBrief(item)).toBe("做某件事");
+  });
+
+  it("含 context/deliverable/accept → 組成完整簡報，各段落都在", () => {
+    const item: DispatchItem = {
+      agentId: "legal",
+      mode: "consult",
+      task: "分析合約",
+      context: "SaaS 訂閱制",
+      deliverable: "風險清單",
+      accept: ["列出高風險條款", "說明建議方向"],
+    };
+    const brief = buildDispatchBrief(item);
+    expect(brief).toContain("分析合約");
+    expect(brief).toContain("【背景】SaaS 訂閱制");
+    expect(brief).toContain("【交付物】風險清單");
+    expect(brief).toContain("【驗收標準】");
+    expect(brief).toContain("- 列出高風險條款");
+    expect(brief).toContain("- 說明建議方向");
+  });
+
+  it("只有 context 沒有 deliverable/accept → 只加背景段落", () => {
+    const item: DispatchItem = {
+      agentId: "a",
+      mode: "consult",
+      task: "任務A",
+      context: "背景資訊",
+    };
+    const brief = buildDispatchBrief(item);
+    expect(brief).toContain("【背景】背景資訊");
+    expect(brief).not.toContain("【交付物】");
+    expect(brief).not.toContain("【驗收標準】");
+  });
+
+  it("execute prompt 包裹 brief 後仍含【完成自驗】且保留 task 文字", () => {
+    const item: DispatchItem = {
+      agentId: "ec",
+      mode: "execute",
+      task: "上架露天",
+      context: "SKU 在 data.xlsx",
+      deliverable: "10 件上架截圖",
+      accept: ["截圖含商品名稱", "價格正確"],
+    };
+    const prompt = buildExecutePrompt(buildDispatchBrief(item));
+    expect(prompt).toContain("【完成自驗】");
+    expect(prompt).toContain("上架露天");
+    expect(prompt).toContain("【背景】");
+    expect(prompt).toContain("截圖含商品名稱");
+  });
+});
 
 describe("buildExecutePrompt（外包自驗+證據）", () => {
   it("保留原任務、追加【完成自驗】證據區塊與必填欄位", () => {

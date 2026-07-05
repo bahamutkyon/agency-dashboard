@@ -1,6 +1,30 @@
 import { agentManager } from "./agentManager.js";
 import type { DispatchItem } from "./dispatchParser.js";
 
+/**
+ * 組合結構化交辦簡報（Brief）送給子 agent。
+ * - 無選填欄位（無 context/deliverable/accept）→ 回 item.task，向後完全相容。
+ * - 有任一選填欄位 → 組成帶段落標題的完整簡報，讓子 agent 清楚背景、交付物與驗收標準。
+ */
+export function buildDispatchBrief(item: DispatchItem): string {
+  const hasExtras =
+    item.context != null ||
+    item.deliverable != null ||
+    (item.accept != null && item.accept.length > 0);
+  if (!hasExtras) return item.task;
+
+  const lines: string[] = [item.task, ""];
+  if (item.context) lines.push(`【背景】${item.context}`);
+  if (item.deliverable) lines.push(`【交付物】${item.deliverable}`);
+  if (item.accept && item.accept.length > 0) {
+    lines.push(`【驗收標準】`);
+    for (const a of item.accept) {
+      lines.push(`- ${a}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 export interface ConsultResult {
   agentId: string;
   task: string;
@@ -56,7 +80,7 @@ async function runOneConsult(
     // 逾時：若已串流到部分內容，仍回 timeout 狀態但帶回那段內容（不再是空白）。
     const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
-    agentManager.send(session.id, item.task);
+    agentManager.send(session.id, buildDispatchBrief(item));
   });
 }
 
@@ -115,7 +139,7 @@ export function buildExecutePrompt(task: string): string {
 const defaultExecuteDeps: ExecuteDeps = {
   start: (item, workspaceId) => {
     const s = agentManager.start(item.agentId, `🛠️ 外包執行：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
-    agentManager.send(s.id, buildExecutePrompt(item.task));
+    agentManager.send(s.id, buildExecutePrompt(buildDispatchBrief(item)));
     return s.id;
   },
   attachDone: (subSessionId, cb) => {

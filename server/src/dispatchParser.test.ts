@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseDispatchMarker, validateDispatchPlan } from "./dispatchParser.js";
+import { parseDispatchMarker, validateDispatchPlan, serializeDispatchItem } from "./dispatchParser.js";
+import type { DispatchItem } from "./dispatchParser.js";
 
 describe("parseDispatchMarker", () => {
   it("無 DISPATCH 區塊 → null", () => {
@@ -30,6 +31,104 @@ describe("parseDispatchMarker", () => {
   it("非法 mode → 退回 consult", () => {
     const txt = `=== DISPATCH ===\n- agentId: a\n  mode: 亂寫\n  task: x\n=== END DISPATCH ===`;
     expect(parseDispatchMarker(txt)!.items[0].mode).toBe("consult");
+  });
+});
+
+describe("新功能：多行 task", () => {
+  it("多行 task 正確合併（換行保留、前後空白去除）", () => {
+    const txt = [
+      "=== DISPATCH ===",
+      "- agentId: coding-agent",
+      "  task: 這是第一行",
+      "    這是第二行",
+      "    這是第三行",
+      "=== END DISPATCH ===",
+    ].join("\n");
+    const p = parseDispatchMarker(txt)!;
+    expect(p.items[0].task).toBe("這是第一行\n這是第二行\n這是第三行");
+  });
+});
+
+describe("新功能：context/deliverable/accept 全欄位解析", () => {
+  it("全欄位解析出正確值", () => {
+    const txt = [
+      "=== DISPATCH ===",
+      "- agentId: legal-agent",
+      "  mode: consult",
+      "  task: 分析這份合約",
+      "  context: 合約是 SaaS 訂閱制",
+      "  deliverable: 風險清單",
+      "  accept:",
+      "    - 必須列出高風險條款",
+      "    - 必須說明建議修改方向",
+      "=== END DISPATCH ===",
+    ].join("\n");
+    const p = parseDispatchMarker(txt)!;
+    const item = p.items[0];
+    expect(item.task).toBe("分析這份合約");
+    expect(item.context).toBe("合約是 SaaS 訂閱制");
+    expect(item.deliverable).toBe("風險清單");
+    expect(item.accept).toEqual(["必須列出高風險條款", "必須說明建議修改方向"]);
+  });
+
+  it("accept 最多取 3 條，多餘截斷", () => {
+    const txt = [
+      "=== DISPATCH ===",
+      "- agentId: agent-x",
+      "  task: 做事",
+      "  accept:",
+      "    - 條件1",
+      "    - 條件2",
+      "    - 條件3",
+      "    - 條件4",
+      "    - 條件5",
+      "=== END DISPATCH ===",
+    ].join("\n");
+    const p = parseDispatchMarker(txt)!;
+    expect(p.items[0].accept).toHaveLength(3);
+    expect(p.items[0].accept).toEqual(["條件1", "條件2", "條件3"]);
+  });
+
+  it("無選填欄位時，parsed item 不含 context/deliverable/accept 鍵（向後相容）", () => {
+    const txt = "=== DISPATCH ===\n- agentId: a\n  task: simple\n=== END DISPATCH ===";
+    const item = parseDispatchMarker(txt)!.items[0];
+    expect(item).not.toHaveProperty("context");
+    expect(item).not.toHaveProperty("deliverable");
+    expect(item).not.toHaveProperty("accept");
+  });
+});
+
+describe("新功能：round-trip serializeDispatchItem → parseDispatchMarker", () => {
+  it("全欄位 round-trip 還原", () => {
+    const original: DispatchItem = {
+      agentId: "legal-agent",
+      mode: "consult",
+      task: "分析合約\n注意高風險條款",
+      context: "SaaS 訂閱制合約",
+      deliverable: "風險清單",
+      accept: ["列出高風險條款", "說明建議修改方向"],
+    };
+    const serialized = serializeDispatchItem(original);
+    const block = `=== DISPATCH ===\n${serialized}\n=== END DISPATCH ===`;
+    const parsed = parseDispatchMarker(block)!;
+    const item = parsed.items[0];
+    expect(item.agentId).toBe(original.agentId);
+    expect(item.mode).toBe(original.mode);
+    expect(item.task).toBe(original.task);
+    expect(item.context).toBe(original.context);
+    expect(item.deliverable).toBe(original.deliverable);
+    expect(item.accept).toEqual(original.accept);
+  });
+
+  it("無選填欄位的 round-trip（execute mode）", () => {
+    const original: DispatchItem = { agentId: "ec-ops", mode: "execute", task: "上架露天" };
+    const serialized = serializeDispatchItem(original);
+    const block = `=== DISPATCH ===\n${serialized}\n=== END DISPATCH ===`;
+    const item = parseDispatchMarker(block)!.items[0];
+    expect(item.agentId).toBe("ec-ops");
+    expect(item.mode).toBe("execute");
+    expect(item.task).toBe("上架露天");
+    expect(item).not.toHaveProperty("context");
   });
 });
 
