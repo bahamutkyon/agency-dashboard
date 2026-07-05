@@ -43,3 +43,53 @@ export function upsertNote(n: Note): void {
 export function deleteNote(id: string): void {
   db.prepare("DELETE FROM notes WHERE id = ?").run(id);
 }
+
+/**
+ * 將研究產出存成可被 BM25 檢索的 note（id 前綴 rnote_，標題前綴 [研究]）。
+ * 沿用既有 upsertNote，不新增欄位、不改 schema。
+ * 回傳寫入的 note id。
+ */
+export function saveResearchNote(input: {
+  workspaceId: string;
+  topic: string;
+  summary: string;
+  sources?: string[];
+  agentId?: string;
+}): string {
+  const now = Date.now();
+  const dateStr = new Intl.DateTimeFormat("sv-SE").format(new Date(now));
+  const id = `rnote_${now.toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  const title = `[研究] ${input.topic}`;
+  const sourcesSection =
+    input.sources && input.sources.length > 0
+      ? input.sources.map((s) => `- ${s}`).join("\n")
+      : "- (無)";
+  const body = [
+    `## 主題`,
+    input.topic,
+    ``,
+    `## 結論摘要`,
+    input.summary,
+    ``,
+    `## 來源`,
+    sourcesSection,
+    ``,
+    `## 研究日期`,
+    dateStr,
+    ``,
+    `## Agent`,
+    input.agentId ?? "(未指定)",
+  ].join("\n");
+
+  upsertNote({
+    id,
+    workspaceId: input.workspaceId,
+    title,
+    body,
+    pinned: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return id;
+}

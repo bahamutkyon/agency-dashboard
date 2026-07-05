@@ -1,4 +1,5 @@
-import { db } from "./db.js";
+import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
+import { saveResearchNote } from "./store/notes.js";
 
 export type TierOverride = "hot" | "cold" | "exclude";
 
@@ -34,6 +35,20 @@ export function saveCapabilityReport(input: { agentId: string; report: string; s
     INSERT INTO agent_capability_reports (id, agent_id, report, sources, run_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(id, input.agentId, input.report, JSON.stringify(input.sources || []), input.runId ?? null, Date.now());
+
+  // 研究成果庫：將能力報告同步寫成可被 BM25 檢索的 note，失敗不可拖累報告儲存。
+  try {
+    saveResearchNote({
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      topic: input.agentId,
+      summary: input.report,
+      sources: input.sources,
+      agentId: input.agentId,
+    });
+  } catch (e) {
+    console.warn("[studyStore] saveResearchNote failed (non-fatal):", e);
+  }
+
   return id;
 }
 
