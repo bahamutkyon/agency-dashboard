@@ -20,6 +20,7 @@ import { ensureWorkspaceDir } from "./workspaceDir.js";
 import { parseDispatchMarker, serializeDispatchItem } from "./dispatchParser.js";
 import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
 import { getProjectMemory } from "./store/projects.js";
+import { getDelegationProgress } from "./store/delegationProgress.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -512,7 +513,18 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       } else if (evt.type === "tool_call" || evt.type === "tool_result") {
         const wsId = (s as any).workspaceId as string | undefined;
         const row = recordToolActivity({ id: s.id, agentId: s.agentId, workspaceId: wsId || "" }, evt);
-        if (row) this.io?.emit("activity:event", row);
+        if (row) {
+          this.io?.emit("activity:event", row);
+          // 進度心跳：tool_call 發生時廣播 delegation:progress，
+          // 讓前端能即時更新在途 execute 派工的進度（不需輪詢）。
+          // 前端依 subSessionId 比對自身持有的 delegation list 來決定是否更新。
+          if (evt.type === "tool_call" && this.io) {
+            try {
+              const prog = getDelegationProgress(s.id);
+              this.io.emit("delegation:progress", { subSessionId: s.id, ...prog });
+            } catch { /* 不阻斷主流程 */ }
+          }
+        }
       }
     });
   }

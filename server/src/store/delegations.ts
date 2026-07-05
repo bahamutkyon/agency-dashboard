@@ -1,4 +1,5 @@
 import { db } from "../db.js";
+import { getBatchDelegationProgress, type DelegationProgress } from "./delegationProgress.js";
 
 export type DelegationMode = "consult" | "execute";
 export type DelegationStatus = "queued" | "running" | "done" | "failed" | "orphaned";
@@ -94,6 +95,56 @@ export function listDelegations(opts: ListDelegationsOpts = {}, limit = 50): Del
   const sql = `SELECT * FROM delegations ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ?`;
   return (db.prepare(sql).all(...args, cap) as any[]).map(rowTo);
 }
+
+// ─── 進度心跳 ─────────────────────────────────────────────────────────────────
+
+export type { DelegationProgress };
+
+/** listDelegations 的擴充版，附帶 progress 欄位給 in-flight execute 項。 */
+export interface DelegationWithProgress extends Delegation {
+  /** 只有 mode=execute 且 status in (running,queued) 且有 subSessionId 的項目才有此欄位 */
+  progress?: DelegationProgress;
+}
+
+/**
+ * 查詢派工台帳，對 status in (running,queued) 且 mode=execute 且有 subSessionId 的項目
+ * 附上從 activity_log 現算的進度（toolCalls / lastActivityAt / lastAction）。
+ * done/failed/orphaned 的項目不計算進度（已結束，不需更新）。
+ *
+ * 效能：批量查 activity_log（單一 SQL GROUP BY），不 N+1。
+ */
+export function listDelegationsWithProgress(
+  opts: ListDelegationsOpts = {},
+  limit = 50,
+): DelegationWithProgress[] {
+  const rows = listDelegations(opts, limit);
+
+  // 篩出需要計算進度的 sub-session id
+  const targets = rows.filter(
+    (r) =>
+      r.mode === "execute" &&
+      (r.status === "running" || r.status === "queued") &&
+      r.subSessionId,
+  );
+
+  if (!targets.length) return rows;
+
+  const progressMap = getBatchDelegationProgress(targets.map((r) => r.subSessionId!));
+
+  return rows.map((r) => {
+    if (
+      r.mode === "execute" &&
+      (r.status === "running" || r.status === "queued") &&
+      r.subSessionId
+    ) {
+      const prog = progressMap.get(r.subSessionId);
+      if (prog !== undefined) return { ...r, progress: prog };
+    }
+    return r;
+  });
+}
+
+// ─── 開機對帳 ────────────────────────────────────────────────────────────────
 
 /**
  * 開機對帳：把 status in (queued, running) 的記錄標成 'orphaned'（server 重啟前未完成的在途派工）。
