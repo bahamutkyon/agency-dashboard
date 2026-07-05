@@ -172,6 +172,46 @@ describe("autonomyRunner 狀態機", () => {
     expect(getRun(runId)?.status).toBe("stopped"); // 不應被覆蓋成 done
   });
 
+  it("clarify → paused_for_input，provideInput 後可繼續執行", async () => {
+    const { deps } = makeDeps([
+      // 第一步：PM 先要求釐清（模糊目標）
+      "=== ACTION ===\nkind: clarify\nrisk: low\nsummary: 需要釐清目標範圍\ndetail: 1. 目標受眾是 B2B 還是 B2C？（預設假設：B2B）\n2. 成功標準是流量還是轉換率？（預設假設：轉換率）\n=== END ACTION ===",
+      // 使用者回答後，PM 改輸出計畫
+      "=== ACTION ===\nkind: plan\nrisk: high\nsummary: 確認後擬定計畫\ndetail: 1.研究市場 2.擬草稿 3.發布\n=== END ACTION ===",
+      // 計畫核可後執行完成
+      "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===",
+    ]);
+    const runId = await startRun("sessClarify", "wC", "幫我做內容行銷", {}, deps);
+    // 模糊目標 → PM 先 clarify → paused_for_input（不是直接 plan）
+    expect(getRun(runId)?.status).toBe("paused_for_input");
+    const pending = listPending("sessClarify");
+    expect(pending.some((p) => p.kind === "clarify")).toBe(true);
+    expect(pending.some((p) => p.kind === "plan")).toBe(false);
+    // 使用者補充資訊 → loop → plan 從 loop 回來 → paused_for_action（manual 政策需人工核可）
+    await provideInput(runId, "B2B，成功標準是轉換率");
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    const planPa = listPending("sessClarify").find((p) => p.kind === "plan")!;
+    expect(planPa).toBeTruthy();
+    // 核可計畫 → 繼續跑 → goal_done
+    await approveAction(planPa.id);
+    expect(getRun(runId)?.status).toBe("done");
+  });
+
+  it("clarify 不被 balanced 政策自動放行（確保擋在動手前）", async () => {
+    const { deps } = makeDeps([
+      "=== ACTION ===\nkind: clarify\nrisk: low\nsummary: 需要釐清\ndetail: 目標範圍為何？\n=== END ACTION ===",
+      "=== ACTION ===\nkind: plan\nrisk: high\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===",
+    ]);
+    // balanced 政策下，clarify 仍需暫停等使用者
+    const runId = await startRun("sessClarifyB", "wCB", "模糊需求", { policy: "balanced" }, deps);
+    expect(getRun(runId)?.status).toBe("paused_for_input");
+    expect(listPending("sessClarifyB").some((p) => p.kind === "clarify")).toBe(true);
+    // 不應直接跑到 plan 或 running
+    expect(getRun(runId)?.status).not.toBe("running");
+    expect(getRun(runId)?.status).not.toBe("awaiting_plan_approval");
+  });
+
   it("sendTurn 回空字串（session 消失）→ run 轉 error，不空轉", async () => {
     let i = 0;
     const deps: AutonomyDeps = {

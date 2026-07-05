@@ -1,7 +1,7 @@
 // server/src/actionProtocol.ts
 import { parseDispatchMarker, type DispatchItem } from "./dispatchParser.js";
 
-export type ActionKind = "plan" | "next_step" | "goal_done" | "need_input" | "dispatch" | "external_send" | "destructive" | "spend";
+export type ActionKind = "plan" | "next_step" | "goal_done" | "clarify" | "need_input" | "dispatch" | "external_send" | "destructive" | "spend";
 export type Risk = "high" | "low";
 
 export interface ParsedAction {
@@ -14,7 +14,7 @@ export interface ParsedAction {
 }
 
 export const HIGH_RISK_KINDS: ActionKind[] = ["plan", "dispatch", "external_send", "destructive", "spend"];
-const KNOWN_KINDS: ActionKind[] = ["plan", "next_step", "goal_done", "need_input", "dispatch", "external_send", "destructive", "spend"];
+const KNOWN_KINDS: ActionKind[] = ["plan", "next_step", "goal_done", "clarify", "need_input", "dispatch", "external_send", "destructive", "spend"];
 
 export function classifyRisk(kind: ActionKind): Risk {
   return HIGH_RISK_KINDS.includes(kind) ? "high" : "low";

@@ -22,12 +22,13 @@ const activeDeps = new Map<string, AutonomyDeps>();
 
 const PROTOCOL = `你正在「自主模式」下工作。請嚴格用以下標記與系統溝通，每次回覆**只輸出一個** ACTION 區塊放在最末尾：
 === ACTION ===
-kind: <plan|next_step|goal_done|need_input|dispatch|external_send|destructive|spend>
+kind: <clarify|plan|next_step|goal_done|need_input|dispatch|external_send|destructive|spend>
 risk: <high|low>
 summary: <一句話>
 detail: <細節，可多行>
 === END ACTION ===
 規則：
+- **動手前先釐清**：收到目標後，若「成功標準/範圍/受眾/優先順序」任一不明，第一步必須輸出 clarify（risk: low），列出 1-3 個結構化釐清問題（格式：問題 + 為什麼需要知道 + 你的預設假設）。系統會暫停等使用者回答；回答後你再視情況繼續 clarify 或直接 plan。目標夠清楚時才直接 plan。
 - 這四類屬高風險動作，必須先用 ACTION 申報、交由系統處理（系統會依當前政策決定是否需使用者核可）：dispatch（派工）、external_send（對外發訊息）、destructive（不可逆/破壞）、spend（花錢/交易/安裝）。**嚴禁你自己直接執行這四類**，一律走申報。
 - 每完成一步用 next_step 回報；全部達標用 goal_done；缺關鍵資訊用 need_input。
 - dispatch 派工的 detail 格式（**每項必須以 "- agentId:" 開頭**，否則系統無法解析）：
@@ -77,7 +78,7 @@ export async function startRun(
   });
   activeDeps.set(run.id, deps);
   emitRun(deps, run.id);
-  const planPrompt = `${PROTOCOL}\n\n# 目標\n${goal}\n\n請先把目標拆成可執行的步驟計畫，用 kind: plan 輸出（risk: high）。先不要執行任何步驟。`;
+  const planPrompt = `${PROTOCOL}\n\n# 目標\n${goal}\n\n請先評估目標是否夠清楚：\n- 若「成功標準/範圍/受眾/優先順序」任一不明 → 先輸出 kind: clarify（risk: low），列出 1-3 個結構化釐清問題（問題 + 為什麼需要知道 + 你的預設假設）。\n- 若目標夠清楚 → 直接輸出 kind: plan（risk: high），把目標拆成可執行的步驟計畫。先不要執行任何步驟。`;
   let out: string;
   try {
     out = await deps.sendTurn(sessionId, planPrompt);
@@ -85,7 +86,21 @@ export async function startRun(
     finalize(deps, run.id, "error", e instanceof Error ? e.message : String(e));
     return run.id;
   }
-  const plan = pickAction(parseActions(out), "plan");
+  const actions = parseActions(out);
+  // 若 PM 先要求釐清，暫停等使用者回答，不直接進入計畫階段
+  // 注意：不用 pickAction（無目標 kind 時會 fallthrough 回最後一個），改用 find 精確比對。
+  const clarifyAction = actions.find((a) => a.kind === "clarify");
+  if (clarifyAction) {
+    const pa = createPendingAction({
+      runId: run.id, sessionId, workspaceId, kind: "clarify", risk: "low",
+      summary: clarifyAction.summary, detail: clarifyAction.detail ?? out.slice(0, 2000),
+    });
+    updateRunStatus(run.id, "paused_for_input");
+    emitRun(deps, run.id);
+    deps.emit(run.id, { kind: "pending", action: pa });
+    return run.id;
+  }
+  const plan = pickAction(actions, "plan");
   if (shouldAutoApprove("plan", run.policy)) {
     const planPa = createPendingAction({
       runId: run.id, sessionId, workspaceId, kind: "plan", risk: "high",
@@ -171,8 +186,8 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
       continue;
     }
     if (action.kind === "goal_done") { finalize(deps, runId, "done"); return; }
-    if (action.kind === "need_input") {
-      const pa = createPendingAction({ runId, sessionId: run.sessionId, workspaceId: run.workspaceId, kind: "need_input", risk: "low", summary: action.summary, detail: action.detail });
+    if (action.kind === "need_input" || action.kind === "clarify") {
+      const pa = createPendingAction({ runId, sessionId: run.sessionId, workspaceId: run.workspaceId, kind: action.kind, risk: "low", summary: action.summary, detail: action.detail });
       updateRunStatus(runId, "paused_for_input"); emitRun(deps, runId); deps.emit(runId, { kind: "pending", action: pa });
       return;
     }
