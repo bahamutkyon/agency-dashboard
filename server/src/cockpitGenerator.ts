@@ -1,4 +1,5 @@
 import { agentManager } from "./agentManager.js";
+import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
 import { getWorkspace, createWorkspace } from "./store.js";
 import { buildCockpitContext } from "./cockpitContext.js";
@@ -43,6 +44,7 @@ async function defaultRunAgent(prompt: string): Promise<string> {
   return withBackgroundSlot(() => new Promise<string>((resolve) => {
     const session = agentManager.start(COCKPIT_AGENT_ID, "🧭 產生總管簡報", undefined, COCKPIT_WORKSPACE_ID, false);
     let collected = "", streamed = "", settled = false;
+    let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
     const done = (v: string) => {
       if (settled) return;
       settled = true;
@@ -51,13 +53,13 @@ async function defaultRunAgent(prompt: string): Promise<string> {
       resolve(v);
     };
     const onEvent = (evt: any) => {
-      if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
-      else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
-      else if (evt.type === "result") done((collected || streamed).trim());
+      if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
+      else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
+      else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) done((collected || streamed).trim()); }
     };
     const t = setTimeout(() => done((collected || streamed).trim()), 5 * 60 * 1000);
     session.on("event", onEvent);
-    agentManager.send(session.id, prompt);
+    myTurnId = agentManager.send(session.id, prompt).turnId;
   }), { label: "cockpit" });
 }
 

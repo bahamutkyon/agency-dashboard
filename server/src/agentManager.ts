@@ -357,7 +357,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     return this.sessions.get(sessionId);
   }
 
-  send(sessionId: string, text: string): { ok: boolean; injectedNotes?: { title: string }[] } {
+  send(sessionId: string, text: string): { ok: boolean; injectedNotes?: { title: string }[]; turnId?: number } {
     const s = this.sessions.get(sessionId) || this.reattach(sessionId);
     if (!s) return { ok: false };
 
@@ -409,11 +409,14 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     if (result === "rejected") {
       return { ok: false };
     }
+    // 透傳這一回合的 turnId 給等待端（send 為同步，此刻 lastTurnId 即這則的 turnId）。
+    // 舊/假 session 無 lastTurnId → undefined，等待端會走向後相容全收路徑。
+    const turnId = (s as any).lastTurnId as number | undefined;
 
     // Persist the original (clean) user message — don't bloat history with
     // auto-injected note context.
     appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });
-    return { ok: true, injectedNotes };
+    return { ok: true, injectedNotes, turnId };
   }
 
   stop(sessionId: string) {

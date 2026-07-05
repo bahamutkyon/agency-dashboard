@@ -48,7 +48,28 @@ export type SendResult = "sent" | "queued" | "rejected";
 
 export interface SessionEvent {
   type: "delta" | "message" | "status" | "error" | "result" | "tool_call" | "tool_result";
+  /** 這個事件屬於哪一回合（send 配的 turnId）。等待端據此只認自己的 result，
+   *  修「同一 session 多寫入者回覆張冠李戴」。舊事件/未接線路徑可能為 undefined。 */
+  turnId?: number;
   payload: any;
+}
+
+/**
+ * 等待端 turn 比對閘門。核心不變量：只有「雙方都帶 turnId 且不同」時才排除；
+ * 任一方缺 turnId（相容舊呼叫端或舊事件）一律全收，避免相容破壞。
+ *
+ * 這是修 bug 的核心：waiter 只在 turnMatches(我的 turnId, evt.turnId) 為 true 時才 settle，
+ * 別的寫入者那一回合的 result（turnId 不同）不會誤觸發本 waiter。
+ */
+export function turnMatches(myTurnId: number | undefined, evtTurnId: number | undefined): boolean {
+  if (myTurnId === undefined || evtTurnId === undefined) return true;
+  return myTurnId === evtTurnId;
+}
+
+/** 佇列項：文字 + 該則在 send 時就配好的 turnId（drain 時成為當前回合 turnId）。 */
+interface QueuedMessage {
+  text: string;
+  turnId: number;
 }
 
 interface SpawnOpts {
@@ -89,9 +110,21 @@ export class AgentSession extends EventEmitter {
    * 在 PM 忙碌時直接消失、永不轉達）。改為排隊：回到 idle 時抽一則自動送出，
    * 呼叫端不必再關心 busy。
    */
-  private queue: string[] = [];
+  private queue: QueuedMessage[] = [];
   /** 佇列上限。超過視為異常堆積（呼叫端瘋狂灌訊息），emit error 並拒收溢出，避免失控。 */
   private static readonly MAX_QUEUE = 50;
+
+  /** 單調遞增的 turn 序號產生器。每次 send（sent 或 queued）配一個唯一 turnId。 */
+  private nextTurnId = 1;
+  /** 當前正在執行（已 dispatch、尚未收到 result）那一回合的 turnId。
+   *  result / delta / message 事件都帶這個值，讓等待端只認自己的回合。 */
+  private currentTurnId?: number;
+  /**
+   * 最近一次 send 配到的 turnId，供呼叫端（agentManager.send）同步讀取後透傳給等待端。
+   * send 為同步方法，呼叫端在 send() 回傳後立即讀取即可，無交錯風險。
+   * rejected（佇列爆滿、未排入）時為 undefined（該則沒有對應回合）。
+   */
+  lastTurnId?: number;
 
   // Claude-specific state
   claudeSessionId?: string;
@@ -143,19 +176,27 @@ export class AgentSession extends EventEmitter {
     // busy / starting（回合進行中）→ 排隊而非丟棄。回到 idle 時 drainQueue() 抽出送達。
     if (this.status === "busy" || this.status === "starting") {
       if (this.queue.length >= AgentSession.MAX_QUEUE) {
+        this.lastTurnId = undefined; // 未排入 → 無對應回合
         this.emit("event", { type: "error", payload: `送信佇列已滿（>${AgentSession.MAX_QUEUE}），本則訊息未排入` });
         return "rejected";
       }
-      this.queue.push(text);
-      console.log(`[AgentSession ${this.id.slice(0,8)}] busy → 排隊（queue=${this.queue.length}）`);
+      const turnId = this.nextTurnId++;
+      this.lastTurnId = turnId;
+      // turnId 跟著這則 queued 訊息一起存，drainQueue 取出時設為當前回合 turnId。
+      this.queue.push({ text, turnId });
+      console.log(`[AgentSession ${this.id.slice(0,8)}] busy → 排隊（queue=${this.queue.length}, turn=${turnId}）`);
       return "queued";
     }
-    this.dispatch(text);
+    const turnId = this.nextTurnId++;
+    this.lastTurnId = turnId;
+    this.dispatch(text, turnId);
     return "sent";
   }
 
-  /** 實際把一則訊息送給對應 provider（不做 busy 判斷；呼叫端已確保可送）。 */
-  private dispatch(text: string): void {
+  /** 實際把一則訊息送給對應 provider（不做 busy 判斷；呼叫端已確保可送）。
+   *  設定 currentTurnId，讓本回合後續 emit 的 delta/message/result 都帶這個 turnId。 */
+  private dispatch(text: string, turnId: number): void {
+    this.currentTurnId = turnId;
     if (this.provider === "claude") {
       if (!this.child) this.spawnClaudeChild();
       this.writeClaudeMessage(text);
@@ -175,14 +216,15 @@ export class AgentSession extends EventEmitter {
     if (this.status !== "idle") return;
     const next = this.queue.shift();
     if (next === undefined) return;
-    console.log(`[AgentSession ${this.id.slice(0,8)}] idle → 抽出佇列訊息送出（剩 ${this.queue.length}）`);
-    this.dispatch(next);
+    console.log(`[AgentSession ${this.id.slice(0,8)}] idle → 抽出佇列訊息送出（剩 ${this.queue.length}, turn=${next.turnId}）`);
+    // 用 queued 時就配好的 turnId 當作這一回合的 turnId（等待端才認得出自己那則）。
+    this.dispatch(next.text, next.turnId);
   }
 
-  /** 供 agentManager 在 MCP 重生前搶救佇列用的唯讀視圖。
+  /** 供 agentManager 在 MCP 重生前搶救佇列用的唯讀視圖（只回文字，turnId 不外露）。
    *  呼叫端應自行 spread（[...s.queuedMessages]）取快照，stop() 之後原陣列即清空。 */
   get queuedMessages(): readonly string[] {
-    return this.queue;
+    return this.queue.map((q) => q.text);
   }
 
   stop(): void {
@@ -338,7 +380,7 @@ export class AgentSession extends EventEmitter {
     if (evt.type === "stream_event" && evt.event?.type === "content_block_delta") {
       const d = evt.event.delta;
       if (d?.type === "text_delta" && d.text) {
-        this.emit("event", { type: "delta", payload: d.text });
+        this.emit("event", { type: "delta", turnId: this.currentTurnId, payload: d.text });
       }
       return;
     }
@@ -354,7 +396,7 @@ export class AgentSession extends EventEmitter {
         .map((c: any) => c.text)
         .join("");
       if (text) {
-        this.emit("event", { type: "message", payload: { role: "assistant", content: text } });
+        this.emit("event", { type: "message", turnId: this.currentTurnId, payload: { role: "assistant", content: text } });
       }
       return;
     }
@@ -405,7 +447,8 @@ export class AgentSession extends EventEmitter {
       return;
     }
     if (evt.type === "result") {
-      this.emit("event", { type: "result", payload: evt });
+      // result 帶剛結束那一回合的 turnId（等待端據此嚴格比對，只認自己那回合）。
+      this.emit("event", { type: "result", turnId: this.currentTurnId, payload: evt });
       this.lastActivityAt = Date.now(); // 回合結束，重置 idle 計時器
       this.setStatus("idle");
       return;
@@ -457,10 +500,10 @@ export class AgentSession extends EventEmitter {
       // turn (pure-delta path). Avoids double-write when item.completed
       // already emitted the message inside routeCodexEvent.
       if (!this.codexEmitted && this.codexCurrent && this.codexCurrent.trim()) {
-        this.emit("event", { type: "message", payload: { role: "assistant", content: this.codexCurrent } });
+        this.emit("event", { type: "message", turnId: this.currentTurnId, payload: { role: "assistant", content: this.codexCurrent } });
       }
       // Emit synthetic result
-      this.emit("event", { type: "result", payload: { provider: "codex", exit: code } });
+      this.emit("event", { type: "result", turnId: this.currentTurnId, payload: { provider: "codex", exit: code } });
       this.setStatus("idle");
       this.child = undefined;
     });
@@ -491,8 +534,8 @@ export class AgentSession extends EventEmitter {
       if (evt.itemType === "agent_message" || !evt.itemType) {
         this.codexCurrent = evt.text;
         // emit as one chunk (codex doesn't stream)
-        this.emit("event", { type: "delta", payload: evt.text });
-        this.emit("event", { type: "message", payload: { role: "assistant", content: evt.text } });
+        this.emit("event", { type: "delta", turnId: this.currentTurnId, payload: evt.text });
+        this.emit("event", { type: "message", turnId: this.currentTurnId, payload: { role: "assistant", content: evt.text } });
         this.codexEmitted = true;
       }
       return;
@@ -555,7 +598,7 @@ export class AgentSession extends EventEmitter {
           this.geminiHistory = this.geminiHistory.slice(-20);
         }
       }
-      this.emit("event", { type: "result", payload: { provider: "gemini", exit: code } });
+      this.emit("event", { type: "result", turnId: this.currentTurnId, payload: { provider: "gemini", exit: code } });
       this.setStatus("idle");
       this.child = undefined;
     });
@@ -585,11 +628,11 @@ export class AgentSession extends EventEmitter {
       // (each event's content is the NEW piece to add, not cumulative).
       // Non-delta messages are full final replacements.
       if (evt.isDelta) {
-        this.emit("event", { type: "delta", payload: evt.content });
+        this.emit("event", { type: "delta", turnId: this.currentTurnId, payload: evt.content });
         this.geminiCurrent += evt.content;
       } else {
         this.geminiCurrent = evt.content;
-        this.emit("event", { type: "message", payload: { role: "assistant", content: evt.content } });
+        this.emit("event", { type: "message", turnId: this.currentTurnId, payload: { role: "assistant", content: evt.content } });
         this.geminiEmitted = true;
       }
       return;
@@ -598,7 +641,7 @@ export class AgentSession extends EventEmitter {
       // Only emit fallback message when no full-message event was emitted this
       // turn (pure-delta path). Avoids double-write for non-delta turns.
       if (!this.geminiEmitted && this.geminiCurrent) {
-        this.emit("event", { type: "message", payload: { role: "assistant", content: this.geminiCurrent } });
+        this.emit("event", { type: "message", turnId: this.currentTurnId, payload: { role: "assistant", content: this.geminiCurrent } });
       }
       return;
     }

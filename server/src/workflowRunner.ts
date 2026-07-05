@@ -18,6 +18,7 @@
  */
 import { EventEmitter } from "node:events";
 import { agentManager } from "./agentManager.js";
+import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
@@ -327,19 +328,20 @@ class WorkflowRunner extends EventEmitter {
             new Promise<string>((resolve, reject) => {
               let buffer = "";
               let assistantText = "";
+              let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
               onAbort = () => { reject(new Error("cancelled")); };
               onEvent = (evt: any) => {
-                if (evt.type === "delta") buffer += evt.payload;
-                else if (evt.type === "message") assistantText = evt.payload.content;
+                if (evt.type === "delta") { if (turnMatches(myTurnId, evt.turnId)) buffer += evt.payload; }
+                else if (evt.type === "message") { if (turnMatches(myTurnId, evt.turnId)) assistantText = evt.payload.content; }
                 else if (evt.type === "result") {
-                  resolve(assistantText || buffer);
+                  if (turnMatches(myTurnId, evt.turnId)) resolve(assistantText || buffer);
                 } else if (evt.type === "error" && String(evt.payload).startsWith("spawn")) {
                   reject(new Error(String(evt.payload)));
                 }
               };
               session.on("event", onEvent);
               signal.addEventListener("abort", onAbort);
-              agentManager.send(session.id, promptText);
+              myTurnId = agentManager.send(session.id, promptText).turnId;
             }),
             new Promise<string>((_, reject) => {
               setTimeout(() => reject(new Error("step timeout")), baseTimeout * Math.pow(1.5, attempt));

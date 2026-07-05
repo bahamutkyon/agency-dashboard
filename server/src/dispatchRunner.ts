@@ -1,4 +1,5 @@
 import { agentManager } from "./agentManager.js";
+import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
 import type { DispatchItem } from "./dispatchParser.js";
 
@@ -68,6 +69,7 @@ async function runOneConsult(
     let collected = "";   // 最終 message 事件的權威全文
     let streamed = "";    // 累積的 delta 串流——逾時時用它救回「部分內容」而非空白
     let settled = false;
+    let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
     const finish = (status: ConsultResult["status"]) => {
       if (settled) return;
       settled = true;
@@ -77,14 +79,14 @@ async function runOneConsult(
       resolve({ agentId: item.agentId, task: item.task, output: (collected || streamed).trim(), status, subSessionId: session.id });
     };
     const onEvent = (evt: any) => {
-      if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
-      else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
-      else if (evt.type === "result") finish((collected || streamed) ? "ok" : "error");
+      if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
+      else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
+      else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) finish((collected || streamed) ? "ok" : "error"); }
     };
     // 逾時：若已串流到部分內容，仍回 timeout 狀態但帶回那段內容（不再是空白）。
     const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
-    agentManager.send(session.id, buildDispatchBrief(item));
+    myTurnId = agentManager.send(session.id, buildDispatchBrief(item)).turnId;
   }), { label: `consult:${item.agentId}` });
 }
 
@@ -112,6 +114,7 @@ export async function runOneExecuteAsConsult(
   return withBackgroundSlot(() => new Promise<ConsultResult>((resolve) => {
     const session = agentManager.start(item.agentId, `🛠️ 外包執行（同步）：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
     let collected = "", streamed = "", settled = false;
+    let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
     const finish = (status: ConsultResult["status"]) => {
       if (settled) return;
       settled = true;
@@ -120,13 +123,13 @@ export async function runOneExecuteAsConsult(
       resolve({ agentId: item.agentId, task: item.task, output: (collected || streamed).trim(), status, subSessionId: session.id });
     };
     const onEvent = (evt: any) => {
-      if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
-      else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
-      else if (evt.type === "result") finish((collected || streamed) ? "ok" : "error");
+      if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
+      else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
+      else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) finish((collected || streamed) ? "ok" : "error"); }
     };
     const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
     session.on("event", onEvent);
-    agentManager.send(session.id, buildExecutePrompt(buildDispatchBrief(item)));
+    myTurnId = agentManager.send(session.id, buildExecutePrompt(buildDispatchBrief(item))).turnId;
   }), { label: `execute-sync:${item.agentId}` });
 }
 

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { agentManager } from "../agentManager.js";
+import { turnMatches } from "../agentSession.js";
 import { getSession } from "../store.js";
 import { logActivity } from "../store/activity.js";
 import { runDispatchByMode } from "../dispatchRunner.js";
@@ -27,13 +28,17 @@ function makeDeps(io: any): AutonomyDeps {
       const s = agentManager.get(sessionId) || agentManager.reattach(sessionId);
       if (!s) return resolve("");
       let collected = "", streamed = "", settled = false;
+      // 本回合的 turnId（send 後才知道）。等待端只認自己 turnId 的 result，避免
+      // 同一 session 有第二個寫入者（如外包 EXEC_REPORT 經佇列排入）時回覆張冠李戴。
+      let myTurnId: number | undefined;
       const cleanup = () => { clearTimeout(timer); s.removeListener("event", onEvent); };
       const finish = () => { if (settled) return; settled = true; cleanup(); resolve((collected || streamed).trim()); };
       const fail = (e: Error) => { if (settled) return; settled = true; cleanup(); reject(e); };
       const onEvent = (evt: any) => {
-        if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
-        else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
-        else if (evt.type === "result") finish();
+        // delta/message 也只收自己回合的（有 turnId 才過濾；無則相容全收）。
+        if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
+        else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
+        else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) finish(); }
         else if (evt.type === "error") {
           // busy 為瞬時碰撞（不該發生在此處，因送出前已等 idle）；其餘視為真錯
           if (typeof evt.payload === "string" && evt.payload.includes("busy")) return;
@@ -50,7 +55,8 @@ function makeDeps(io: any): AutonomyDeps {
           return;
         }
         s.on("event", onEvent);
-        agentManager.send(sessionId, prompt);
+        // send 為同步；回傳後立即得到本回合 turnId，此時 result 尚未（非同步）到達。
+        myTurnId = agentManager.send(sessionId, prompt).turnId;
       };
       trySend(0);
     }),
