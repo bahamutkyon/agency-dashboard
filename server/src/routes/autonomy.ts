@@ -2,7 +2,7 @@ import { Router } from "express";
 import { agentManager } from "../agentManager.js";
 import { getSession } from "../store.js";
 import { logActivity } from "../store/activity.js";
-import { runConsult } from "../dispatchRunner.js";
+import { runDispatchByMode } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 import {
   startRun, approvePlan, approveAction, rejectAction, provideInput, stopRun, resumeRun, type AutonomyDeps,
@@ -16,6 +16,7 @@ export const autonomyRouter = Router();
 
 const DISPATCH_CONCURRENCY = 3;
 const CONSULT_TIMEOUT_MS = 5 * 60 * 1000;
+const EXECUTE_CONSULT_TIMEOUT_MS = 10 * 60 * 1000; // execute 項同步等待上限：10 分鐘（自主迴圈不 fire-and-forget）
 const SEND_TURN_TIMEOUT_MS = 6 * 60 * 1000;
 const BUSY_POLL_MS = 1500;
 const BUSY_MAX_WAIT_MS = 90 * 1000;
@@ -54,8 +55,13 @@ function makeDeps(io: any): AutonomyDeps {
       trySend(0);
     }),
     runDispatch: async (items: DispatchItem[], workspaceId: string) => {
-      const res = await runConsult(items, workspaceId, { concurrency: DISPATCH_CONCURRENCY, perItemTimeoutMs: CONSULT_TIMEOUT_MS });
-      return res.map((r) => `### ${r.agentId}（${r.status}）\n${r.output || "（無回覆）"}`).join("\n\n");
+      // 依 mode 分流：consult 項 5 分鐘同步諮詢；execute 項 10 分鐘同步等待＋「完成自驗」prompt。
+      // 兩者均同步等待，確保迴圈拿到真實結果、不引入非同步回報插回迴圈的 race。
+      return runDispatchByMode(items, workspaceId, {
+        concurrency: DISPATCH_CONCURRENCY,
+        consultTimeoutMs: CONSULT_TIMEOUT_MS,
+        executeTimeoutMs: EXECUTE_CONSULT_TIMEOUT_MS,
+      });
     },
     now: () => Date.now(),
     emit: (runId, evt) => {

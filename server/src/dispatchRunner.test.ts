@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapWithConcurrency, runConsult, startExecute, buildExecutePrompt, buildDispatchBrief } from "./dispatchRunner.js";
+import { mapWithConcurrency, runConsult, startExecute, buildExecutePrompt, buildDispatchBrief, runDispatchByMode } from "./dispatchRunner.js";
 import type { DispatchItem } from "./dispatchParser.js";
 
 describe("buildDispatchBrief（結構化交辦簡報）", () => {
@@ -130,5 +130,98 @@ describe("startExecute（注入假 deps）", () => {
     expect(handles[0]).toEqual({ subSessionId: "sub-ec", agentId: "ec" });
     await new Promise((r) => setTimeout(r, 20));
     expect(done[0]).toMatchObject({ agentId: "ec", subSessionId: "sub-ec", output: "做完了", status: "ok", pmSessionId: "pm1" });
+  });
+});
+
+describe("runDispatchByMode（mode 分流）", () => {
+  const consultItem: DispatchItem = { agentId: "agent-a", mode: "consult", task: "諮詢任務" };
+  const executeItem: DispatchItem = { agentId: "agent-b", mode: "execute", task: "執行任務" };
+
+  const makeResult = (item: DispatchItem, suffix: string) => ({
+    agentId: item.agentId, task: item.task, output: `${item.agentId}-${suffix}`,
+    status: "ok" as const, subSessionId: `sub-${item.agentId}`,
+  });
+
+  it("consult 項走 runOneConsultFn、不走 execute", async () => {
+    const consultCalls: { item: DispatchItem; timeoutMs: number }[] = [];
+    const executeCalls: any[] = [];
+
+    const result = await runDispatchByMode(
+      [consultItem], "ws1",
+      { concurrency: 3, consultTimeoutMs: 300_000, executeTimeoutMs: 600_000 },
+      async (item, _ws, timeoutMs) => { consultCalls.push({ item, timeoutMs }); return makeResult(item, "c"); },
+      async (item, _ws, timeoutMs) => { executeCalls.push({ item, timeoutMs }); return makeResult(item, "e"); },
+    );
+
+    expect(consultCalls).toHaveLength(1);
+    expect(executeCalls).toHaveLength(0);
+    expect(result).toContain("agent-a（ok）");
+    expect(result).toContain("agent-a-c");
+  });
+
+  it("execute 項走 runOneExecuteFn、不走 consult", async () => {
+    const consultCalls: any[] = [];
+    const executeCalls: { item: DispatchItem; timeoutMs: number }[] = [];
+
+    const result = await runDispatchByMode(
+      [executeItem], "ws1",
+      { concurrency: 3, consultTimeoutMs: 300_000, executeTimeoutMs: 600_000 },
+      async (item, _ws, timeoutMs) => { consultCalls.push({ item, timeoutMs }); return makeResult(item, "c"); },
+      async (item, _ws, timeoutMs) => { executeCalls.push({ item, timeoutMs }); return makeResult(item, "e"); },
+    );
+
+    expect(consultCalls).toHaveLength(0);
+    expect(executeCalls).toHaveLength(1);
+    expect(result).toContain("agent-b（ok）");
+    expect(result).toContain("agent-b-e");
+  });
+
+  it("execute 項使用 executeTimeoutMs（比 consultTimeoutMs 長）", async () => {
+    const executeCalls: { timeoutMs: number }[] = [];
+
+    await runDispatchByMode(
+      [executeItem], "ws1",
+      { concurrency: 3, consultTimeoutMs: 5 * 60 * 1000, executeTimeoutMs: 10 * 60 * 1000 },
+      async (item) => makeResult(item, "c"),
+      async (item, _ws, timeoutMs) => { executeCalls.push({ timeoutMs }); return makeResult(item, "e"); },
+    );
+
+    expect(executeCalls[0].timeoutMs).toBe(10 * 60 * 1000);
+  });
+
+  it("mixed mode（consult+execute+consult）：結果保序合併", async () => {
+    const result = await runDispatchByMode(
+      [consultItem, executeItem, consultItem], "ws1",
+      { concurrency: 3, consultTimeoutMs: 300_000, executeTimeoutMs: 600_000 },
+      async (item) => makeResult(item, "c"),
+      async (item) => makeResult(item, "e"),
+    );
+
+    const sections = result.split("\n\n");
+    expect(sections).toHaveLength(3);
+    expect(sections[0]).toContain("agent-a（ok）");
+    expect(sections[1]).toContain("agent-b（ok）");
+    expect(sections[2]).toContain("agent-a（ok）");
+    expect(sections[0]).toContain("agent-a-c");
+    expect(sections[1]).toContain("agent-b-e");
+    expect(sections[2]).toContain("agent-a-c");
+  });
+
+  it("純 execute 批次：全部使用 executeTimeoutMs", async () => {
+    const calls: { timeoutMs: number }[] = [];
+    const items: DispatchItem[] = [
+      { agentId: "e1", mode: "execute", task: "任務1" },
+      { agentId: "e2", mode: "execute", task: "任務2" },
+    ];
+
+    await runDispatchByMode(
+      items, "ws1",
+      { concurrency: 2, consultTimeoutMs: 5 * 60 * 1000, executeTimeoutMs: 10 * 60 * 1000 },
+      async (item) => makeResult(item, "c"),
+      async (item, _ws, timeoutMs) => { calls.push({ timeoutMs }); return makeResult(item, "e"); },
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(calls.every(c => c.timeoutMs === 10 * 60 * 1000)).toBe(true);
   });
 });

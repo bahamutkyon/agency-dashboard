@@ -29,7 +29,19 @@ detail: <細節，可多行>
 === END ACTION ===
 規則：
 - 這四類屬高風險動作，必須先用 ACTION 申報、交由系統處理（系統會依當前政策決定是否需使用者核可）：dispatch（派工）、external_send（對外發訊息）、destructive（不可逆/破壞）、spend（花錢/交易/安裝）。**嚴禁你自己直接執行這四類**，一律走申報。
-- 每完成一步用 next_step 回報；全部達標用 goal_done；缺關鍵資訊用 need_input。`;
+- 每完成一步用 next_step 回報；全部達標用 goal_done；缺關鍵資訊用 need_input。
+- dispatch 派工的 detail 格式（**每項必須以 "- agentId:" 開頭**，否則系統無法解析）：
+  detail:
+  - agentId: <子 agent ID>
+    mode: consult | execute
+    task: <要做什麼，可多行>
+    context: <背景，可選>
+    accept: <驗收標準，可選>
+  - agentId: <另一個 agent>
+    mode: consult
+    task: <任務>
+  ⚠️ 自主模式下派工**同步等待結果**（consult 逾時 5 分鐘、execute 逾時 10 分鐘），
+     請將大任務切小，或在計畫中標記「留給使用者互動模式處理」，避免在無人值守迴圈中發超長任務。`;
 
 function emitRun(deps: AutonomyDeps, runId: string) {
   const run = getRun(runId);
@@ -111,8 +123,13 @@ async function runDispatchAndNote(
   deps: AutonomyDeps, actionId: string, workspaceId: string, detail: string,
 ): Promise<{ ok: boolean; note: string }> {
   const items = parseActions(`=== ACTION ===\nkind: dispatch\ndetail:\n${detail}\n=== END ACTION ===`)[0]?.dispatchItems ?? [];
+  if (!items.length) {
+    const errNote = "【派工格式錯誤】未解析到有效的派工項目（每項必須以 `- agentId: xxx` 開頭，且含 `task:` 欄位）。\n請修正 detail 格式後重新申報 dispatch，或改用 next_step 繼續執行。";
+    markActionExecuted(actionId, errNote, false);
+    return { ok: true, note: errNote };
+  }
   try {
-    const out = items.length ? await deps.runDispatch(items, workspaceId) : "（無有效派工項）";
+    const out = await deps.runDispatch(items, workspaceId);
     markActionExecuted(actionId, out);
     return { ok: true, note: `派工結果：\n${out.slice(0, 4000)}\n請據此用 next_step 繼續。` };
   } catch (e) {

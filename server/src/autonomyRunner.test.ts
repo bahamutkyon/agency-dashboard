@@ -217,4 +217,28 @@ describe("autonomyRunner 狀態機", () => {
     expect(getRun(runId)?.status).toBe("error");
     expect(getRun(runId)?.lastError).toContain("claude");
   });
+
+  it("dispatch detail 格式錯誤（無有效派工項）→ 明確錯誤訊息回饋給模型、runDispatch 不被呼叫", async () => {
+    const dispatchCalls: any[] = [];
+    const receivedPrompts: string[] = [];
+    let i = 0;
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      // Malformed dispatch: no - agentId: / task: fields
+      "=== ACTION ===\nkind: dispatch\nsummary: 派工\ndetail:\n這不是正確格式\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 收尾\n=== END ACTION ===",
+    ];
+    const deps: AutonomyDeps = {
+      sendTurn: async (_sid, prompt) => { receivedPrompts.push(prompt); return scripted[i++] ?? ""; },
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "不應被呼叫"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessDispFmt", "wDF", "格式測試", { policy: "balanced" }, deps);
+    expect(getRun(runId)?.status).toBe("done");
+    expect(dispatchCalls).toHaveLength(0);
+    // 模型收到的某個 prompt 應明確含「派工格式錯誤」訊息，而非靜默回傳「無有效派工項」
+    const hasFormatError = receivedPrompts.some(p => p.includes("【派工格式錯誤】"));
+    expect(hasFormatError).toBe(true);
+  });
 });

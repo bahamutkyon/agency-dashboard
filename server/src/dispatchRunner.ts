@@ -94,6 +94,63 @@ export async function runConsult(
   return mapWithConcurrency(items, opts.concurrency, (it) => runOne(it, workspaceId, opts.perItemTimeoutMs));
 }
 
+/**
+ * 同步等待的 execute 項 runOne：使用 buildExecutePrompt 包裝提示，確保子 agent 回報自驗證據。
+ * 與 runOneConsult 的差異：prompt 附「完成自驗」要求，適用 execute 語意的派工。
+ * 在自主迴圈中使用（不 fire-and-forget），避免非同步回報插進同步迴圈的 race。
+ */
+export async function runOneExecuteAsConsult(
+  item: DispatchItem,
+  workspaceId: string,
+  perItemTimeoutMs: number,
+): Promise<ConsultResult> {
+  return new Promise<ConsultResult>((resolve) => {
+    const session = agentManager.start(item.agentId, `🛠️ 外包執行（同步）：${item.task.slice(0, 24)}`, undefined, workspaceId, false);
+    let collected = "", streamed = "", settled = false;
+    const finish = (status: ConsultResult["status"]) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      session.removeListener("event", onEvent);
+      resolve({ agentId: item.agentId, task: item.task, output: (collected || streamed).trim(), status, subSessionId: session.id });
+    };
+    const onEvent = (evt: any) => {
+      if (evt.type === "delta" && typeof evt.payload === "string") streamed += evt.payload;
+      else if (evt.type === "message" && evt.payload?.content) collected = String(evt.payload.content);
+      else if (evt.type === "result") finish((collected || streamed) ? "ok" : "error");
+    };
+    const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
+    session.on("event", onEvent);
+    agentManager.send(session.id, buildExecutePrompt(buildDispatchBrief(item)));
+  });
+}
+
+type RunOneFn = (item: DispatchItem, workspaceId: string, timeoutMs: number) => Promise<ConsultResult>;
+
+/**
+ * 自主迴圈的 mode-aware 派工執行器。
+ * - consult 項：同步等 consultTimeoutMs（預設 5 分鐘），用純諮詢 prompt。
+ * - execute 項：同步等 executeTimeoutMs（預設 10 分鐘），用「完成自驗」包裝 prompt。
+ *
+ * 兩種 mode 均同步等待結果（不 fire-and-forget），確保自主迴圈能拿到真實結果繼續推進，
+ * 且不引入非同步回報插進同步迴圈的 race 問題。
+ */
+export async function runDispatchByMode(
+  items: DispatchItem[],
+  workspaceId: string,
+  opts: { concurrency: number; consultTimeoutMs: number; executeTimeoutMs: number },
+  runOneConsultFn: RunOneFn = runOneConsult,
+  runOneExecuteFn: RunOneFn = runOneExecuteAsConsult,
+): Promise<string> {
+  const results = await mapWithConcurrency(items, opts.concurrency, (item) => {
+    if (item.mode === "execute") {
+      return runOneExecuteFn(item, workspaceId, opts.executeTimeoutMs);
+    }
+    return runOneConsultFn(item, workspaceId, opts.consultTimeoutMs);
+  });
+  return results.map((r) => `### ${r.agentId}（${r.status}）\n${r.output || "（無回覆）"}`).join("\n\n");
+}
+
 // ====================== execute（非同步外包執行，切片②）======================
 
 export interface ExecuteHandle { subSessionId: string; agentId: string; }
