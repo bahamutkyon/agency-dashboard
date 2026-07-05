@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useVisiblePolling } from "../hooks/useVisiblePolling";
 
+interface GateSummary {
+  mode: "shadow" | "enforce" | "off";
+  checkerAvailable: boolean | null;
+  recentDecisions: number;
+  recentWouldBlock: number;
+}
+
 interface SecurityStatus {
   healthy: boolean;
   baseline: { name: string; configured: boolean }[];
@@ -11,6 +18,7 @@ interface SecurityStatus {
     lastMcpNames: string[];
     uptimeMs: number;
   };
+  gate?: GateSummary;
 }
 
 function fmtAgo(ts: number): string {
@@ -91,6 +99,46 @@ export function SecurityBadge() {
               </div>
             ))}
           </div>
+
+          {s.gate && (
+            <div className="border-t border-zinc-800 pt-2 mb-3 space-y-1.5">
+              <div className="text-zinc-400 mb-1">指令守門 (shellward gate):</div>
+
+              {/* checker unavailable warning */}
+              {s.gate.checkerAvailable === false && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-rose-500/10 text-rose-400 text-[11px] font-medium">
+                  <span>⚠</span>
+                  <span>檢查器離線 — enforce 模式下 Bash 全擋</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-400">模式</span>
+                <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${
+                  s.gate.mode === "enforce"
+                    ? "bg-rose-500/20 text-rose-300"
+                    : s.gate.mode === "shadow"
+                    ? "bg-amber-500/20 text-amber-300"
+                    : "bg-zinc-700 text-zinc-400"
+                }`}>
+                  {s.gate.mode === "enforce" ? "強制中" : s.gate.mode === "shadow" ? "shadow" : "已關閉"}
+                </span>
+              </div>
+
+              {s.gate.mode === "shadow" && s.gate.recentDecisions > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">本階段本來會擋</span>
+                  <span className={`font-mono ${s.gate.recentWouldBlock > 0 ? "text-amber-300" : "text-zinc-500"}`}>
+                    {s.gate.recentWouldBlock} / {s.gate.recentDecisions} 筆
+                  </span>
+                </div>
+              )}
+
+              {s.gate.checkerAvailable === null && s.gate.recentDecisions === 0 && (
+                <div className="text-zinc-500 text-[10px]">尚無守門記錄</div>
+              )}
+            </div>
+          )}
 
           <div className="border-t border-zinc-800 pt-2 space-y-1 text-zinc-400">
             <div className="flex justify-between">

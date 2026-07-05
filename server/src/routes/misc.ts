@@ -7,6 +7,7 @@ import { publicStatus as remotePublicStatus } from "../remoteAccess.js";
 import { routePrompt } from "../smartRouter.js";
 import { isCodexAvailable } from "../codexProcess.js";
 import { isGeminiAvailable } from "../geminiProcess.js";
+import { gateMode, listGuardDecisions } from "../guard.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -42,7 +43,8 @@ export function buildMiscRouter(remoteCfg: ReturnType<typeof import("../remoteAc
   });
 
   // Security status — for the top-right protection indicator. Returns
-  // whether shellward (or any baseline MCP) is configured + injection stats.
+  // whether shellward (or any baseline MCP) is configured + injection stats
+  // + gate mode summary (shadow/enforce/off, checker availability, wouldBlock count).
   router.get("/security/status", (_req, res) => {
     const installed = listInstalledMCPServers();
     const installedNames = new Set(installed.map((s) => s.name));
@@ -51,6 +53,19 @@ export function buildMiscRouter(remoteCfg: ReturnType<typeof import("../remoteAc
       configured: installedNames.has(name),
     }));
     const allConfigured = baselineCheck.every((b) => b.configured);
+
+    // Gate summary: derive checkerAvailable from recent decision verdicts.
+    // - null  = no verdict data yet (e.g. server just started / gate=off)
+    // - true  = all recent verdicts show available=true
+    // - false = at least one recent verdict shows available=false
+    const recent = listGuardDecisions(50);
+    const withVerdict = recent.filter((d) => d.verdict !== null);
+    let checkerAvailable: boolean | null = null;
+    if (withVerdict.length > 0) {
+      checkerAvailable = withVerdict.every((d) => d.verdict!.available !== false);
+    }
+    const recentWouldBlock = recent.filter((d) => d.wouldBlock).length;
+
     res.json({
       healthy: allConfigured && BASELINE_MCPS.length > 0,
       baseline: baselineCheck,
@@ -60,6 +75,12 @@ export function buildMiscRouter(remoteCfg: ReturnType<typeof import("../remoteAc
         lastInjectionAt: securityStats.lastInjectionAt,
         lastMcpNames: securityStats.lastMcpNames,
         uptimeMs: Date.now() - securityStats.startedAt,
+      },
+      gate: {
+        mode: gateMode(),
+        checkerAvailable,
+        recentDecisions: recent.length,
+        recentWouldBlock,
       },
     });
   });
