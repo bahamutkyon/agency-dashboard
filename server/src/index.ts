@@ -32,6 +32,7 @@ import { autonomyRouter } from "./routes/autonomy.js";
 import { activityRouter } from "./routes/activity.js";
 import { projectsRouter } from "./routes/projects.js";
 import { cockpitRouter } from "./routes/cockpit.js";
+import { researchRouter } from "./routes/research.js";
 import { guardRouter } from "./routes/guard.js";
 import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
@@ -122,6 +123,9 @@ app.use("/api/projects", projectsRouter);
 
 // Cockpit briefing: /api/cockpit
 app.use("/api/cockpit", cockpitRouter);
+
+// Topic research harness: /api/research (POST 啟動、GET /:id 查狀態)
+app.use("/api/research", researchRouter);
 
 // Delegation ledger: /api/delegations
 app.use("/api/delegations", delegationsRouter);
