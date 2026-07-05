@@ -38,6 +38,17 @@ interface RunOptions {
 
 const DEFAULT_MAX_CONCURRENCY = 2;
 const DEFAULT_RETRIES = 2;
+const DEFAULT_TIMEOUT_MS = 300_000; // 5 分鐘；可由 step.timeoutMs 覆寫
+
+/**
+ * 判斷該錯誤是否值得重試。
+ * - "step timeout"：逾時類，重跑必然再逾時，不重試。
+ * - "cancelled"：已中止，不重試。
+ * - 其餘（spawn 失敗、網路抖動等）：可重試。
+ */
+export function isRetryableError(err: Error): boolean {
+  return err.message !== "step timeout" && err.message !== "cancelled";
+}
 
 export function depsReady(step: WorkflowStep, completed: Set<string>): boolean {
   const deps = step.dependsOn || [];
@@ -94,6 +105,12 @@ interface PausedRun {
 class WorkflowRunner extends EventEmitter {
   private active = new Map<string, AbortController>();
   private paused = new Map<string, PausedRun>();
+
+  /**
+   * @internal 僅供測試注入：覆寫 step 執行邏輯，繞過 agentManager 依賴。
+   * 設定後，每個 step 呼叫此函式取代真實執行。timeout 仍以 step.timeoutMs 計。
+   */
+  _testStepRunner?: (step: WorkflowStep, promptText: string, signal: AbortSignal) => Promise<string>;
 
   validate(workflowId: string): { ok: boolean; error?: string; steps?: WorkflowStep[] } {
     const wf = getWorkflow(workflowId);
@@ -294,10 +311,37 @@ class WorkflowRunner extends EventEmitter {
         } catch { stepProvider = "claude"; }
       }
 
+      // ── 測試注入路徑 ──────────────────────────────────────────────────────────
+      // _testStepRunner 設定時完全繞過 agentManager，供單元測試使用。
+      // timeout 仍以 step.timeoutMs ?? DEFAULT_TIMEOUT_MS 計。不走重試迴圈。
+      if (this._testStepRunner) {
+        if (signal.aborted) throw new Error("cancelled");
+        const testMs = step.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        let testTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+        try {
+          const output = await Promise.race([
+            this._testStepRunner(step, promptText, signal),
+            new Promise<string>((_, reject) => {
+              testTimeoutHandle = setTimeout(() => reject(new Error("step timeout")), testMs);
+            }),
+          ]);
+          outputs[step.id!] = output;
+          completed.add(step.id!);
+          sessionIds[idx] = "";
+          updateRun(runId, { currentStep: idx, sessionIds, stepOutputs: outputs });
+          this.emit("update", runId);
+        } finally {
+          if (testTimeoutHandle !== null) { clearTimeout(testTimeoutHandle); testTimeoutHandle = null; }
+        }
+        return;
+      }
+      // ── 結束測試注入路徑 ───────────────────────────────────────────────────────
+
       // execute with retries
       const maxRetries = step.retries !== undefined ? step.retries : DEFAULT_RETRIES;
       let lastErr: Error | null = null;
-      let baseTimeout = 120_000;
+      // per-step timeout：step.timeoutMs 覆寫，否則用預設 5 分鐘。
+      const stepTimeoutMs = step.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (signal.aborted) throw new Error("cancelled");
@@ -318,6 +362,7 @@ class WorkflowRunner extends EventEmitter {
         let attemptSucceeded = false;
         let onEvent: ((evt: any) => void) | null = null;
         let onAbort: (() => void) | null = null;
+        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
         try {
           // 背景總量限流：workflow step 雖已有 per-run maxConcurrency（預設 2），但仍是
@@ -344,7 +389,10 @@ class WorkflowRunner extends EventEmitter {
               myTurnId = agentManager.send(session.id, promptText).turnId;
             }),
             new Promise<string>((_, reject) => {
-              setTimeout(() => reject(new Error("step timeout")), baseTimeout * Math.pow(1.5, attempt));
+              timeoutHandle = setTimeout(
+                () => reject(new Error("step timeout")),
+                stepTimeoutMs * Math.pow(1.5, attempt),
+              );
             }),
           ]), { label: `workflow:${step.id}` });
 
@@ -357,12 +405,16 @@ class WorkflowRunner extends EventEmitter {
         } catch (e: any) {
           lastErr = e;
           if (e.message === "cancelled") throw e;
+          // 逾時類不重試——重跑必然再逾時，白燒 token
+          if (!isRetryableError(e)) break;
           if (attempt < maxRetries) {
             const wait = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
             console.warn(`[workflow] step ${step.id} attempt ${attempt + 1} failed: ${e.message}; retrying in ${wait}ms`);
             await new Promise((r) => setTimeout(r, wait));
           }
         } finally {
+          // 清除逾時計時器，避免 handle 殘留。
+          if (timeoutHandle !== null) { clearTimeout(timeoutHandle); timeoutHandle = null; }
           // Always remove listeners to prevent leaks on timeout / error paths.
           if (onEvent) session.removeListener("event", onEvent);
           if (onAbort) signal.removeEventListener("abort", onAbort);
@@ -420,6 +472,9 @@ class WorkflowRunner extends EventEmitter {
       if (e.message === "cancelled") {
         updateRun(runId, { status: "cancelled", sessionIds, stepOutputs: outputs, endedAt: Date.now() });
       } else {
+        // Fail-fast：主動 abort 所有在途兄弟步驟，避免孤兒 session 繼續燒 token。
+        // this.active 在 delete 之前仍有 entry，abort 後兄弟步驟收到 signal 會 throw "cancelled"。
+        this.active.get(runId)?.abort();
         updateRun(runId, { status: "error", error: e.message, sessionIds, stepOutputs: outputs, endedAt: Date.now() });
       }
       this.emit("update", runId);
@@ -462,18 +517,20 @@ export function descendantsOf(id: string, steps: WorkflowStep[]): Set<string> {
 export const workflowRunner = new WorkflowRunner();
 
 /**
- * 開機對帳：把 DB 裡 status='running' 或 status='paused' 的 workflow_runs
- * 標記為 'error'（in-memory AbortController/paused Map 重啟後已消失，無法安全繼續）。
- * 比照 autonomyRunner.pauseRunningRunsOnBoot 模式。
- * 回傳受影響的 run 數。
+ * 開機對帳：
+ * - status='running' → 標記為 'error'（in-memory AbortController 重啟後已消失，無法安全繼續）。
+ * - status='paused'  → 保持 paused 不變。
+ *   paused run 的 stepOutputs + currentStep 已持久化在 DB，
+ *   可透過既有 resume API（resumeRunId + fromStepId）由 UI 續跑。
+ *   直接改 error 會丟失中間結果，得不償失。
+ *
+ * 回傳受影響的 running run 數（paused 不計）。
  */
 export function reconcileWorkflowRunsOnBoot(): number {
   const running = listWorkflowRunsByStatus("running");
-  const paused = listWorkflowRunsByStatus("paused");
-  const total = running.length + paused.length;
   const msg = "server restarted — 請重新啟動 workflow run";
-  for (const r of [...running, ...paused]) {
+  for (const r of running) {
     updateRun(r.id, { status: "error", error: msg, endedAt: Date.now() });
   }
-  return total;
+  return running.length;
 }

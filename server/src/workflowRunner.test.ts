@@ -1,5 +1,5 @@
 /**
- * 單元測試：workflowRunner.ts 核心純函式
+ * 單元測試：workflowRunner.ts 核心純函式 + 韌性行為
  *
  * 覆蓋範圍：
  *   - validateGraph  — cycle 偵測、missing dep、duplicate id、happy paths
@@ -7,16 +7,30 @@
  *   - ancestorsOf    — 線性、菱形、單節點、不存在 id
  *   - descendantsOf  — 線性、菱形、單節點、葉節點
  *   - depsReady      — all / any mode、空 deps
+ *   - isRetryableError     — 逾時/cancelled 不重試
+ *   - WorkflowStep.timeoutMs — per-step 逾時覆寫
+ *   - reconcileWorkflowRunsOnBoot — paused → 保持 paused（不被誤標 error）
+ *   - fail-fast abort — step 失敗時 abort 在途兄弟步驟
+ *   - per-step timeoutMs — step.timeoutMs 生效
  */
-import { describe, it, expect } from "vitest";
-import type { WorkflowStep } from "./store.js";
+import { describe, it, expect, afterEach } from "vitest";
+import type { Workflow, WorkflowStep } from "./store.js";
 import {
   validateGraph,
   normalizeSteps,
   ancestorsOf,
   descendantsOf,
   depsReady,
+  workflowRunner,
+  reconcileWorkflowRunsOnBoot,
+  isRetryableError,
 } from "./workflowRunner.js";
+import {
+  upsertWorkflow,
+  createRun,
+  getRun,
+  updateRun,
+} from "./store/workflows.js";
 
 // ---------------------------------------------------------------------------
 // 輔助工廠：建立最小化的 WorkflowStep（不依賴 DB / agentManager）
@@ -326,4 +340,258 @@ describe("depsReady", () => {
     const s: WorkflowStep = { id: "a", agentId: "x", prompt: "p" };
     expect(depsReady(s, new Set())).toBe(true);
   });
+});
+
+// ===========================================================================
+// isRetryableError — 問題 2：逾時不重試
+// ===========================================================================
+describe("isRetryableError", () => {
+  it("step timeout → 不可重試（返回 false）", () => {
+    expect(isRetryableError(new Error("step timeout"))).toBe(false);
+  });
+
+  it("cancelled → 不可重試（返回 false）", () => {
+    expect(isRetryableError(new Error("cancelled"))).toBe(false);
+  });
+
+  it("spawn 類錯誤 → 可重試（返回 true）", () => {
+    expect(isRetryableError(new Error("spawn error: ENOENT"))).toBe(true);
+  });
+
+  it("網路/一般錯誤 → 可重試（返回 true）", () => {
+    expect(isRetryableError(new Error("connection refused"))).toBe(true);
+  });
+});
+
+// ===========================================================================
+// WorkflowStep.timeoutMs — 問題 2：per-step 逾時覆寫型別存在
+// ===========================================================================
+describe("WorkflowStep.timeoutMs 型別", () => {
+  it("WorkflowStep 包含選填 timeoutMs 欄位", () => {
+    const s: WorkflowStep = {
+      id: "test",
+      agentId: "agent",
+      prompt: "test",
+      timeoutMs: 60_000,
+    };
+    expect(s.timeoutMs).toBe(60_000);
+  });
+
+  it("不設 timeoutMs → undefined（不影響既有步驟）", () => {
+    const s: WorkflowStep = { id: "test", agentId: "agent", prompt: "test" };
+    expect(s.timeoutMs).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// reconcileWorkflowRunsOnBoot — 問題 3：paused 不被誤標 error
+// ===========================================================================
+
+function makeTestWorkflow(id: string): Workflow {
+  return {
+    id,
+    workspaceId: "ws-reconcile-test",
+    name: `Test ${id}`,
+    description: "",
+    steps: [{ id: "s1", agentId: "agent", prompt: "test", dependsOn: [] }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
+describe("reconcileWorkflowRunsOnBoot", () => {
+  it("running 狀態 → 被標為 error 並帶有 restart 訊息", () => {
+    const wf = makeTestWorkflow(`wf-r-run-${Date.now()}`);
+    upsertWorkflow(wf);
+    const run = createRun(wf.id, "ws-reconcile-test");
+    // createRun 預設 status='running'
+
+    reconcileWorkflowRunsOnBoot();
+
+    const after = getRun(run.id)!;
+    expect(after.status).toBe("error");
+    expect(after.error).toMatch(/restart/i);
+    expect(after.endedAt).toBeGreaterThan(0);
+  });
+
+  it("paused 狀態 → 保持 paused（不被改成 error）", () => {
+    const wf = makeTestWorkflow(`wf-r-paused-${Date.now()}`);
+    upsertWorkflow(wf);
+    const run = createRun(wf.id, "ws-reconcile-test");
+    updateRun(run.id, { status: "paused" });
+
+    reconcileWorkflowRunsOnBoot();
+
+    const after = getRun(run.id)!;
+    expect(after.status).toBe("paused");
+  });
+
+  it("paused run 的 stepOutputs 在 reconcile 後仍完整保留", () => {
+    const wf = makeTestWorkflow(`wf-r-outputs-${Date.now()}`);
+    upsertWorkflow(wf);
+    const run = createRun(wf.id, "ws-reconcile-test");
+    updateRun(run.id, { status: "paused", stepOutputs: { s1: "重要中間結果" } });
+
+    reconcileWorkflowRunsOnBoot();
+
+    const after = getRun(run.id)!;
+    expect(after.stepOutputs).toMatchObject({ s1: "重要中間結果" });
+  });
+
+  it("回傳值只計算 running→error 的數量，不含 paused", () => {
+    const wf = makeTestWorkflow(`wf-r-count-${Date.now()}`);
+    upsertWorkflow(wf);
+
+    // 先測量現有 running 數
+    const before = reconcileWorkflowRunsOnBoot(); // drain prior state
+
+    const r1 = createRun(wf.id, "ws-reconcile-test"); // running
+    const r2 = createRun(wf.id, "ws-reconcile-test"); // running
+    const p1 = createRun(wf.id, "ws-reconcile-test");
+    updateRun(p1.id, { status: "paused" });
+
+    const count = reconcileWorkflowRunsOnBoot();
+
+    // p1 應保持 paused
+    expect(getRun(p1.id)!.status).toBe("paused");
+    // r1, r2 應被標為 error
+    expect(getRun(r1.id)!.status).toBe("error");
+    expect(getRun(r2.id)!.status).toBe("error");
+    // count 只計 running 的（至少 2）
+    expect(count).toBeGreaterThanOrEqual(2);
+    // 不計 paused — count 比 3 少（少了 paused 那個）
+    // 若環境乾淨，count 剛好 = 2
+  });
+});
+
+// ===========================================================================
+// 整合測試：fail-fast abort（問題 1）+ per-step timeoutMs（問題 2）
+// 使用 _testStepRunner 注入假執行邏輯，繞過 agentManager 依賴。
+// ===========================================================================
+
+async function waitForRunStatus(
+  runId: string,
+  expectedStatus: string,
+  timeoutMs = 3000,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const r = getRun(runId);
+    if (r?.status === expectedStatus) return;
+    await new Promise((res) => setTimeout(res, 30));
+  }
+  const r = getRun(runId);
+  throw new Error(
+    `Run ${runId} 超過 ${timeoutMs}ms 仍未達到 '${expectedStatus}'（目前：${r?.status}）`,
+  );
+}
+
+describe("fail-fast abort：step 失敗時 abort 在途兄弟步驟（問題 1）", () => {
+  afterEach(() => {
+    (workflowRunner as any)._testStepRunner = undefined;
+  });
+
+  it("step_a 拋錯 → step_b 的 AbortSignal 變成 aborted", async () => {
+    const wf: Workflow = {
+      id: `wf-ff-${Date.now()}`,
+      workspaceId: "ws-ff-test",
+      name: "fail-fast test",
+      description: "",
+      steps: [
+        { id: "step_a", agentId: "agent", prompt: "A", dependsOn: [] },
+        { id: "step_b", agentId: "agent", prompt: "B", dependsOn: [] },
+      ],
+      maxConcurrency: 2,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    upsertWorkflow(wf);
+
+    let stepBSignal: AbortSignal | undefined;
+
+    (workflowRunner as any)._testStepRunner = async (
+      s: WorkflowStep,
+      _prompt: string,
+      sig: AbortSignal,
+    ): Promise<string> => {
+      if (s.id === "step_a") {
+        throw new Error("step A intentionally failed");
+      }
+      // step_b: 捕捉 signal 並等待 abort
+      stepBSignal = sig;
+      return new Promise<string>((resolve) => {
+        sig.addEventListener("abort", () => resolve("step_b_aborted"));
+      });
+    };
+
+    const run = await workflowRunner.run({ workflowId: wf.id });
+    await waitForRunStatus(run.id, "error");
+
+    expect(stepBSignal?.aborted).toBe(true);
+  }, 8000);
+
+  it("step 失敗後 run.status = error，error 欄位包含失敗訊息", async () => {
+    const wf: Workflow = {
+      id: `wf-ff2-${Date.now()}`,
+      workspaceId: "ws-ff-test",
+      name: "fail-fast single",
+      description: "",
+      steps: [{ id: "step_a", agentId: "agent", prompt: "A", dependsOn: [] }],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    upsertWorkflow(wf);
+
+    (workflowRunner as any)._testStepRunner = async (): Promise<string> => {
+      throw new Error("simulated runtime failure");
+    };
+
+    const run = await workflowRunner.run({ workflowId: wf.id });
+    await waitForRunStatus(run.id, "error");
+
+    const final = getRun(run.id)!;
+    expect(final.status).toBe("error");
+    expect(final.error).toContain("simulated runtime failure");
+  }, 5000);
+});
+
+describe("per-step timeoutMs：step.timeoutMs 生效（問題 2）", () => {
+  afterEach(() => {
+    (workflowRunner as any)._testStepRunner = undefined;
+  });
+
+  it("step.timeoutMs=100 → 永不回應的 step 在 100ms 後逾時，run → error", async () => {
+    const wf: Workflow = {
+      id: `wf-tm-${Date.now()}`,
+      workspaceId: "ws-tm-test",
+      name: "timeout test",
+      description: "",
+      steps: [
+        {
+          id: "step_slow",
+          agentId: "agent",
+          prompt: "slow",
+          dependsOn: [],
+          timeoutMs: 100,
+        },
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    upsertWorkflow(wf);
+
+    (workflowRunner as any)._testStepRunner = (_s: WorkflowStep, _p: string, sig: AbortSignal): Promise<string> => {
+      // 永不回應；等 abort 才 resolve（避免 promise leak）
+      return new Promise<string>((resolve) => {
+        sig.addEventListener("abort", () => resolve("abort_cleanup"));
+      });
+    };
+
+    const run = await workflowRunner.run({ workflowId: wf.id });
+    await waitForRunStatus(run.id, "error", 5000);
+
+    const final = getRun(run.id)!;
+    expect(final.status).toBe("error");
+    expect(final.error).toMatch(/timeout/i);
+  }, 10000);
 });

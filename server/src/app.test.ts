@@ -518,17 +518,18 @@ describe("workflow run 開機對帳", () => {
     expect(updated?.endedAt).toBeTruthy();
   });
 
-  it("reconcileWorkflowRunsOnBoot 把 paused 的 workflow_run 也轉為 error", () => {
-    // 先建 running run，再手動改成 paused，再 reconcile
+  it("reconcileWorkflowRunsOnBoot 保留 paused 的 workflow_run（不轉 error）", () => {
+    // 問題 3 修正：paused run 的 stepOutputs 存在 DB，可 resume；不應誤標 error。
     const run = createRun("fake-wf-reconcile-paused", DEFAULT_WORKSPACE_ID);
-    updateRun(run.id, { status: "paused" });
+    updateRun(run.id, { status: "paused", stepOutputs: { s1: "saved output" } });
     const before = getRun(run.id);
     expect(before?.status).toBe("paused");
 
-    const count = reconcileWorkflowRunsOnBoot();
-    expect(count).toBeGreaterThan(0);
+    reconcileWorkflowRunsOnBoot();
 
     const updated = getRun(run.id);
-    expect(updated?.status).toBe("error");
+    // paused 應保持 paused，stepOutputs 不丟失
+    expect(updated?.status).toBe("paused");
+    expect(updated?.stepOutputs).toMatchObject({ s1: "saved output" });
   });
 });

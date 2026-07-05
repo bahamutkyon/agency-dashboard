@@ -93,6 +93,7 @@ export interface WorkflowStep {
   pauseBefore?: boolean;     // pause + wait for user approval before this step
   skipIfMatch?: string;      // regex on previous {{out}}; match → skip this step
   retries?: number;          // override default retry count (default 2 attempts after first try)
+  timeoutMs?: number;        // per-step timeout override in ms (default: 300_000 = 5 min); 逾時不重試
   provider?: Provider | "auto"; // which AI provider to use; "auto" = smart router decides; default claude
 }
 
