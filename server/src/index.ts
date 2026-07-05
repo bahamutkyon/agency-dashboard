@@ -5,6 +5,7 @@ import { Server as SocketServer } from "socket.io";
 import { loadAgents } from "./agentLoader.js";
 import { agentManager } from "./agentManager.js";
 import { cleanupOrphanPromptFiles } from "./agentSession.js";
+import { initGuardSettings } from "./guardSettings.js";
 import { scheduler } from "./scheduler.js";
 import { workflowRunner, reconcileWorkflowRunsOnBoot } from "./workflowRunner.js";
 import { loadRemoteConfig, buildRemoteAccessMiddleware, isIpAllowed, normalizeIp } from "./remoteAccess.js";
@@ -291,6 +292,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   }
   console.log(`[agency-dashboard] agents loaded: ${loadAgents().length}`);
   cleanupOrphanPromptFiles();
+  // 產生 PreToolUse hook 的 --settings 檔（SHELLWARD_GATE=off 則不寫、不注入）。
+  initGuardSettings(PORT);
   scheduler.init();
   scheduler.onFire((s) => {
     io.emit("schedule:fired", { id: s.id, lastRunAt: s.lastRunAt });

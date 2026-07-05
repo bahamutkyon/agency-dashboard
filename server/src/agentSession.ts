@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { v4 as uuid } from "uuid";
 import { spawnClaude } from "./claudeProcess.js";
+import { getGuardSettingsPath } from "./guardSettings.js";
 import { spawnCodexTurn, parseCodexLine } from "./codexProcess.js";
 import { spawnGeminiTurn, parseGeminiLine } from "./geminiProcess.js";
 import { sanitizedChildEnv } from "./childEnv.js";
@@ -262,6 +263,12 @@ export class AgentSession extends EventEmitter {
     }
     if (this.mcpConfigJson) {
       args.push("--mcp-config", this.mcpConfigJson);
+    }
+    // PreToolUse hook 注入：SHELLWARD_GATE=off 時 path=null（逃生開關，不注入）。
+    // agentManager 偵測 MCP 變更 force-respawn 會重呼本函式，--settings 自動跟上。
+    const guardSettingsPath = getGuardSettingsPath();
+    if (guardSettingsPath) {
+      args.push("--settings", guardSettingsPath);
     }
 
     this.setStatus("starting");
