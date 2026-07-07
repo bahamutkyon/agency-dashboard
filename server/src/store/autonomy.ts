@@ -78,8 +78,11 @@ export function getPendingAction(id: string): PendingAction | undefined {
 export function listPending(sessionId: string): PendingAction[] {
   return (db.prepare("SELECT * FROM pending_actions WHERE session_id = ? AND status = 'pending' ORDER BY created_at").all(sessionId) as any[]).map(rowToAction);
 }
-export function decidePendingAction(id: string, status: Extract<PendingStatus, "approved" | "rejected">): void {
-  db.prepare("UPDATE pending_actions SET status = ?, decided_at = ? WHERE id = ?").run(status, Date.now(), id);
+/** CAS 決定：只在仍為 pending 時改狀態，回傳是否真的改到（changes>0）。
+ *  雙擊/重送/兩分頁的重複核可只會第一次 true，後續 false；「先批准又拒絕」也被擋下。 */
+export function decidePendingAction(id: string, status: Extract<PendingStatus, "approved" | "rejected">): boolean {
+  const info = db.prepare("UPDATE pending_actions SET status = ?, decided_at = ? WHERE id = ? AND status = 'pending'").run(status, Date.now(), id);
+  return info.changes > 0;
 }
 export function markActionExecuted(id: string, result: string, ok = true): void {
   db.prepare("UPDATE pending_actions SET status = ?, result = ? WHERE id = ?").run(ok ? "executed" : "failed", result.slice(0, 4000), id);

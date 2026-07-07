@@ -72,6 +72,12 @@ export function useChatSession(
           setMessages((prev) => [...prev, { role: "system", content: `[錯誤] ${evt.payload}`, ts: Date.now() }]);
           break;
         }
+        case "system-note": {
+          // A1：後端插入的非 LLM 系統說明（如「已交辦給 X，正在等回覆」），直接顯示為系統泡泡。
+          const content = evt.payload?.content;
+          if (content) setMessages((prev) => [...prev, { role: "system", content: String(content), ts: Date.now() }]);
+          break;
+        }
         case "notes-injected": {
           setAutoInjectedNotes(evt.payload || []);
           setTimeout(() => setAutoInjectedNotes([]), 8000);

@@ -15,11 +15,12 @@ import { usageTracker } from "./usageTracker.js";
 import { noteRateLimited, withBackgroundSlot } from "./backgroundLimiter.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
-import { findRelevantNotes, formatNotesAsContext } from "./notesRetrieval.js";
+import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
 import { parseDispatchMarker, serializeDispatchItem } from "./dispatchParser.js";
 import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
+import { notify } from "./notifier.js";
 import { getProjectMemory } from "./store/projects.js";
 import { getDelegationProgress } from "./store/delegationProgress.js";
 import fs from "node:fs";
@@ -31,6 +32,7 @@ import path from "node:path";
 export function detectAndEnqueueDispatch(
   sess: { id: string; agentId: string; workspaceId: string },
   content: string,
+  io?: { emit: (event: string, payload: any) => void },
 ): void {
   if (sess.agentId !== "agents-orchestrator") return;
   if (getActiveRunForSession(sess.id)) return;
@@ -44,6 +46,11 @@ export function detectAndEnqueueDispatch(
     sessionId: sess.id, workspaceId: sess.workspaceId, kind: "dispatch", risk: "high",
     summary, detail,
   });
+  // A2：建立 pending 成功後立即 emit，讓前端 useAutonomy 現成 refresh 即時彈出批准卡
+  //（沿用既有 autonomy:event 事件名，不新增事件型別）。
+  io?.emit("autonomy:event", { sessionId: sess.id, kind: "pending:new" });
+  // 員工化推播：手動派工待批 → Telegram（未設定 env 時 no-op；fire-and-forget）
+  void notify({ kind: "待批", title: summary.slice(0, 80) });
 }
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
@@ -143,6 +150,9 @@ export class AgentManager {
   private sessions = new Map<string, AgentSession>();
   // Track when each session was closed (epoch ms). Used for idle eviction.
   private sessionClosedAt = new Map<string, number>();
+  /** Session-level note dedup: noteIds already injected for each sessionId.
+   *  Prevents the same note from being re-injected in every turn of the same session. */
+  private injectedNotesBySession = new Map<string, Set<string>>();
   private io?: any;
 
   /**
@@ -171,6 +181,7 @@ export class AgentManager {
           session.removeAllListeners();
           this.sessions.delete(id);
           this.sessionClosedAt.delete(id);
+          this.injectedNotesBySession.delete(id);
           console.log(`[agentManager] evicted closed session ${id.slice(0, 8)} from memory`);
         }
       } else if (session.status === "idle" && session.provider === "claude") {
@@ -180,22 +191,55 @@ export class AgentManager {
         //   並透過 spawnClaudeChild() → --resume 無感恢復
         // - 絕不回收 busy 狀態（正在執行的對話）
         if (now - session.lastActivityAt > IDLE_SESSION_TTL_MS) {
-          session.stop(); // 殺子程序，session.status 設為 "closed"
-          this.sessionClosedAt.set(id, now); // 讓既有的記憶體清除路徑接手
-          console.log(`[agentManager] TTL-killed idle claude subprocess for session ${id.slice(0, 8)}`);
-          // 同事記憶自動蒸餾：背景 fail-safe 旁路，不可讓回收迴圈崩
-          const wsId = (session as any).workspaceId as string | undefined;
-          const agentId = (session as any).agentId as string | undefined;
-          if (wsId && agentId) {
-            try {
-              this._distillHook(id, wsId, agentId);
-            } catch (e: any) {
-              console.warn(`[agentManager] _distillHook error for ${id.slice(0, 8)}:`, e?.message || e);
-            }
-          }
+          this.reclaimClaudeSubprocess(id, session, now, "TTL-killed");
         }
       }
     }
+  }
+
+  /**
+   * 回收一個 idle Claude 子程序的共用實作（TTL 路徑與 dispatch reclaim 路徑共用）：
+   * - 只殺子程序（stop()），DB 紀錄與 claudeSessionId 完整保留，下次 send() 走 --resume 無感恢復
+   * - 記錄 sessionClosedAt，讓既有的記憶體清除路徑接手
+   * - 觸發同事記憶蒸餾（背景 fail-safe 旁路，不可讓回收流程崩）
+   * @param source 僅供 log 區分來源（如 "TTL-killed" / "dispatch-reclaimed"）
+   */
+  private reclaimClaudeSubprocess(id: string, session: AgentSession, now: number, source: string) {
+    session.stop(); // 殺子程序，session.status 設為 "closed"
+    this.sessionClosedAt.set(id, now); // 讓既有的記憶體清除路徑接手
+    console.log(`[agentManager] ${source} idle claude subprocess for session ${id.slice(0, 8)}`);
+    // 同事記憶自動蒸餾：背景 fail-safe 旁路，不可讓回收流程崩
+    const wsId = (session as any).workspaceId as string | undefined;
+    const agentId = (session as any).agentId as string | undefined;
+    if (wsId && agentId) {
+      try {
+        this._distillHook(id, wsId, agentId);
+      } catch (e: any) {
+        console.warn(`[agentManager] _distillHook error for ${id.slice(0, 8)}:`, e?.message || e);
+      }
+    }
+  }
+
+  /**
+   * 派工子 session 拿到結果後立即回收其 claude 子程序（不必等 idle TTL）。
+   * 一批派工可能同時有 3-5 個子程序（每個數百 MB），拿到 result 就該立刻釋放，
+   * 而非白佔記憶體到 30 分鐘的 TTL 才回收。
+   *
+   * - 找不到 session → false
+   * - 非 idle（busy=可能已被使用者透過「開啟對話」接手深聊；closed/error=已回收或已終態，
+   *   重複回收會重複觸發蒸餾並重置 closedAt）→ 保守跳過、false
+   * - provider !== "claude"（無常駐子程序可回收）→ false
+   * - idle 的 claude session → 與 TTL 路徑完全相同的回收（stop + closedAt + 蒸餾）→ true
+   *
+   * 回收後 session 仍留在 Map、DB 與 claudeSessionId 完整保留，下次 send() 走 --resume 無感恢復。
+   */
+  reclaimSubprocess(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    if (session.status !== "idle") return false; // 只回收確定 idle 的（busy=接手深聊中；closed=避免重複蒸餾）
+    if (session.provider !== "claude") return false; // 非 claude 無常駐子程序
+    this.reclaimClaudeSubprocess(sessionId, session, Date.now(), "dispatch-reclaimed");
+    return true;
   }
 
   list(): SessionRecord[] {
@@ -409,6 +453,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     }
 
     // Auto-inject relevant workspace notes into what we actually send to claude.
+    // Session-level dedup: each note is injected at most once per session.
     const wsId = (s as any).workspaceId as string | undefined;
     let augmented = text;
     let injectedNotes: { title: string }[] = [];
@@ -416,9 +461,22 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       // skip injection if user already attached notes manually
       const relevant = findRelevantNotes(wsId, text, 2);
       if (relevant.length > 0) {
-        const ctx = formatNotesAsContext(relevant);
-        augmented = `${ctx}\n\n${text}`;
-        injectedNotes = relevant.map((n) => ({ title: n.title }));
+        // Filter out notes already injected for this session
+        const alreadyInjected = this.injectedNotesBySession.get(sessionId) ?? new Set<string>();
+        const fresh = relevant.filter((n) => !alreadyInjected.has(n.id));
+        if (fresh.length > 0) {
+          // 只把「實際納入 context」的 note 標記為已注入——4000 字總量上限可能把
+          // 後段 note 整塊丟掉，若一律標記已注入，被丟掉的會永遠不再重試。
+          const { text: ctx, included } = buildNotesContext(fresh);
+          if (included.length > 0) {
+            augmented = `${ctx}\n\n${text}`;
+            injectedNotes = included.map((n) => ({ title: n.title }));
+            // Record injected noteIds for this session（僅真正納入的）
+            const updated = new Set(alreadyInjected);
+            for (const n of included) updated.add(n.id);
+            this.injectedNotesBySession.set(sessionId, updated);
+          }
+        }
       }
     }
 
@@ -448,6 +506,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     }
     this.sessions.delete(sessionId);
     this.sessionClosedAt.delete(sessionId);
+    this.injectedNotesBySession.delete(sessionId);
   }
 
   remove(sessionId: string) {
@@ -494,7 +553,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         // 手動派工：偵測 PM 輸出的 DISPATCH 標記 → 寫入 server 待批佇列（根治 client localStorage 競態）。
         const wsForDispatch = (s as any).workspaceId as string | undefined;
         if (wsForDispatch) {
-          try { detectAndEnqueueDispatch({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content)); }
+          try { detectAndEnqueueDispatch({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content), this.io); }
           catch (e: any) { console.warn("[agentManager] detectAndEnqueueDispatch", e?.message); }
         }
         buffer = "";

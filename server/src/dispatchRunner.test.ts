@@ -100,8 +100,8 @@ describe("runConsult（注入假 runOne）", () => {
     const fake = async (it: DispatchItem) => ({ agentId: it.agentId, task: it.task, output: it.agentId + "答", status: "ok" as const, subSessionId: "sub-" + it.agentId });
     const res = await runConsult(items, "ws1", { concurrency: 3, perItemTimeoutMs: 1000 }, fake);
     expect(res).toEqual([
-      { agentId: "a", task: "問A", output: "a答", status: "ok", subSessionId: "sub-a" },
-      { agentId: "b", task: "問B", output: "b答", status: "ok", subSessionId: "sub-b" },
+      { agentId: "a", task: "問A", output: "a答", status: "ok", subSessionId: "sub-a", attempts: 1 },
+      { agentId: "b", task: "問B", output: "b答", status: "ok", subSessionId: "sub-b", attempts: 1 },
     ]);
   });
   it("逾時/錯誤項標記 status 但不拖垮整批", async () => {

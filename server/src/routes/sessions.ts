@@ -6,7 +6,7 @@ import {
   getSession, listSessionsWithCounts, upsertSession,
   getWorkspace, searchSessions, aggregateTags,
   getAgentMemory, setAgentMemory, deleteAgentMemory,
-  setSessionProject,
+  setSessionProject, appendMessage,
   DEFAULT_WORKSPACE_ID,
 } from "../store.js";
 import { distillAgentMemory } from "../memoryDistiller.js";
@@ -15,6 +15,7 @@ import { isGeminiAvailable } from "../geminiProcess.js";
 import { runConsult, startExecute } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 import { createDelegation, finishDelegation } from "../store/delegations.js";
+import { notify } from "../notifier.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
 const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
@@ -135,9 +136,10 @@ ${transcript.slice(0, 30000)}
   const r = await runClaudeOneShot([
     "-p",
     "--output-format", "json",
+    "--model", "claude-sonnet-4-6",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: prompt, timeoutMs: 180_000 });
+  ], { input: prompt, timeoutMs: 180_000, source: "summarize" });
   if (!r.ok) {
     return res.status(500).json({ error: r.error || "claude 失敗" });
   }
@@ -278,9 +280,10 @@ ${labelled.slice(0, 25000)}
   const { runClaudeOneShot } = await import("../claudeOneShot.js");
   const r = await runClaudeOneShot([
     "-p", "--output-format", "json",
+    "--model", "claude-sonnet-4-6",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: mergePrompt, timeoutMs: 180_000 });
+  ], { input: mergePrompt, timeoutMs: 180_000, source: "merge" });
   if (!r.ok) return res.status(500).json({ error: r.error || "claude 失敗" });
   try {
     const j = JSON.parse(r.stdout);
@@ -290,15 +293,23 @@ ${labelled.slice(0, 25000)}
   }
 });
 
+/** Truncate catalog description to 60 chars + ellipsis. Exported for unit testing. */
+export function truncateForCatalog(desc: string, limit = 60): string {
+  // 以 code point 為單位截斷（[...desc]），避免 String.slice 把 emoji 等
+  // astral 字元切成 lone surrogate——那會讓整包 prompt 變非法 UTF-8 被 API 拒收。
+  const chars = [...desc];
+  return chars.length > limit ? chars.slice(0, limit).join("") + "…" : desc;
+}
+
 // Orchestrator (Project Manager) — uses the built-in `agents-orchestrator`
 // agent and supplements its system prompt with the live catalog of 211 team
 // members so it can recommend who to call for a given project.
 sessionsRouter.post("/orchestrator", (req, res) => {
   const allAgents = loadAgentsImpl();
-  // PM 注入完整 description；system prompt 改走 --append-system-prompt-file
-  // 暫存檔路徑（agentSession.spawnClaudeChild），不再受 Windows 命令列 32767 字元上限約束。
+  // PM catalog：description 截到 60 字（避免 42KB+ system prompt 浪費 token）；
+  // id / name / category 完整保留，格式不變，下游 parser 不受影響。
   const catalog = allAgents
-    .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${a.description}`)
+    .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${truncateForCatalog(a.description)}`)
     .join("\n");
   const dispatchGuide = `
 你不是「把使用者的話拆開丟給同事的傳聲筒」。你是**主管**：交辦前先把需求問清楚、交辦時下清楚的契約、收貨時逐條驗收，不合格就退回重做。以下是你的完整閉環。
@@ -446,6 +457,7 @@ export async function executeDispatch(
   pmSessionId: string,
   items: DispatchItem[],
   io: any,
+  opts?: { approvalNote?: string },
 ): Promise<{ consulted: Awaited<ReturnType<typeof runConsult>>; executing: { subSessionId: string; agentId: string }[] }> {
   const pm = getSession(pmSessionId);
   const workspaceId = pm?.workspaceId ?? DEFAULT_WORKSPACE_ID;
@@ -469,6 +481,12 @@ export async function executeDispatch(
         try { finishDelegation(delegId, { status: d.status === "ok" ? "done" : "failed", resultExcerpt: d.output.slice(0, 500) }); } catch {}
       }
       const label = nameOf.get(d.agentId) ?? d.agentId;
+      // 員工化推播：外包任務完成/失敗 → Telegram（未設定 env 時為 no-op；fire-and-forget 不阻塞）
+      void notify({
+        kind: d.status === "ok" ? "交辦完成" : "交辦失敗",
+        title: `${label}：${(execute.find((i) => i.agentId === d.agentId)?.task ?? "").slice(0, 60)}`,
+        body: d.output.slice(0, 300),
+      });
       const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
       agentManager.send(d.pmSessionId, report);
       io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
@@ -492,6 +510,15 @@ export async function executeDispatch(
   // consult：同步並行跑、收齊後餵回 PM 整合（PM 串流經既有 session-room forward 自動到前端）。
   let consulted: Awaited<ReturnType<typeof runConsult>> = [];
   if (consult.length > 0) {
+    // A1：核可後、開始跑 runConsult（單項最長 4 分鐘）前，立刻在 PM session 插一則
+    // 「不打 LLM」的系統說明訊息，讓使用者不再面對沉默黑洞。走 appendMessage(role:system)
+    // + socket 廣播（type:"system-note"）——刻意不走 agentManager.send，才不會觸發 PM 的 LLM 回合。
+    const consultNames = consult.map((i) => nameOf.get(i.agentId) ?? i.agentId).join("、");
+    const ackNote = `🤝 已交辦給 ${consultNames}，正在等回覆（單項最長 4 分鐘）…`;
+    try {
+      appendMessage(pmSessionId, { role: "system", content: ackNote, ts: Date.now() });
+      io?.to(`session:${pmSessionId}`).emit("session:event", { sessionId: pmSessionId, type: "system-note", payload: { content: ackNote } });
+    } catch {}
     // 記帳：consult 開始前建台帳
     const consultDelegIds = new Map<string, string>(); // agentId+task → delegationId（consult 同步、subSessionId 事後才知）
     for (const item of consult) {
@@ -514,11 +541,14 @@ export async function executeDispatch(
     const labelled = consulted
       .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
       .join("\n\n");
-    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 逾時／錯誤的同事就說明未能取得。\n4) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled.slice(0, 25000)}`;
+    // B5：部分核可時，在回饋開頭附一句「哪些被拿掉」，PM 才知道全貌。
+    const notePrefix = opts?.approvalNote ? `${opts.approvalNote}\n\n` : "";
+    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n${notePrefix}以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 逾時／錯誤的同事就說明未能取得。\n4) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled.slice(0, 25000)}`;
     agentManager.send(pmSessionId, feedback);
   } else if (execute.length > 0) {
-    // 只有 execute：請 PM 先回一句「已交辦」。
-    agentManager.send(pmSessionId, `[[EXEC_ACK]]\n你已把 ${execute.length} 件外包任務交辦出去（背景進行中），請用一句話告訴使用者「已交辦，完成會回報」。`);
+    // 只有 execute：請 PM 先回一句「已交辦」。B5：部分核可時附上被拿掉的清單。
+    const notePrefix = opts?.approvalNote ? `${opts.approvalNote}\n` : "";
+    agentManager.send(pmSessionId, `[[EXEC_ACK]]\n${notePrefix}你已把 ${execute.length} 件外包任務交辦出去（背景進行中），請用一句話告訴使用者「已交辦，完成會回報」。`);
   }
 
   return { consulted, executing };

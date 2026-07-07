@@ -1,6 +1,7 @@
 import { parseActions, type ParsedAction } from "./actionProtocol.js";
 import type { DispatchItem } from "./dispatchParser.js";
 import { shouldAutoApprove } from "./autonomyPolicy.js";
+import { notify } from "./notifier.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
   createPendingAction, getPendingAction, decidePendingAction, markActionExecuted,
@@ -20,7 +21,7 @@ export interface AutonomyDeps {
 
 const activeDeps = new Map<string, AutonomyDeps>();
 
-const PROTOCOL = `你正在「自主模式」下工作。請嚴格用以下標記與系統溝通，每次回覆**只輸出一個** ACTION 區塊放在最末尾：
+export const PROTOCOL = `你正在「自主模式」下工作。請嚴格用以下標記與系統溝通，每次回覆**只輸出一個** ACTION 區塊放在最末尾：
 === ACTION ===
 kind: <clarify|plan|next_step|goal_done|need_input|dispatch|external_send|destructive|spend>
 risk: <high|low>
@@ -44,6 +45,17 @@ detail: <細節，可多行>
   ⚠️ 自主模式下派工**同步等待結果**（consult 逾時 5 分鐘、execute 逾時 10 分鐘），
      請將大任務切小，或在計畫中標記「留給使用者互動模式處理」，避免在無人值守迴圈中發超長任務。`;
 
+/** 首回合之後的每步改貼這一行提醒，不重貼完整 PROTOCOL（省 token）。 */
+export const PROTOCOL_REMINDER = "（提醒：照自主模式協議回覆，最末尾輸出一個 ACTION 區塊）";
+
+/**
+ * 追蹤哪些 runId 在本次程序生命期內已送過完整 PROTOCOL。
+ * - startRun 送完 planPrompt 後加入
+ * - pauseRunningRunsOnBoot 時移除（下次 resumeRun 需重送）
+ * - finalize 時移除（cleanup）
+ */
+const protocolSentForRun = new Set<string>();
+
 function emitRun(deps: AutonomyDeps, runId: string) {
   const run = getRun(runId);
   if (run) deps.emit(runId, { kind: "run", run });
@@ -52,7 +64,12 @@ function emitRun(deps: AutonomyDeps, runId: string) {
 function finalize(deps: AutonomyDeps | undefined, runId: string, status: RunStatus, lastError?: string) {
   updateRunStatus(runId, status, lastError);
   activeDeps.delete(runId);
+  protocolSentForRun.delete(runId);
   if (deps) emitRun(deps, runId);
+  // 員工化推播：自主 run 結束 → Telegram（未設定 env 時 no-op；fire-and-forget）
+  const run = getRun(runId);
+  const kindLabel = status === "done" ? "自主任務完成" : status === "budget_exhausted" ? "自主任務預算用盡" : "自主任務失敗";
+  void notify({ kind: kindLabel, title: (run?.goal ?? runId).slice(0, 80), body: lastError });
 }
 
 function budgetExceeded(run: AutonomyRun, deps: AutonomyDeps): boolean {
@@ -82,6 +99,8 @@ export async function startRun(
   let out: string;
   try {
     out = await deps.sendTurn(sessionId, planPrompt);
+    // Mark full PROTOCOL as sent for this run — loop() will use abbreviated reminder.
+    protocolSentForRun.add(run.id);
   } catch (e) {
     finalize(deps, run.id, "error", e instanceof Error ? e.message : String(e));
     return run.id;
@@ -167,7 +186,17 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
 
     let out: string;
     try {
-      out = await deps.sendTurn(run.sessionId, `${PROTOCOL}\n\n${prompt}`);
+      // 首回合（startRun planPrompt）已送過完整 PROTOCOL；
+      // resume 後第一步（protocolSentForRun 無此 runId）重送全文，加入 set；
+      // 其餘步驟只帶一行提醒。
+      let protocolPart: string;
+      if (!protocolSentForRun.has(runId)) {
+        protocolPart = PROTOCOL;
+        protocolSentForRun.add(runId);
+      } else {
+        protocolPart = PROTOCOL_REMINDER;
+      }
+      out = await deps.sendTurn(run.sessionId, `${protocolPart}\n\n${prompt}`);
     } catch (e) {
       finalize(deps, runId, "error", e instanceof Error ? e.message : String(e));
       return;
@@ -189,6 +218,7 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     if (action.kind === "need_input" || action.kind === "clarify") {
       const pa = createPendingAction({ runId, sessionId: run.sessionId, workspaceId: run.workspaceId, kind: action.kind, risk: "low", summary: action.summary, detail: action.detail });
       updateRunStatus(runId, "paused_for_input"); emitRun(deps, runId); deps.emit(runId, { kind: "pending", action: pa });
+      void notify({ kind: "等你回覆", title: action.summary.slice(0, 80), body: (action.detail ?? "").slice(0, 300) });
       return;
     }
     // 政策：自動放行的 kind 直接執行並續跑；其餘照舊建待批卡並暫停。
@@ -218,6 +248,7 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
       kind: action.kind, risk: "high", summary: action.summary, detail: action.detail,
     });
     updateRunStatus(runId, "paused_for_action"); emitRun(deps, runId); deps.emit(runId, { kind: "pending", action: pa });
+    void notify({ kind: "待批", title: action.summary.slice(0, 80), body: (action.detail ?? "").slice(0, 300) });
     return;
   }
 }
@@ -272,7 +303,12 @@ export async function stopRun(runId: string): Promise<void> {
 
 export function pauseRunningRunsOnBoot(listActiveRunsFn: () => AutonomyRun[]): number {
   const active = listActiveRunsFn();
-  for (const r of active) { updateRunStatus(r.id, "paused"); supersedePendingForRun(r.id); }
+  for (const r of active) {
+    updateRunStatus(r.id, "paused");
+    supersedePendingForRun(r.id);
+    // Clear protocol-sent flag so resumeRun re-sends full PROTOCOL (new process context).
+    protocolSentForRun.delete(r.id);
+  }
   return active.length;
 }
 

@@ -458,7 +458,7 @@ export function ChatWindow({
               key={p.id}
               action={p}
               busy={autonomyBusy}
-              onApprove={() => approveAction(p.id)}
+              onApprove={(items) => approveAction(p.id, items)}
               onReject={() => rejectAction(p.id)}
             />
           ))}

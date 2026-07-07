@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type AutonomyRun, type PendingAction } from "../lib/api";
+import { api, ApiError, type AutonomyRun, type PendingAction, type DispatchItem } from "../lib/api";
 import { getSocket } from "../lib/socket";
 
 export function useAutonomy(sessionId: string) {
@@ -99,11 +99,25 @@ export function useAutonomy(sessionId: string) {
     return false;
   };
 
-  const approveAction = async (id: string) => {
+  // A4：後端 CAS 對重複核可/拒絕回 409。前端顯示訊息即可、不當錯誤爆紅，並 refresh
+  //（此時卡片多半已被別的分頁/請求處理掉，refresh 後自然消失）。
+  const handleDecisionError = async (e: unknown) => {
+    if (e instanceof ApiError && e.status === 409) {
+      alert("此動作已處理過");
+      await refresh();
+      return;
+    }
+    throw e;
+  };
+
+  // B5：把批准卡逐項勾選/編輯後的 items 一併送出（後端據此只跑勾選項並回饋被拿掉的）。
+  const approveAction = async (id: string, items?: DispatchItem[]) => {
     setBusy(true);
     try {
-      await api.actionApprove(id);
+      await api.actionApprove(id, items && items.length > 0 ? { items } : undefined);
       await refresh();
+    } catch (e) {
+      await handleDecisionError(e);
     } finally {
       setBusy(false);
     }
@@ -114,6 +128,8 @@ export function useAutonomy(sessionId: string) {
     try {
       await api.actionReject(id);
       await refresh();
+    } catch (e) {
+      await handleDecisionError(e);
     } finally {
       setBusy(false);
     }

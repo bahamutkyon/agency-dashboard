@@ -71,9 +71,32 @@ export function findRelevantNotes(workspaceId: string, query: string, topK: numb
   return filtered.slice(0, topK).map((s) => s.note);
 }
 
+const NOTE_BODY_LIMIT = 1500;
+const CONTEXT_TOTAL_LIMIT = 4000;
+const TRUNCATE_SUFFIX = "…（已截斷，完整內容在研究成果庫）";
+
+/**
+ * 建 context 字串並回報「實際納入」的 note 清單。
+ * 因總量上限（4000 字）可能把後段 note 整塊丟掉，呼叫端需要知道哪些真的進去了，
+ * 才能只把納入的標記為已注入（避免被丟掉的 note 永遠不再重試注入）。
+ */
+export function buildNotesContext(notes: Note[]): { text: string; included: Note[] } {
+  const parts: string[] = [];
+  const included: Note[] = [];
+  let totalLen = 0;
+  for (const n of notes) {
+    const body = n.body.length > NOTE_BODY_LIMIT
+      ? n.body.slice(0, NOTE_BODY_LIMIT) + TRUNCATE_SUFFIX
+      : n.body;
+    const part = `<context source="筆記:${n.title}">\n${body}\n</context>`;
+    if (totalLen + part.length > CONTEXT_TOTAL_LIMIT) break;
+    parts.push(part);
+    included.push(n);
+    totalLen += part.length;
+  }
+  return { text: parts.join("\n\n"), included };
+}
+
 export function formatNotesAsContext(notes: Note[]): string {
-  if (notes.length === 0) return "";
-  return notes.map((n) =>
-    `<context source="筆記:${n.title}">\n${n.body}\n</context>`
-  ).join("\n\n");
+  return buildNotesContext(notes).text;
 }
