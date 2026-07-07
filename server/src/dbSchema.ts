@@ -77,6 +77,11 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+-- 複合索引對齊 listNotes 的查詢形狀（WHERE workspace_id ORDER BY pinned DESC, updated_at DESC），
+-- 讓 ORDER BY 也吃索引不 filesort。舊的單欄版（idx_notes_ws）用 DROP 汰換——
+-- CREATE INDEX IF NOT EXISTS 同名不會升級欄位，得換名字並清掉舊的（重複執行皆 no-op 安全）。
+DROP INDEX IF EXISTS idx_notes_ws;
+CREATE INDEX IF NOT EXISTS idx_notes_ws_order ON notes(workspace_id, pinned DESC, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY,
@@ -97,6 +102,20 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
   cache_read_tokens INTEGER NOT NULL DEFAULT 0,
   turns INTEGER NOT NULL DEFAULT 0
+);
+
+-- 成本來源維度表：按 source 標籤（titler/summarize/merge/research/learning/distill/interactive）
+-- 雙寫與 usage_daily 總帳同步；啟動即建（CREATE TABLE IF NOT EXISTS），無需遷移。
+CREATE TABLE IF NOT EXISTS usage_daily_source (
+  date TEXT NOT NULL,
+  source TEXT NOT NULL,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  turns INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(date, source)
 );
 
 CREATE TABLE IF NOT EXISTS rate_limit_state (

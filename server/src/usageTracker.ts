@@ -3,6 +3,7 @@
  * Workspace-agnostic — your subscription quota is global.
  */
 import { recordUsageTurn, recordRateLimitState, getUsageSummary } from "./store.js";
+import { setOneShotUsageRecorder } from "./claudeOneShot.js";
 
 function todayStr(): string {
   // Use local date (sv-SE locale produces YYYY-MM-DD) so UTC+8 users don't
@@ -11,7 +12,12 @@ function todayStr(): string {
 }
 
 class UsageTracker {
-  recordTurn(result: any) {
+  /**
+   * 記錄一輪用量。
+   * @param result  Claude CLI `--output-format json` 的頂層物件（含 total_cost_usd / usage）。
+   * @param source  成本歸因標籤；預設 "interactive"，與 agentManager 既有呼叫相容。
+   */
+  recordTurn(result: any, source = "interactive") {
     const cost = Number(result.total_cost_usd || 0);
     const u = result.usage || {};
     recordUsageTurn(todayStr(), {
@@ -21,7 +27,7 @@ class UsageTracker {
       cacheCreationTokens: Number(u.cache_creation_input_tokens || 0),
       cacheReadTokens: Number(u.cache_read_input_tokens || 0),
       turns: 1,
-    });
+    }, source);
   }
 
   recordRateLimit(evt: any) {
@@ -40,3 +46,7 @@ class UsageTracker {
 }
 
 export const usageTracker = new UsageTracker();
+
+// 接線：把 recordTurn 注入 claudeOneShot 的 recorder，讓 runClaudeOneShot 的呼叫端
+// 只需傳 source 選項即可自動記用量，而不需直接 import usageTracker（避免循環依賴）。
+setOneShotUsageRecorder((result, source) => usageTracker.recordTurn(result, source));

@@ -56,3 +56,10 @@ skills-awesome-zh/
 **/*.db-wal
 **/*.db-shm
 
+# 交接文件(含業務脈絡,本地用,不上公開 repo)
+HANDOFF.md
+
+# 使用者的 PTT DIY 素材(dogfood 產物,不進 repo)
+server/ptt-diy-*.md
+server/ptt-diy-img/
+

@@ -181,6 +181,10 @@ ${prompt.slice(0, 800)}
 Respond with JSON only (no commentary):
 {"provider": "claude" | "codex", "reason": "<= 30 chars Traditional Chinese reason"}`;
 
+    // NOTE: smartRouter 的 LLM 分類呼叫刻意不記用量（不加 source）：
+    // (1) 用 stream-json 格式，輸出是 stream-json 事件流，非頂層 {total_cost_usd} 結構，
+    //     JSON.parse(out) 不會得到可用的 usage 物件；
+    // (2) 用 Haiku + ~800 字 prompt，每次成本 ~$0.001 可忽略。
     // Use stream-json input format — Chinese text inside JSON strings
     // survives Windows codepage mangling that breaks plain text/arg input.
     const child = spawnClaude([

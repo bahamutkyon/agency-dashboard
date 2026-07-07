@@ -11,7 +11,18 @@ interface UsageSummary {
     capturedAt: number;
   };
   last7: { date: string; costUSD: number; turns: number }[];
+  bySource?: { source: string; costUSD: number; turns: number; inputTokens: number; outputTokens: number }[];
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  interactive: "互動對話",
+  titler: "自動命名",
+  summarize: "摘要",
+  merge: "整合",
+  research: "主題研究",
+  learning: "能力學習",
+  distill: "記憶蒸餾",
+};
 
 function fmtUSD(n: number) { return `$${n.toFixed(2)}`; }
 function fmtTokens(n: number) {
@@ -115,6 +126,20 @@ function UsageBarInner() {
               {rl.resetsAt > 0 && (
                 <div>下次重置:{new Date(rl.resetsAt * 1000).toLocaleString("zh-TW", { hour12: false })}</div>
               )}
+            </div>
+          )}
+
+          {u.bySource && u.bySource.length > 0 && (
+            <div className="mt-4 border-t border-zinc-800 pt-3">
+              <div className="text-xs text-zinc-500 mb-2">近 7 天成本來源</div>
+              <div className="space-y-1 text-xs">
+                {u.bySource.map((s) => (
+                  <div key={s.source} className="flex justify-between">
+                    <span className="text-zinc-500">{SOURCE_LABELS[s.source] ?? s.source}</span>
+                    <span className="text-zinc-200 font-mono">{fmtUSD(s.costUSD)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

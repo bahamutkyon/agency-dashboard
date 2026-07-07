@@ -19,8 +19,13 @@ import { withBackgroundSlot } from "./backgroundLimiter.js";
 import { runClaudeOneShot } from "./claudeOneShot.js";
 import { saveResearchNote } from "./store/notes.js";
 
-/** 研究用模型：主題深研是高品質綜整任務，比照能力學習用 Opus。 */
-const RESEARCH_MODEL = "claude-opus-4-7";
+/** 規劃階段用模型：拆子問題是機械任務，用 Haiku 節成本。 */
+export const PLAN_MODEL = "claude-haiku-4-5-20251001";
+/** 研究階段用模型：帶 WebSearch/WebFetch 工具查多來源，中等複雜度用 Sonnet。 */
+export const RESEARCH_STAGE_MODEL = "claude-sonnet-4-6";
+/** 綜合階段用模型：綜整品質攸關結論品質，保留 Opus 確保高品質。 */
+export const SYNTHESIS_MODEL = "claude-opus-4-7";
+
 /** 並行研究子題的限流（與全域 withBackgroundSlot 疊加，以更緊者為準）。 */
 const RESEARCH_CONCURRENCY = 3;
 /** 單一子題帶 web 工具研究的硬逾時（10 分鐘）。 */
@@ -88,17 +93,18 @@ export interface ResearchDeps {
  */
 async function spawnClaudeText(
   prompt: string,
-  opts: { tools?: string[]; timeoutMs?: number } = {},
+  opts: { model?: string; tools?: string[]; timeoutMs?: number } = {},
 ): Promise<string> {
   return withBackgroundSlot(async () => {
     const args = [
-      "-p", "--output-format", "json", "--model", RESEARCH_MODEL,
+      "-p", "--output-format", "json", "--model", opts.model ?? SYNTHESIS_MODEL,
       "--no-session-persistence", "--disable-slash-commands",
     ];
     if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(" "));
     const r = await runClaudeOneShot(args, {
       input: prompt,
       timeoutMs: opts.timeoutMs ?? PLAN_SYNTH_TIMEOUT_MS,
+      source: "research",
     });
     if (!r.ok) throw new Error(r.error || "claude 呼叫失敗");
     try {
@@ -210,12 +216,13 @@ function parseResearchFinding(text: string): RawFinding {
 }
 
 async function defaultPlan(question: string): Promise<string[]> {
-  const text = await spawnClaudeText(buildPlanPrompt(question));
+  const text = await spawnClaudeText(buildPlanPrompt(question), { model: PLAN_MODEL });
   return parseSubQuestions(text, question);
 }
 
 async function defaultResearch(subQuestion: string): Promise<RawFinding> {
   const text = await spawnClaudeText(buildResearchPrompt(subQuestion), {
+    model: RESEARCH_STAGE_MODEL,
     tools: ["WebSearch", "WebFetch"],
     timeoutMs: RESEARCH_TIMEOUT_MS,
   });

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { runClaudeOneShot } from "./claudeOneShot.js";
+import { runClaudeOneShot, setOneShotUsageRecorder } from "./claudeOneShot.js";
 
 /**
  * 建一個假的 ChildProcess（EventEmitter + stdout/stderr/stdin），
@@ -114,5 +114,64 @@ describe("runClaudeOneShot", () => {
     expect(capturedOptions?.env).toBeTruthy();
     // ACCESS_TOKEN 不應出現在子程序 env
     expect(capturedOptions?.env?.ACCESS_TOKEN).toBeUndefined();
+  });
+});
+
+describe("source 用量記錄（成本歸因）", () => {
+  // 每個測試後清除 recorder，避免跨測試污染
+  afterEach(() => {
+    setOneShotUsageRecorder(() => {});
+  });
+
+  it("帶 source 且 stdout 為含 usage 的 JSON → recorder 被以正確參數呼叫", async () => {
+    const child = makeFakeChild();
+    const spawn = vi.fn(() => {
+      setImmediate(() => {
+        child.stdout.emit("data", JSON.stringify({ result: "ok", total_cost_usd: 0.01, usage: { input_tokens: 100, output_tokens: 50 } }));
+        child.emit("close", 0);
+      });
+      return child as any;
+    });
+    const recorder = vi.fn();
+    setOneShotUsageRecorder(recorder);
+    const result = await runClaudeOneShot(["-p"], { spawn, source: "titler" });
+    expect(result.ok).toBe(true);
+    expect(recorder).toHaveBeenCalledOnce();
+    expect(recorder).toHaveBeenCalledWith(
+      expect.objectContaining({ total_cost_usd: 0.01 }),
+      "titler",
+    );
+  });
+
+  it("帶 source 但 stdout 非 JSON → 不拋錯、結果照常 ok:true，recorder 不被呼叫", async () => {
+    const child = makeFakeChild();
+    const spawn = vi.fn(() => {
+      setImmediate(() => {
+        child.stdout.emit("data", "not-valid-json");
+        child.emit("close", 0);
+      });
+      return child as any;
+    });
+    const recorder = vi.fn();
+    setOneShotUsageRecorder(recorder);
+    const result = await runClaudeOneShot(["-p"], { spawn, source: "titler" });
+    expect(result.ok).toBe(true);
+    // JSON.parse 失敗 → fail-safe 吞掉，recorder 不被呼叫
+    expect(recorder).not.toHaveBeenCalled();
+  });
+
+  it("不帶 source → recorder 不被呼叫", async () => {
+    const child = makeFakeChild();
+    const spawn = vi.fn(() => {
+      setImmediate(() => {
+        child.stdout.emit("data", JSON.stringify({ result: "ok", total_cost_usd: 0.01 }));
+        child.emit("close", 0);
+      });
+      return child as any;
+    });
+    const recorder = vi.fn();
+    setOneShotUsageRecorder(recorder);
+    await runClaudeOneShot(["-p"], { spawn }); // 不帶 source
+    expect(recorder).not.toHaveBeenCalled();
   });
 });

@@ -98,7 +98,7 @@ ${transcript.slice(0, 12000)}
     "--model", "claude-haiku-4-5-20251001",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: prompt, timeoutMs: 180_000 });
+  ], { input: prompt, timeoutMs: 180_000, source: "distill" });
 
   if (!r.ok) {
     console.warn(`[memoryDistiller] claude 失敗 for session ${sessionId.slice(0, 8)}: ${r.error}`);

@@ -4,16 +4,26 @@ import { getActiveWorkspace } from "../lib/workspace";
 import { api, type DelegationWithProgress } from "../lib/api";
 import { useVisiblePolling } from "../hooks/useVisiblePolling";
 
+interface LimiterStats {
+  running: number;
+  queued: number;
+  backoffUntil: number;
+  limit: number;
+}
+
 export function DelegationsPanel({ onOpenSession }: { onOpenSession?: (sessionId: string, agentId: string, title: string) => void }) {
   const [items, setItems] = useState<DelegationWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [limiter, setLimiter] = useState<LimiterStats | null>(null);
 
   const reload = useCallback(() => {
     api.listDelegations({ workspace: getActiveWorkspace() ?? undefined, inFlight: true })
       .then((data) => { setItems(data); setLoading(false); setError(null); })
       .catch((e: unknown) => { setError(e instanceof Error ? e.message : "載入失敗"); setLoading(false); });
+    // 搭便車：同步輪詢背景限流狀態
+    fetch("/api/system/limiter").then((r) => r.json()).then((d: LimiterStats) => setLimiter(d)).catch(() => {});
   }, []);
 
   useVisiblePolling(reload, 5000);
@@ -56,11 +66,33 @@ export function DelegationsPanel({ onOpenSession }: { onOpenSession?: (sessionId
     orphaned: "bg-amber-700/40 text-amber-300",
   };
 
+  // Limiter status display helpers
+  const limiterLine = limiter ? (() => {
+    const isBackoff = limiter.backoffUntil > Date.now();
+    if (isBackoff) {
+      const hhmm = new Date(limiter.backoffUntil).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return { text: `⏸ 限流退避中，至 ${hhmm}`, warn: true };
+    }
+    const parts: string[] = [];
+    if (limiter.running > 0 || limiter.queued > 0) {
+      parts.push(`背景槽 ${limiter.running}/${limiter.limit} 使用中`);
+    }
+    if (limiter.queued > 0) parts.push(`排隊 ${limiter.queued}`);
+    return parts.length ? { text: parts.join(" · "), warn: false } : null;
+  })() : null;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-200">🚀 在途交辦</h2>
-        <button onClick={reload} className="text-xs text-zinc-500 hover:text-zinc-300">重整</button>
+      <div className="p-4 border-b border-zinc-800 flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-200">🚀 在途交辦</h2>
+          <button onClick={reload} className="text-xs text-zinc-500 hover:text-zinc-300">重整</button>
+        </div>
+        {limiterLine && (
+          <div className={`text-[11px] ${limiterLine.warn ? "text-amber-400 font-medium" : "text-zinc-500"}`}>
+            {limiterLine.text}
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {loading && <div className="text-zinc-500 text-sm">載入中…</div>}

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { runTopicResearch, type ResearchDeps, type ResearchFinding } from "./researchRunner.js";
 
 // 這些測試只驗證「規劃→並行研究→綜合→存 note」整條 orchestration，
@@ -130,5 +130,19 @@ describe("runTopicResearch 三階段 orchestration", () => {
     // 最後一個 researching 事件 done 應等於 total
     const researching = events.filter((e) => e.stage === "researching");
     expect(researching[researching.length - 1].done).toBe(3);
+  });
+});
+
+describe("researchRunner 模型分級", () => {
+  it("應 export 三個階段的模型常數，並驗證各自的值", async () => {
+    const { PLAN_MODEL, RESEARCH_STAGE_MODEL, SYNTHESIS_MODEL } = await import(
+      "./researchRunner.js"
+    );
+    // 規劃：機械任務用 Haiku
+    expect(PLAN_MODEL).toBe("claude-haiku-4-5-20251001");
+    // 研究：帶 web 工具查證用 Sonnet
+    expect(RESEARCH_STAGE_MODEL).toBe("claude-sonnet-4-6");
+    // 綜合：高品質綜整保留 Opus
+    expect(SYNTHESIS_MODEL).toBe("claude-opus-4-7");
   });
 });

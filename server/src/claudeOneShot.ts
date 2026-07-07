@@ -17,6 +17,28 @@ import { sanitizedChildEnv } from "./childEnv.js";
 
 export type SpawnClaudeFn = (args: string[], options?: Partial<SpawnOptions>) => ChildProcess;
 
+// ── 可注入的用量記錄器（避免直接 import usageTracker 產生循環依賴）──────────────
+export type OneShotUsageRecorder = (result: any, source: string) => void;
+let _oneShotRecorder: OneShotUsageRecorder | undefined;
+
+/**
+ * 登記一個回呼，在每次 code===0 且帶 source 的成功呼叫後被觸發（fail-safe，永不拋）。
+ * 由 usageTracker.ts 在模組初始化時呼叫一次，把自己的 recordTurn 接進來。
+ */
+export function setOneShotUsageRecorder(fn: OneShotUsageRecorder): void {
+  _oneShotRecorder = fn;
+}
+
+/**
+ * Fail-safe：呼叫已登記的 recorder。任何錯誤均吞掉。
+ * 供 capabilityLearning.ts 等自己管 spawn 但需要記用量的呼叫端使用。
+ */
+export function recordOneShotUsage(result: any, source: string): void {
+  if (!_oneShotRecorder) return;
+  try { _oneShotRecorder(result, source); } catch {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface RunClaudeOneShotOpts {
   /** 硬逾時（毫秒）。逾時會 kill 子程序並回 ok:false。預設 180000（3 分鐘）。 */
   timeoutMs?: number;
@@ -24,6 +46,12 @@ export interface RunClaudeOneShotOpts {
   input?: string;
   /** 可注入的 spawn 函式（測試用假的）；預設 spawnClaude。 */
   spawn?: SpawnClaudeFn;
+  /**
+   * 成本歸因標籤（如 "titler" / "summarize" / "merge" / "research" / "distill"）。
+   * 設定後在 code===0 成功路徑 fail-safe 嘗試解析 JSON 並觸發已登記的 usageRecorder，
+   * 讓 UsageBar 可以顯示各功能的用量佔比。不設定則不記錄（不影響既有行為）。
+   */
+  source?: string;
 }
 
 export interface RunClaudeOneShotResult {
@@ -104,6 +132,10 @@ export function runClaudeOneShot(
 
     child.on("close", (code) => {
       if (code === 0) {
+        // Fail-safe 成本歸因記錄：解析 JSON 失敗或 recorder 未登記不影響回傳。
+        if (opts.source) {
+          try { recordOneShotUsage(JSON.parse(out), opts.source); } catch {}
+        }
         finish({ ok: true, stdout: out });
       } else {
         finish({ ok: false, stdout: out, error: err.trim() || `claude 離開碼 ${code}` });

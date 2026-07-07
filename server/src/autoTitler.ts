@@ -62,10 +62,10 @@ TAGS: tag1 / tag2 / tag3
 
   // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false（背景任務，靜默略過只 log 一行，絕不拋）。
   runClaudeOneShot([
-    "-p", "--output-format", "json",
+    "-p", "--output-format", "json", "--model", "claude-haiku-4-5-20251001",
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: prompt, timeoutMs: 180_000 }).then((r) => {
+  ], { input: prompt, timeoutMs: 180_000, source: "titler" }).then((r) => {
     if (!r.ok) { console.warn(`[auto-titler] ${sessionId.slice(0, 8)} 失敗：${r.error}`); return; }
     try {
       const j = JSON.parse(r.stdout);

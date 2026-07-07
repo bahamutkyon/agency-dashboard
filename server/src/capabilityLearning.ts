@@ -5,6 +5,7 @@
  */
 import { spawnClaude } from "./claudeProcess.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
+import { recordOneShotUsage } from "./claudeOneShot.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCategoryMemory, getCraftMemoryFor } from "./learningStore.js";
 import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
@@ -126,7 +127,12 @@ function runClaudeOnceBase(prompt: string, opts: ClaudeRunOptions = {}): Promise
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
       if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
-      try { const j = JSON.parse(out); done(null, String(j.result || "")); }
+      try {
+        const j = JSON.parse(out);
+        // Fail-safe 成本歸因記錄（能力學習用 Opus，成本高，必須可見）。
+        recordOneShotUsage(j, "learning");
+        done(null, String(j.result || ""));
+      }
       catch (e: any) { done(new Error(`解析回應失敗: ${e.message}`)); }
     });
   }), { label: "learning" });

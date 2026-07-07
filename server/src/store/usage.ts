@@ -13,7 +13,16 @@ function rowToDaily(r: any): DailyEntry {
   };
 }
 
-export function recordUsageTurn(date: string, deltas: Partial<Omit<DailyEntry, "date">>) {
+/**
+ * 雙寫：總帳 usage_daily（原邏輯不變）+ 來源維度 usage_daily_source。
+ * source 預設 "interactive"，與 agentManager 的既有呼叫相容。
+ */
+export function recordUsageTurn(
+  date: string,
+  deltas: Partial<Omit<DailyEntry, "date">>,
+  source = "interactive",
+) {
+  // 1. 總帳 usage_daily（原邏輯不變）
   const cur = db.prepare("SELECT * FROM usage_daily WHERE date = ?").get(date) as any;
   if (cur) {
     db.prepare(`
@@ -40,6 +49,24 @@ export function recordUsageTurn(date: string, deltas: Partial<Omit<DailyEntry, "
       deltas.cacheCreationTokens || 0, deltas.cacheReadTokens || 0, deltas.turns || 1,
     );
   }
+  // 2. 來源維度 usage_daily_source（UPSERT 累加）
+  db.prepare(`
+    INSERT INTO usage_daily_source
+      (date, source, cost_usd, input_tokens, output_tokens,
+       cache_creation_tokens, cache_read_tokens, turns)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(date, source) DO UPDATE SET
+      cost_usd = cost_usd + excluded.cost_usd,
+      input_tokens = input_tokens + excluded.input_tokens,
+      output_tokens = output_tokens + excluded.output_tokens,
+      cache_creation_tokens = cache_creation_tokens + excluded.cache_creation_tokens,
+      cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+      turns = turns + excluded.turns
+  `).run(
+    date, source,
+    deltas.costUSD || 0, deltas.inputTokens || 0, deltas.outputTokens || 0,
+    deltas.cacheCreationTokens || 0, deltas.cacheReadTokens || 0, deltas.turns || 1,
+  );
 }
 
 /** Local YYYY-MM-DD (sv-SE locale trick) — consistent with usageTracker.ts */
@@ -71,6 +98,25 @@ export function getUsageSummary() {
     });
   }
   const rl = db.prepare("SELECT * FROM rate_limit_state WHERE id = 1").get() as any;
+  // bySource：今天 + 過去 7 天各 source 的 cost/turns 彙總，供前端顯示成本來源分佈。
+  const sourceRows = db.prepare(`
+    SELECT source,
+           SUM(cost_usd)              AS cost,
+           SUM(turns)                 AS turns,
+           SUM(input_tokens)          AS input_tokens,
+           SUM(output_tokens)         AS output_tokens
+    FROM usage_daily_source
+    WHERE date >= date('now','localtime','-6 days')
+    GROUP BY source
+    ORDER BY cost DESC
+  `).all() as any[];
+  const bySource = sourceRows.map((r) => ({
+    source: r.source as string,
+    costUSD: r.cost || 0,
+    turns: r.turns || 0,
+    inputTokens: r.input_tokens || 0,
+    outputTokens: r.output_tokens || 0,
+  }));
   return {
     today: todayRow ? rowToDaily(todayRow) : { date: today, costUSD: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, turns: 0 },
     total: {
@@ -88,6 +134,7 @@ export function getUsageSummary() {
       capturedAt: rl.captured_at,
     } : undefined,
     last7,
+    bySource,
   };
 }
 
