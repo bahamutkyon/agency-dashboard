@@ -16,27 +16,31 @@ export function CockpitPanel({ onDiscuss }: Props) {
   const refresh = async () => {
     setBusy(true);
     try { const r = await api.cockpitRefresh(); setRow(r.briefing); }
+    catch { alert("重新生成失敗，請稍後再試"); }
     finally { setBusy(false); }
   };
 
   const applyAction = async (sectionIdx: number, itemIdx: number, item: BriefingItem) => {
-    if (!item.action) return;
-    const path = item.action.type === "approve" ? "bulk-approve" : "bulk-reject";
-    const resp = await fetch(`/api/learning/proposals/${path}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: item.action.proposalIds }),
-    });
-    if (!resp.ok) { alert("處理失敗，請稍後再試"); return; }
-    const j = await resp.json().catch(() => ({}));
-    // 就地從畫面移除該 item
-    setRow((prev) => {
-      if (!prev?.content) return prev;
-      const sections = prev.content.sections.map((s, si) =>
-        si === sectionIdx ? { ...s, items: s.items.filter((_, ii) => ii !== itemIdx) } : s);
-      return { ...prev, content: { ...prev.content, sections } };
-    });
-    const okN = j.ok ?? item.action.proposalIds.length;
-    alert(`已${item.action.type === "approve" ? "批准" : "駁回"} ${okN} 條` + (j.fail ? `，失敗 ${j.fail} 條` : ""));
+    if (!item.action || busy) return; // busy guard：防連點重複送出
+    setBusy(true);
+    try {
+      const path = item.action.type === "approve" ? "bulk-approve" : "bulk-reject";
+      const resp = await fetch(`/api/learning/proposals/${path}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: item.action.proposalIds }),
+      });
+      if (!resp.ok) { alert("處理失敗，請稍後再試"); return; }
+      const j = await resp.json().catch(() => ({}));
+      // 就地從畫面移除該 item（伺服端 GET 也會自癒過濾，重新整理不會再出現）
+      setRow((prev) => {
+        if (!prev?.content) return prev;
+        const sections = prev.content.sections.map((s, si) =>
+          si === sectionIdx ? { ...s, items: s.items.filter((_, ii) => ii !== itemIdx) } : s);
+        return { ...prev, content: { ...prev.content, sections } };
+      });
+      const okN = j.ok ?? item.action.proposalIds.length;
+      alert(`已${item.action.type === "approve" ? "批准" : "駁回"} ${okN} 條` + (j.fail ? `，失敗 ${j.fail} 條` : ""));
+    } finally { setBusy(false); }
   };
 
   if (!row) return <div className="p-6 text-zinc-500">尚無今日簡報。<button onClick={refresh} className="underline ml-2">立即生成</button></div>;
@@ -74,7 +78,7 @@ export function CockpitPanel({ onDiscuss }: Props) {
               <div className="flex gap-2 mt-2">
                 <button onClick={() => onDiscuss(it)} className="text-xs px-2 py-1 rounded bg-accent hover:bg-violet-500 text-white">💬 展開討論</button>
                 {it.action && (
-                  <button onClick={() => applyAction(i, j, it)} className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white">
+                  <button onClick={() => applyAction(i, j, it)} disabled={busy} className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-40">
                     照建議{it.action.type === "approve" ? "批准" : "駁回"}（{it.action.proposalIds.length}）
                   </button>
                 )}

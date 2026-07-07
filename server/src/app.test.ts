@@ -280,6 +280,90 @@ describe("HTTP 端點 smoke", () => {
     expect(getPendingAction(pa.id)?.status).toBe("rejected");
   });
 
+  it("GET /api/system/limiter 回 running/queued/backoffUntil/limit 形狀", async () => {
+    const r = await fetch(`${base}/api/system/limiter`);
+    expect(r.status).toBe(200);
+    const j = await r.json() as Record<string, unknown>;
+    expect(typeof j.running).toBe("number");
+    expect(typeof j.queued).toBe("number");
+    expect(typeof j.backoffUntil).toBe("number");
+    expect(typeof j.limit).toBe("number");
+  });
+
+  it("GET /api/system/notifier 回新形狀（source/botTokenMasked/chatId/envLocked，無完整 token）", async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    const r = await fetch(`${base}/api/system/notifier`);
+    expect(r.status).toBe(200);
+    const j = await r.json() as Record<string, unknown>;
+    expect(typeof j.configured).toBe("boolean");
+    expect(["env", "file", "none"]).toContain(j.source);
+    expect(typeof j.envLocked).toBe("boolean");
+    // 未設定時 botTokenMasked 應為 null（不洩漏完整 token）
+    expect(j.botTokenMasked).toBeNull();
+    expect(j.chatId).toBeNull();
+  });
+
+  it("POST /api/system/notifier/config 格式不合規 → 400 帶說明", async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    const r = await fetch(`${base}/api/system/notifier/config`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botToken: "not-valid-format" }),
+    });
+    expect(r.status).toBe(400);
+    const j = await r.json() as { error: string };
+    expect(typeof j.error).toBe("string");
+    expect(j.error.length).toBeGreaterThan(0);
+  });
+
+  it("POST /api/system/notifier/config envLocked（env 已設）→ 409", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "123:testtoken";
+    try {
+      const r = await fetch(`${base}/api/system/notifier/config`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: "42" }),
+      });
+      expect(r.status).toBe(409);
+      const j = await r.json() as { error: string };
+      expect(j.error).toBeTruthy();
+    } finally {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    }
+  });
+
+  it("POST /api/system/notifier/discover-chat envLocked（env 已設）→ 409 不打 Telegram", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "123:testtoken";
+    try {
+      const r = await fetch(`${base}/api/system/notifier/discover-chat`, { method: "POST" });
+      expect(r.status).toBe(409);
+      const j = await r.json() as { error: string };
+      expect(j.error).toContain("環境變數");
+    } finally {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    }
+  });
+
+  it("POST /api/system/notifier/test 未設定時回 400 帶說明", async () => {
+    // 同進程 server：清掉 env 確保「未設定」路徑（防本機恰好設了 token 而誤發真訊息）
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    const r = await fetch(`${base}/api/system/notifier/test`, { method: "POST" });
+    expect(r.status).toBe(400);
+    const j = await r.json() as { error: string };
+    expect(j.error).toContain("TELEGRAM");
+  });
+
+  it("POST /api/system/notifier/discover-chat 無 token 時回 400", async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_CHAT_ID;
+    const r = await fetch(`${base}/api/system/notifier/discover-chat`, { method: "POST" });
+    expect(r.status).toBe(400);
+    const j = await r.json() as { ok: boolean; error: string };
+    expect(j.ok).toBe(false);
+    expect(typeof j.error).toBe("string");
+  });
+
   it("GET /api/cockpit 無簡報時回 null（或既有簡報）", async () => {
     const r = await fetch(`${base}/api/cockpit`);
     expect(r.status).toBe(200);
@@ -292,6 +376,49 @@ describe("HTTP 端點 smoke", () => {
     expect(r.status).toBe(200);
     const j = (await r.json()) as { ok: boolean };
     expect(j.ok).toBe(true);
+  });
+
+  it("GET /api/cockpit：提案批准後，簡報中對應的建議 item 不再出現（自癒過濾）", async () => {
+    const { createProposal, setProposalStatus } = await import("./learningStore.js");
+    const { saveBriefing } = await import("./cockpitStore.js");
+    const p = createProposal({
+      agentId: "cockpit-sanitize-agent",
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      kind: "craft",
+      scope: "agent-global",
+      content: `批准後不再顯示測試 ${Date.now()}`,
+      source: "test",
+    });
+    expect(p).not.toBeNull();
+    saveBriefing({
+      date: "2099-01-01",
+      content: {
+        date: "2099-01-01",
+        generatedAt: Date.now(),
+        sections: [{
+          kind: "decisions",
+          title: "待拍板",
+          items: [{ title: "建議批准提案", body: "1 條", action: { type: "approve", proposalIds: [p!.id] } }],
+        }],
+      },
+      raw: "raw",
+      status: "ok",
+    });
+
+    // 批准前：item 應該在
+    const before = await (await fetch(`${base}/api/cockpit`)).json() as any;
+    const itemsBefore = before.briefing.content.sections.flatMap((s: any) => s.items)
+      .filter((it: any) => it.action?.proposalIds?.includes(p!.id));
+    expect(itemsBefore).toHaveLength(1);
+
+    // 批准（等同 UI 的「照建議批准」走 bulk-approve，這裡直接改 store 狀態）
+    expect(setProposalStatus(p!.id, "approved")).toBe(true);
+
+    // 批准後：GET 不再帶該 item
+    const after = await (await fetch(`${base}/api/cockpit`)).json() as any;
+    const itemsAfter = (after.briefing?.content?.sections ?? []).flatMap((s: any) => s.items)
+      .filter((it: any) => it.action?.proposalIds?.includes(p!.id));
+    expect(itemsAfter).toHaveLength(0);
   });
 
   // ── 問題 A：draft/apply 保留 DAG 欄位 ────────────────────────────────────
