@@ -450,6 +450,20 @@ export const api = {
   cockpit: () => fetch("/api/cockpit").then(j<{ briefing: BriefingRow | null; lastError?: { status: string; raw: string; at: number } }>),
   cockpitRefresh: () =>
     fetch("/api/cockpit/refresh", { method: "POST" }).then(j<{ ok: boolean; throttled?: boolean; briefing: BriefingRow }>),
+
+  // === Telegram 推播 ===
+  notifierStatus: () => fetch("/api/system/notifier").then(j<NotifierStatus>),
+  saveNotifierConfig: (patch: { botToken?: string; chatId?: string }) =>
+    fetch("/api/system/notifier/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j<NotifierStatus>),
+  discoverNotifierChat: () =>
+    fetch("/api/system/notifier/discover-chat", { method: "POST" })
+      .then(j<{ ok: boolean; chatId?: string; from?: string; error?: string }>),
+  testNotifier: () =>
+    fetch("/api/system/notifier/test", { method: "POST" })
+      .then(j<{ ok: boolean }>),
 };
 
 export interface ActivityRow {
@@ -602,6 +616,15 @@ export interface LearningProposal {
   status: "pending" | "approved" | "rejected";
   createdAt: number;
   decidedAt: number | null;
+}
+
+export interface NotifierStatus {
+  configured: boolean;
+  source: "env" | "file" | "none";
+  botTokenMasked: string | null;
+  chatId: string | null;
+  envLocked: boolean;
+  lastResult: { ok: boolean; at: number; error?: string } | null;
 }
 
 export interface DelegationWithProgress {
