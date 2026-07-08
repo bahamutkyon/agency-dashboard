@@ -6,6 +6,28 @@ describe("shouldAutoApprove", () => {
     expect(shouldAutoApprove("plan", "balanced")).toBe(true);
     expect(shouldAutoApprove("dispatch", "balanced")).toBe(true);
   });
+
+  // B2 安全閘：balanced dispatch mode-aware
+  describe("balanced dispatch 依 items 模式決策", () => {
+    it("balanced + dispatch + hasExecute:false → 全 consult，仍自動放行", () => {
+      expect(shouldAutoApprove("dispatch", "balanced", { hasExecute: false })).toBe(true);
+    });
+    it("balanced + dispatch + hasExecute:true → 含 execute，轉待批", () => {
+      expect(shouldAutoApprove("dispatch", "balanced", { hasExecute: true })).toBe(false);
+    });
+    it("balanced + dispatch 無 ctx → 向後相容，維持自動放行", () => {
+      expect(shouldAutoApprove("dispatch", "balanced")).toBe(true);
+    });
+    it("manual + dispatch + hasExecute:false → manual 不受 ctx 影響，全待批", () => {
+      expect(shouldAutoApprove("dispatch", "manual", { hasExecute: false })).toBe(false);
+    });
+    it("free + dispatch + hasExecute:true → free 不收緊，仍自動放行", () => {
+      expect(shouldAutoApprove("dispatch", "free", { hasExecute: true })).toBe(true);
+    });
+    it("conservative + dispatch + hasExecute:false → conservative 不放行 dispatch", () => {
+      expect(shouldAutoApprove("dispatch", "conservative", { hasExecute: false })).toBe(false);
+    });
+  });
   it("balanced 攔 external_send / spend / destructive", () => {
     expect(shouldAutoApprove("external_send", "balanced")).toBe(false);
     expect(shouldAutoApprove("spend", "balanced")).toBe(false);

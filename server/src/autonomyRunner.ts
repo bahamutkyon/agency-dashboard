@@ -14,7 +14,15 @@ export const DEFAULT_MAX_WALL_MS = 30 * 60 * 1000;
 
 export interface AutonomyDeps {
   sendTurn: (sessionId: string, prompt: string) => Promise<string>;
-  runDispatch: (items: DispatchItem[], workspaceId: string) => Promise<string>;
+  /**
+   * 執行派工。ledger 為選填記帳脈絡（pmSessionId=run 的 session、runId）——傳入時
+   * 每項派工會進台帳＋（execute）推播，讓自走模式的在途面板/手機通知不再失聲。
+   */
+  runDispatch: (
+    items: DispatchItem[],
+    workspaceId: string,
+    ledger?: { pmSessionId: string; runId: string },
+  ) => Promise<string>;
   now: () => number;
   emit: (runId: string, evt: { kind: "run" | "pending" | "action"; run?: AutonomyRun; action?: PendingAction }) => void;
 }
@@ -154,7 +162,7 @@ export async function approvePlan(runId: string): Promise<void> {
 
 /** 執行一個已（自動或人工）核可的 dispatch 動作，回 ok 與要餵回 PM 的結果敘述。 */
 async function runDispatchAndNote(
-  deps: AutonomyDeps, actionId: string, workspaceId: string, detail: string,
+  deps: AutonomyDeps, actionId: string, run: AutonomyRun, detail: string,
 ): Promise<{ ok: boolean; note: string }> {
   const items = parseActions(`=== ACTION ===\nkind: dispatch\ndetail:\n${detail}\n=== END ACTION ===`)[0]?.dispatchItems ?? [];
   if (!items.length) {
@@ -163,7 +171,8 @@ async function runDispatchAndNote(
     return { ok: true, note: errNote };
   }
   try {
-    const out = await deps.runDispatch(items, workspaceId);
+    // 傳入 ledger 脈絡（run 的 sessionId 當 pmSessionId、runId）→ 每項派工進台帳＋推播。
+    const out = await deps.runDispatch(items, run.workspaceId, { pmSessionId: run.sessionId, runId: run.id });
     markActionExecuted(actionId, out);
     return { ok: true, note: `派工結果：\n${out.slice(0, 4000)}\n請據此用 next_step 繼續。` };
   } catch (e) {
@@ -222,8 +231,11 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
       return;
     }
     // 政策：自動放行的 kind 直接執行並續跑；其餘照舊建待批卡並暫停。
+    // B2 安全閘：balanced 下，dispatch 若含任一 execute item → 轉待批（不自動放行）。
     if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
-    if (shouldAutoApprove(action.kind, run.policy)) {
+    const hasExecuteItem = action.kind === "dispatch" &&
+      (action.dispatchItems ?? []).some((item) => item.mode === "execute");
+    if (shouldAutoApprove(action.kind, run.policy, { hasExecute: hasExecuteItem })) {
       const pa = createPendingAction({
         runId, sessionId: run.sessionId, workspaceId: run.workspaceId,
         kind: action.kind, risk: "high", summary: action.summary, detail: action.detail,
@@ -231,7 +243,7 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
       decidePendingAction(pa.id, "approved");
       let note = "（已自動執行，請用 next_step 回報結果）";
       if (action.kind === "dispatch") {
-        const r = await runDispatchAndNote(deps, pa.id, run.workspaceId, action.detail ?? "");
+        const r = await runDispatchAndNote(deps, pa.id, run, action.detail ?? "");
         if (!r.ok) { finalize(deps, runId, "error", "自動派工失敗"); return; }
         note = r.note;
       } else {
@@ -243,12 +255,16 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
       prompt = note;
       continue;
     }
+    // 待批 summary：若為 balanced + dispatch 含 execute，標明原因讓使用者明白為何自走模式來問
+    const pendingSummary = (hasExecuteItem && run.policy === "balanced")
+      ? `${action.summary}（含 execute 派工，自走模式下仍需你批准）`
+      : action.summary;
     const pa = createPendingAction({
       runId, sessionId: run.sessionId, workspaceId: run.workspaceId,
-      kind: action.kind, risk: "high", summary: action.summary, detail: action.detail,
+      kind: action.kind, risk: "high", summary: pendingSummary, detail: action.detail,
     });
     updateRunStatus(runId, "paused_for_action"); emitRun(deps, runId); deps.emit(runId, { kind: "pending", action: pa });
-    void notify({ kind: "待批", title: action.summary.slice(0, 80), body: (action.detail ?? "").slice(0, 300) });
+    void notify({ kind: "待批", title: pendingSummary.slice(0, 80), body: (action.detail ?? "").slice(0, 300) });
     return;
   }
 }
@@ -262,7 +278,7 @@ export async function approveAction(actionId: string): Promise<void> {
   decidePendingAction(actionId, "approved");
   let resultNote = "（已核可，請執行並用 next_step 回報結果）";
   if (pa.kind === "dispatch") {
-    const r = await runDispatchAndNote(deps, actionId, run.workspaceId, pa.detail ?? "");
+    const r = await runDispatchAndNote(deps, actionId, run, pa.detail ?? "");
     if (!r.ok) { finalize(deps, pa.runId, "error", "派工失敗"); return; }
     resultNote = r.note;
   } else {

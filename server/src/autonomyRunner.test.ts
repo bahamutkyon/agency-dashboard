@@ -258,6 +258,116 @@ describe("autonomyRunner 狀態機", () => {
     expect(getRun(runId)?.lastError).toContain("claude");
   });
 
+  // B2 安全閘：balanced dispatch execute 需待批
+  it("balanced + dispatch 全 consult → 自動放行，run 直接到 done", async () => {
+    const dispatchCalls: { items: any[]; ws: string }[] = [];
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 諮詢行銷研究員\ndetail:\n- agentId: researcher\n  mode: consult\n  task: 本週熱門選題\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 整合完成\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ===",
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "研究結果"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessBalancedAllConsult", "wBAC", "研究", { policy: "balanced" }, deps);
+    // balanced plan 自動核可 → dispatch 全 consult 自動放行 → done
+    expect(getRun(runId)?.status).toBe("done");
+    expect(dispatchCalls).toHaveLength(1);
+    expect(dispatchCalls[0].items[0].mode).toBe("consult");
+  });
+
+  it("balanced + dispatch 含 execute → 轉待批（安全閘）、runDispatch 不被呼叫", async () => {
+    const dispatchCalls: any[] = [];
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 部署任務\ndetail:\n- agentId: executor\n  mode: execute\n  task: 部署到正式環境\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 完成\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ===",
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "不應被呼叫"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessBalancedExecGate", "wBEG", "部署", { policy: "balanced" }, deps);
+    // plan 自動核可，dispatch 含 execute → paused_for_action（安全閘攔截）
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    expect(dispatchCalls).toHaveLength(0);
+    // pending summary 應含原因說明（讓使用者知道為何自走模式還來問）
+    const pa = listPending("sessBalancedExecGate").find((p) => p.kind === "dispatch")!;
+    expect(pa).toBeTruthy();
+    expect(pa.summary.toLowerCase()).toContain("execute");
+  });
+
+  it("balanced + dispatch 含 execute → 批准後繼續執行到 done", async () => {
+    const dispatchCalls: any[] = [];
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 執行派工\ndetail:\n- agentId: executor\n  mode: execute\n  task: 部署\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 完成\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ===",
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "部署成功"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessBalancedExecApprove", "wBEA", "部署", { policy: "balanced" }, deps);
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    const pa = listPending("sessBalancedExecApprove").find((p) => p.kind === "dispatch")!;
+    await approveAction(pa.id);
+    expect(dispatchCalls).toHaveLength(1);
+    expect(getRun(runId)?.status).toBe("done");
+  });
+
+  it("balanced + dispatch 含 execute → 拒絕後餵回 PM 替代方案、不殺 run", async () => {
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 執行派工\ndetail:\n- agentId: executor\n  mode: execute\n  task: 部署\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 改用替代方案達標\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const receivedPrompts: string[] = [];
+    const deps: AutonomyDeps = {
+      sendTurn: async (_sid, prompt) => { receivedPrompts.push(prompt); return scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ==="; },
+      runDispatch: async () => "不應被呼叫",
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessBalancedExecReject", "wBER", "部署", { policy: "balanced" }, deps);
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    const pa = listPending("sessBalancedExecReject").find((p) => p.kind === "dispatch")!;
+    await rejectAction(pa.id);
+    expect(getRun(runId)?.status).toBe("done");
+    // 拒絕後 PM 收到提示要改方案
+    expect(receivedPrompts.some((p) => p.includes("被拒") || p.includes("替代"))).toBe(true);
+  });
+
+  it("balanced + dispatch 混合（含 consult 與 execute）→ 轉待批（只要含任一 execute）", async () => {
+    const dispatchCalls: any[] = [];
+    const scripted = [
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 混合派工\ndetail:\n- agentId: researcher\n  mode: consult\n  task: 調查\n- agentId: executor\n  mode: execute\n  task: 執行\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 完成\n=== END ACTION ===",
+    ];
+    let i = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async () => scripted[i++] ?? "=== ACTION ===\nkind: goal_done\nsummary: x\n=== END ACTION ===",
+      runDispatch: async (items, ws) => { dispatchCalls.push({ items, ws }); return "不應被呼叫"; },
+      now: () => 1000,
+      emit: () => {},
+    };
+    const runId = await startRun("sessBalancedMixed", "wBM", "混合", { policy: "balanced" }, deps);
+    expect(getRun(runId)?.status).toBe("paused_for_action");
+    expect(dispatchCalls).toHaveLength(0);
+  });
+
   it("dispatch detail 格式錯誤（無有效派工項）→ 明確錯誤訊息回饋給模型、runDispatch 不被呼叫", async () => {
     const dispatchCalls: any[] = [];
     const receivedPrompts: string[] = [];

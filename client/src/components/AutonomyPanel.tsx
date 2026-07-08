@@ -45,7 +45,7 @@ export function AutonomyPanel({
         {expanded && (
           <div className="border-t border-zinc-700 p-2">
             <div className="mb-1 text-zinc-400">
-              給一個目標，agent 會自己拆步驟、逐步執行（諮詢／工作區內動作自動進行；對外發送、花錢、破壞性動作會先問你）。
+              給一個目標，agent 會自己拆步驟、逐步執行。諮詢類（consult）自動進行；會實際動手／花錢的 execute 派工、對外發送、破壞性動作仍會請你批准。
             </div>
             <textarea
               value={goal}
@@ -70,8 +70,11 @@ export function AutonomyPanel({
   return (
     <div className="rounded border border-emerald-700/50 bg-emerald-950/20 p-2 text-xs">
       <div className="mb-1 text-zinc-200">🎯 {run.goal}</div>
-      <div className="mb-2 text-zinc-400">
+      <div className="mb-1 text-zinc-400">
         狀態：{run.status} · 第 {run.stepCount}/{run.maxSteps} 步
+      </div>
+      <div className="mb-2 text-zinc-500 text-[10px]">
+        自走中：諮詢類自動執行；會實際動手／花錢的 execute 仍會請你批准
       </div>
       {run.status === "awaiting_plan_approval" && (
         <button

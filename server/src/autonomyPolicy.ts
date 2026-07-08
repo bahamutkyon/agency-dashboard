@@ -17,7 +17,19 @@ const AUTO_APPROVE: Record<PolicyName, ActionKind[]> = {
   free: ["plan", "dispatch", "destructive"],
 };
 
-export function shouldAutoApprove(kind: ActionKind, policy: PolicyName): boolean {
+/**
+ * 判斷給定 kind 在當前政策下是否自動放行。
+ * ctx.hasExecute：dispatch 類的 items 中是否含有 mode:"execute" 的項目。
+ * - balanced + dispatch + hasExecute:true → 轉待批（B2 安全閘）
+ * - 其餘情況（含無 ctx）維持原語意。
+ */
+export function shouldAutoApprove(
+  kind: ActionKind,
+  policy: PolicyName,
+  ctx?: { hasExecute?: boolean },
+): boolean {
+  // B2 安全閘：balanced 下含 execute 的派工不自動放行
+  if (kind === "dispatch" && policy === "balanced" && ctx?.hasExecute) return false;
   return AUTO_APPROVE[policy].includes(kind);
 }
 
