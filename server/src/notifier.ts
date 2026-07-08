@@ -63,6 +63,11 @@ export function isNotifierConfigured(): boolean {
   return readConfig() !== null;
 }
 
+/** 給 Telegram 雙向輪詢用：拿完整 token+chatId（每次呼叫都重讀，設定改了立即生效）。 */
+export function getNotifierConfig(): { token: string; chatId: string } | null {
+  return readConfig();
+}
+
 function maskToken(token: string): string {
   if (token.length <= 8) return "****";
   return `${token.slice(0, 4)}…${token.slice(-4)}`;

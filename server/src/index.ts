@@ -14,6 +14,8 @@ import { resumeUnfinishedRuns } from "./capabilityLearning.js";
 import { learningScheduler } from "./learningScheduler.js";
 import { studyScheduler } from "./studyScheduler.js";
 import { cockpitScheduler } from "./cockpitScheduler.js";
+import { outcomeScheduler } from "./outcomeScheduler.js";
+import { startTelegramPoller } from "./telegramPoller.js";
 import { getRun } from "./store.js";
 import path from "node:path";
 import fs from "node:fs";
@@ -40,6 +42,7 @@ import { logActivity, pruneActivity } from "./store/activity.js";
 import { reconcileDelegationsOnBoot } from "./store/delegations.js";
 import { delegationsRouter } from "./routes/delegations.js";
 import { goalsRouter } from "./routes/goals.js";
+import { outcomesRouter } from "./routes/outcomes.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -133,6 +136,8 @@ app.use("/api/delegations", delegationsRouter);
 
 // Goals ledger (Layer 2): /api/goals
 app.use("/api/goals", goalsRouter);
+// Outcome checks (Layer 2 經營迴路地基): /api/outcomes
+app.use("/api/outcomes", outcomesRouter);
 
 // Guard check (shellward hook): /api/guard/check, /api/guard/decisions
 // Note: hook POST has no Origin header → isOriginAllowed(undefined)===true → passes origin guard.
@@ -315,6 +320,9 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   learningScheduler.init((payload) => io.emit("learning:progress", payload));
   studyScheduler.init((payload) => io.emit("learning:progress", payload));
   cockpitScheduler.init();
+  outcomeScheduler.init((event, payload) => io.emit(event, payload));
+  // Telegram 雙向批准輪詢（未設定 notifier 或 TELEGRAM_TWO_WAY=off 時自動不啟動）
+  startTelegramPoller();
   resumeUnfinishedRuns((r) => {
     io.emit("learning:progress", {
       runId: r.id, status: r.status, total: r.total, done: r.done,

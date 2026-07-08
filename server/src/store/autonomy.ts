@@ -78,6 +78,10 @@ export function getPendingAction(id: string): PendingAction | undefined {
 export function listPending(sessionId: string): PendingAction[] {
   return (db.prepare("SELECT * FROM pending_actions WHERE session_id = ? AND status = 'pending' ORDER BY created_at").all(sessionId) as any[]).map(rowToAction);
 }
+/** 全域待批清單（跨 session）——Telegram 雙向批准無 session 脈絡時撈全部 pending。 */
+export function listAllPending(): PendingAction[] {
+  return (db.prepare("SELECT * FROM pending_actions WHERE status = 'pending' ORDER BY created_at").all() as any[]).map(rowToAction);
+}
 /** CAS 決定：只在仍為 pending 時改狀態，回傳是否真的改到（changes>0）。
  *  雙擊/重送/兩分頁的重複核可只會第一次 true，後續 false；「先批准又拒絕」也被擋下。 */
 export function decidePendingAction(id: string, status: Extract<PendingStatus, "approved" | "rejected">): boolean {

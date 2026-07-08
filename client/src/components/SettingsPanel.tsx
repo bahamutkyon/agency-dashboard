@@ -148,6 +148,7 @@ export function SettingsPanel() {
             <div>① 去 Telegram 搜尋 <code className="bg-zinc-900 px-1 rounded">@BotFather</code>，輸入 <code className="bg-zinc-900 px-1 rounded">/newbot</code> 取得 token</div>
             <div>② 把 token 貼到下方儲存</div>
             <div>③ 在 Telegram 跟你的 bot 說一句話，再按「自動抓 Chat ID」</div>
+            <div className="text-zinc-400 pt-1">💬 已設定後，收到待批推播回覆「批准」會列出待批清單，再回「批准 1」確認（含只有 1 筆時）</div>
           </div>
 
           {/* 目前狀態 */}

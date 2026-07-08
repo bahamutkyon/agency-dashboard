@@ -10,6 +10,7 @@ import { isGeminiAvailable } from "../geminiProcess.js";
 import { gateMode, listGuardDecisions } from "../guard.js";
 import { backgroundLimiterStats } from "../backgroundLimiter.js";
 import { isNotifierConfigured, getNotifierLastResult, notify, discoverChatId, getNotifierStatus, writeNotifierConfig } from "../notifier.js";
+import { suspendTelegramPoller } from "../telegramPoller.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -70,6 +71,9 @@ export function buildMiscRouter(remoteCfg: ReturnType<typeof import("../remoteAc
     if (getNotifierStatus().envLocked) {
       return res.status(409).json({ error: "環境變數已設定，檔案設定不會生效——請直接改 TELEGRAM_CHAT_ID 環境變數" });
     }
+    // 互斥：discoverChatId 與常駐 poller 都會打 getUpdates long-poll 流，兩邊同搶會被
+    // Telegram 回 409。先暫停 poller 一小段（略大於 long-poll 週期），讓 discover 獨佔。
+    suspendTelegramPoller(35_000);
     const r = await discoverChatId();
     if (!r.ok) return res.status(400).json(r);
     res.json(r);
