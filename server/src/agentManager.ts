@@ -23,7 +23,8 @@ import { createPendingAction, listPending, getActiveRunForSession } from "./stor
 import { notify } from "./notifier.js";
 import { getProjectMemory } from "./store/projects.js";
 import { getDelegationProgress } from "./store/delegationProgress.js";
-import { detectGoalUpdate, updateGoal } from "./store/goals.js";
+import { detectGoalUpdates, updateGoal } from "./store/goals.js";
+import { detectFollowups, createOutcomeCheck, hasOpenDuplicate } from "./store/outcomes.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -564,15 +565,34 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         // 杜絕跨工作區誤改。
         if (s.agentId === "agents-orchestrator" && wsForDispatch) {
           try {
-            const goalHit = detectGoalUpdate(String(evt.payload.content));
-            if (goalHit) {
-              const updated = updateGoal(goalHit.goalId, { currentValue: goalHit.newValue }, wsForDispatch);
-              if (updated) {
-                const row = logActivity({ workspaceId: wsForDispatch, sessionId: s.id, kind: "goal_update", summary: `目標現值更新：${updated.title} → ${goalHit.newValue}` });
-                this.io?.emit("activity:event", row);
-              }
+            const goalHits = detectGoalUpdates(String(evt.payload.content));
+            for (const goalHit of goalHits) {
+              try {
+                const updated = updateGoal(goalHit.goalId, { currentValue: goalHit.newValue }, wsForDispatch);
+                if (updated) {
+                  const row = logActivity({ workspaceId: wsForDispatch, sessionId: s.id, kind: "goal_update", summary: `目標現值更新：${updated.title} → ${goalHit.newValue}` });
+                  this.io?.emit("activity:event", row);
+                }
+              } catch (e: any) { console.warn("[agentManager] detectGoalUpdates item", e?.message); }
             }
-          } catch (e: any) { console.warn("[agentManager] detectGoalUpdate", e?.message); }
+          } catch (e: any) { console.warn("[agentManager] detectGoalUpdates", e?.message); }
+          // 成效回訪：偵測 PM 輸出的 FOLLOWUP 標記 → 掛一筆到期回訪（第 2 層經營迴路地基）。
+          // 同 gate（只認 orchestrator + 有 workspaceId）：goals/outcomes block 只注入 PM，
+          // 子 agent 常處理不可信外部內容，不能讓照抄的標記觸發 DB 寫入。壞標記靜默略過。
+          try {
+            const fus = detectFollowups(String(evt.payload.content));
+            for (const fu of fus) {
+              try {
+                // 去重：同工作區已有未結案（pending/notified）且描述完全相同的回訪 → skip
+                // （PM 在多個回合重複吐同一標記時不重複掛，也不 log activity）。
+                if (hasOpenDuplicate(wsForDispatch, fu.description)) continue;
+                const dueAt = Date.now() + fu.days * 24 * 60 * 60 * 1000;
+                const oc = createOutcomeCheck({ workspaceId: wsForDispatch, description: fu.description, dueAt });
+                const row = logActivity({ workspaceId: wsForDispatch, sessionId: s.id, kind: "outcome_create", summary: `成效回訪已掛：${fu.days}d｜${oc.description.slice(0, 60)}` });
+                this.io?.emit("activity:event", row);
+              } catch (e: any) { console.warn("[agentManager] detectFollowups item", e?.message); }
+            }
+          } catch (e: any) { console.warn("[agentManager] detectFollowups", e?.message); }
         }
         buffer = "";
       } else if (evt.type === "result") {

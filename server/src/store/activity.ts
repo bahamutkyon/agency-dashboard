@@ -2,7 +2,7 @@ import { db } from "../db.js";
 
 export type ActivityKind = "tool_call" | "tool_result" | "run_started" | "run_step" | "run_done"
   | "action_pending" | "action_approved" | "action_rejected" | "dispatch" | "schedule_fired"
-  | "goal_update";
+  | "goal_update" | "outcome_create";
 
 export interface ActivityRow {
   id: string; ts: number; workspaceId: string; sessionId?: string; runId?: string;

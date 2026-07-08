@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "./index.js";
 import { DEFAULT_WORKSPACE_ID } from "./store.js";
-import { createGoal, updateGoal, deleteGoal, listGoals, detectGoalUpdate, getGoal } from "./store/goals.js";
+import { createGoal, updateGoal, deleteGoal, listGoals, detectGoalUpdate, detectGoalUpdates, getGoal } from "./store/goals.js";
 import { buildCockpitContext } from "./cockpitContext.js";
 import { createWorkspace, deleteWorkspace } from "./store.js";
 
@@ -251,6 +251,37 @@ describe("detectGoalUpdate", () => {
     expect(hit).not.toBeNull();
     const updated = updateGoal(hit!.goalId, { currentValue: hit!.newValue });
     expect(updated?.currentValue).toBe("7 台");
+  });
+});
+
+// ─── 6. detectGoalUpdates（複數版）多標記 ──────────────────────────────────────
+describe("detectGoalUpdates（複數版）", () => {
+  it("單標記 → 陣列長度 1", () => {
+    const hits = detectGoalUpdates("=== GOAL_UPDATE: goal_abc | 3 台 ===");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toEqual({ goalId: "goal_abc", newValue: "3 台" });
+  });
+
+  it("多標記 → 全部解析", () => {
+    const content = `=== GOAL_UPDATE: goal_1 | 5 台 ===\n中間文字\n=== GOAL_UPDATE: goal_2 | 10 件 ===`;
+    const hits = detectGoalUpdates(content);
+    expect(hits).toHaveLength(2);
+    expect(hits[0]).toEqual({ goalId: "goal_1", newValue: "5 台" });
+    expect(hits[1]).toEqual({ goalId: "goal_2", newValue: "10 件" });
+  });
+
+  it("上限 5 筆——第 6 筆被截", () => {
+    const parts = Array.from({ length: 6 }, (_, i) => `=== GOAL_UPDATE: goal_${i} | ${i} ===`);
+    const hits = detectGoalUpdates(parts.join("\n"));
+    expect(hits).toHaveLength(5);
+  });
+
+  it("無標記 → 空陣列", () => {
+    expect(detectGoalUpdates("一般訊息")).toHaveLength(0);
+  });
+
+  it("壞格式（無 |）→ 空陣列", () => {
+    expect(detectGoalUpdates("=== GOAL_UPDATE: goal_abc ===")).toHaveLength(0);
   });
 });
 

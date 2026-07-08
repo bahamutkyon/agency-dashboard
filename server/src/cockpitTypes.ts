@@ -50,6 +50,11 @@ export interface CockpitContextPack {
       targetValue: string;
       deadline: string;
     }[];
+    /** 成效回訪：待回訪（open）＋近 5 筆已填結果（done） */
+    outcomes: {
+      open: { id: string; description: string; status: string; dueAt: number }[];
+      recent: { id: string; description: string; result: string }[];
+    };
   }[];
   pendingProposals: {
     id: string;

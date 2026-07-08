@@ -70,6 +70,9 @@ const DelegationsPanel = lazy(() =>
 const GoalsPanel = lazy(() =>
   import("./components/GoalsPanel").then((m) => ({ default: m.GoalsPanel }))
 );
+const OutcomesPanel = lazy(() =>
+  import("./components/OutcomesPanel").then((m) => ({ default: m.OutcomesPanel }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
@@ -92,6 +95,7 @@ type View =
   | { kind: "activity" }
   | { kind: "delegations" }
   | { kind: "goals" }
+  | { kind: "outcomes" }
   | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
@@ -282,6 +286,7 @@ export default function App() {
   const openActivity = useCallback(() => setView({ kind: "activity" }), []);
   const openDelegations = useCallback(() => setView({ kind: "delegations" }), []);
   const openGoals = useCallback(() => setView({ kind: "goals" }), []);
+  const openOutcomes = useCallback(() => setView({ kind: "outcomes" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -472,6 +477,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openGoals, toggleSidebar]);
 
+  const onOpenOutcomesMobile = useCallback(() => {
+    openOutcomes();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openOutcomes, toggleSidebar]);
+
   const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
     setView({ kind: v });
   }, []);
@@ -563,6 +573,7 @@ ${message}
               onOpenActivity={onOpenActivityMobile}
               onOpenDelegations={onOpenDelegationsMobile}
               onOpenGoals={onOpenGoalsMobile}
+              onOpenOutcomes={onOpenOutcomesMobile}
               providersAvail={providersAvail}
             />
           </div>
@@ -736,6 +747,11 @@ ${message}
           {isView("goals") && (
             <Suspense fallback={LazyFallback}>
               <GoalsPanel key={`goals-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("outcomes") && (
+            <Suspense fallback={LazyFallback}>
+              <OutcomesPanel key={`outcomes-${reloadKey}`} />
             </Suspense>
           )}
           {isView("chat") && (() => {

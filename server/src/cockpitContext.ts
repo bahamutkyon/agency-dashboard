@@ -1,6 +1,7 @@
 import { listWorkspaces, listSessions, DEFAULT_WORKSPACE_ID } from "./store.js";
 import { listPendingProposals } from "./learningStore.js";
 import { listGoals } from "./store/goals.js";
+import { listOpen, listRecent } from "./store/outcomes.js";
 import type { CockpitContextPack } from "./cockpitTypes.js";
 
 const MEMO_EXCERPT = 800;
@@ -23,15 +24,31 @@ export function buildCockpitContext(): CockpitContextPack {
         targetValue: g.targetValue,
         deadline: g.deadline,
       }));
+      const outcomes = {
+        open: listOpen(w.id).map((o) => ({
+          id: o.id, description: o.description, status: o.status, dueAt: o.dueAt,
+        })),
+        recent: listRecent(w.id, 5).map((o) => ({
+          id: o.id, description: o.description, result: o.result,
+        })),
+      };
       return {
         id: w.id,
         name: w.name,
         memoryExcerpt: (w.memory || "").slice(0, MEMO_EXCERPT),
         latestReport: latestReportFor(w.id),
         goals,
+        outcomes,
       };
     })
-    .filter((w) => w.memoryExcerpt.trim() || w.latestReport || w.goals.length > 0);
+    .filter(
+      (w) =>
+        w.memoryExcerpt.trim() ||
+        w.latestReport ||
+        w.goals.length > 0 ||
+        w.outcomes.open.length > 0 ||
+        w.outcomes.recent.length > 0,
+    );
 
   const pendingProposals = listPendingProposals(DEFAULT_WORKSPACE_ID)
     .map((p) => ({ id: p.id, agentId: p.agentId, kind: p.kind, content: p.content }));

@@ -145,3 +145,26 @@ export function detectGoalUpdate(content: string): { goalId: string; newValue: s
   if (!goalId || !newValue) return null;
   return { goalId, newValue };
 }
+
+/**
+ * 從 PM 訊息偵測所有 GOAL_UPDATE 標記並回陣列（上限 5 筆防灌爆）。
+ * 相容舊版單數函式：呼叫端可改用本函式以支援一則訊息含多個標記。
+ * 注意：刻意不用 s 旗標——多標記情境下 .+? 跨行會讓壞標記（如新值空）
+ * 吞掉下一個標記的開頭 ===，新值限制在單行內才安全。
+ */
+export function detectGoalUpdates(content: string): Array<{ goalId: string; newValue: string }> {
+  const results: Array<{ goalId: string; newValue: string }> = [];
+  const re = /===\s*GOAL_UPDATE:\s*([^\s|]+)\s*\|[ \t]*(.+?)[ \t]*===/g;
+  for (const m of content.matchAll(re)) {
+    const goalId = m[1].trim();
+    const newValue = m[2].trim();
+    if (goalId && newValue) {
+      results.push({ goalId, newValue });
+      if (results.length >= 5) {
+        console.warn("[goals] detectGoalUpdates 命中超過 5 筆上限，其餘標記已略過");
+        break;
+      }
+    }
+  }
+  return results;
+}

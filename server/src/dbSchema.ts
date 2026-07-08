@@ -347,6 +347,23 @@ CREATE TABLE IF NOT EXISTS workspace_goals (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_goals_ws ON workspace_goals(workspace_id, status);
+
+-- 成效回訪帳本（第 2 層經營迴路）：對外交辦掛「回訪」，到期提醒使用者回填現實結果。
+-- delegation_id / goal_id 可空（連回原交辦 / 連目標）。status: pending|notified|done|cancelled。
+CREATE TABLE IF NOT EXISTS outcome_checks (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  delegation_id TEXT NOT NULL DEFAULT '',
+  goal_id TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  result TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outcomes_due ON outcome_checks(status, due_at);
+CREATE INDEX IF NOT EXISTS idx_outcomes_ws ON outcome_checks(workspace_id, status);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {

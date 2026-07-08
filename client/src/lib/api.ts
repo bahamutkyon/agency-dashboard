@@ -445,6 +445,40 @@ export const api = {
     }).then(j<WorkspaceGoal>),
   deleteGoal: (id: string) => fetch(`/api/goals/${id}`, { method: "DELETE" }).then(j<{ ok: boolean }>),
 
+  // === 成效回訪 ===
+  outcomes: (opts: { workspace?: string; status?: OutcomeStatus } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.workspace) p.set("workspace", opts.workspace);
+    if (opts.status) p.set("status", opts.status);
+    return fetch(`/api/outcomes?${p}`).then(j<OutcomeCheck[]>);
+  },
+  createOutcome: (workspace: string, body: {
+    description: string;
+    dueInDays?: number;
+    dueAt?: number;
+    delegationId?: string;
+    goalId?: string;
+  }) =>
+    fetch(`/api/outcomes?workspace=${encodeURIComponent(workspace)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(j<OutcomeCheck>),
+  recordOutcomeResult: (id: string, workspace: string, result: string) =>
+    fetch(`/api/outcomes/${id}/result?workspace=${encodeURIComponent(workspace)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ result }),
+    }).then(j<OutcomeCheck>),
+  cancelOutcome: (id: string, workspace: string) =>
+    fetch(`/api/outcomes/${id}/cancel?workspace=${encodeURIComponent(workspace)}`, {
+      method: "PATCH",
+    }).then(j<OutcomeCheck>),
+  deleteOutcome: (id: string, workspace: string) =>
+    fetch(`/api/outcomes/${id}?workspace=${encodeURIComponent(workspace)}`, {
+      method: "DELETE",
+    }).then(j<{ ok: boolean }>),
+
   // === 專案管理 ===
   listProjects: (workspace: string) =>
     fetch(`/api/projects?workspace=${encodeURIComponent(workspace)}`).then(j<{ projects: Project[] }>),
@@ -492,6 +526,18 @@ export const api = {
   testNotifier: () =>
     fetch("/api/system/notifier/test", { method: "POST" })
       .then(j<{ ok: boolean }>),
+
+  // === 主題研究 harness ===
+  /** 啟動一趟主題研究，立即回 runId，背景執行；進度透過 socket research:progress 事件推送。 */
+  startResearch: (question: string, workspaceId: string) =>
+    fetch("/api/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, workspaceId }),
+    }).then(j<{ runId: string }>),
+
+  /** 查詢研究 run 狀態（可用於 fallback polling；一般靠 socket）。 */
+  getResearchRun: (id: string) => fetch(`/api/research/${id}`).then(j<ResearchRunInfo>),
 };
 
 export interface ActivityRow {
@@ -646,6 +692,16 @@ export interface LearningProposal {
   decidedAt: number | null;
 }
 
+export interface ResearchRunInfo {
+  id: string;
+  workspaceId: string;
+  question: string;
+  status: "running" | "done" | "error";
+  stage: string;
+  total: number;
+  done: number;
+}
+
 export interface NotifierStatus {
   configured: boolean;
   source: "env" | "file" | "none";
@@ -665,6 +721,21 @@ export interface WorkspaceGoal {
   deadline: string;
   status: "active" | "done" | "archived";
   note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type OutcomeStatus = "pending" | "notified" | "done" | "cancelled";
+
+export interface OutcomeCheck {
+  id: string;
+  workspaceId: string;
+  delegationId: string;
+  goalId: string;
+  description: string;
+  dueAt: number;
+  status: OutcomeStatus;
+  result: string;
   createdAt: number;
   updatedAt: number;
 }
