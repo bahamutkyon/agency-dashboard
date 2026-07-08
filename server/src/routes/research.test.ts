@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { app } from "../index.js";
 import { db, DEFAULT_WORKSPACE_ID } from "../db.js";
@@ -77,5 +77,35 @@ describe("POST/GET /api/research", () => {
   it("GET 不存在的 run → 404", async () => {
     const r = await fetch(`${base}/api/research/__nope__`);
     expect(r.status).toBe(404);
+  });
+
+  it("onProgress 回呼 → io.emit research:progress 被呼叫（注入 fake io）", async () => {
+    // 暫時注入 fake io，驗證路由把 onProgress 接到 io.emit。
+    const origIo = app.get("io");
+    const fakeEmit = vi.fn();
+    app.set("io", { emit: fakeEmit });
+    try {
+      const r = await fetch(`${base}/api/research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: DEFAULT_WORKSPACE_ID, question: "socket emit 驗證" }),
+      });
+      expect(r.status).toBe(200);
+      const { runId } = (await r.json()) as { runId: string };
+      const done = await waitDone(runId);
+      expect(done.status).toBe("done");
+
+      // io.emit 被呼叫，且至少一次帶 research:progress
+      const calls = fakeEmit.mock.calls.filter((args: any[]) => args[0] === "research:progress");
+      expect(calls.length).toBeGreaterThan(0);
+
+      // 最後一次 emit 應帶 status=done、runId 正確
+      const last = calls[calls.length - 1];
+      expect(last[0]).toBe("research:progress");
+      expect(last[1]).toMatchObject({ runId, status: "done" });
+    } finally {
+      // 恢復原始 io（避免污染其他測試）
+      app.set("io", origIo ?? null);
+    }
   });
 });

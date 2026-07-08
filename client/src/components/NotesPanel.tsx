@@ -1,13 +1,100 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Note } from "../lib/api";
+import { getSocket } from "../lib/socket";
+import { getActiveWorkspace } from "../lib/workspace";
+
+interface ResearchProgressState {
+  status: "running" | "done" | "error" | "unknown";
+  stage: string;
+  total: number;
+  done: number;
+}
+
+/** 依 stage 回顯示文字。 */
+function stageText(stage: string, total: number, done: number): string {
+  switch (stage) {
+    case "planning": return "規劃子問題…";
+    case "planned": return total > 0 ? `研究中 0/${total}` : "規劃完成…";
+    case "researching": return `研究中 ${done}/${total}`;
+    case "synthesized": return "綜合中…";
+    case "done": return "研究完成，成果已存入研究成果庫";
+    case "error": return "研究失敗，請稍後重試";
+    case "unknown": return "進度未知，完成後成果會出現在下方清單";
+    default: return stage;
+  }
+}
 
 export function NotesPanel() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [editing, setEditing] = useState<Note | null>(null);
   const [draft, setDraft] = useState({ title: "", body: "", pinned: false });
 
+  // 深入研究狀態
+  const [researchQ, setResearchQ] = useState("");
+  const [researchProgress, setResearchProgress] = useState<ResearchProgressState | null>(null);
+  const [researchSubmitting, setResearchSubmitting] = useState(false);
+  const activeRunId = useRef<string | null>(null);
+
   const reload = () => api.notes().then(setNotes).catch(() => {});
   useEffect(() => { reload(); }, []);
+
+  // 深入研究：socket 進度監聽（依 runId 過濾，避免接到其他 run 的事件）
+  useEffect(() => {
+    const sock = getSocket();
+    const onProgress = (p: { runId: string; status: string; stage: string; total: number; done: number }) => {
+      if (!activeRunId.current || p.runId !== activeRunId.current) return;
+      setResearchProgress({
+        status: p.status as ResearchProgressState["status"],
+        stage: p.stage,
+        total: p.total,
+        done: p.done,
+      });
+      if (p.status === "done") api.notes().then(setNotes).catch(() => {});
+    };
+    sock.on("research:progress", onProgress);
+    return () => { sock.off("research:progress", onProgress); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 進度輪詢兜底：running 期間每 8 秒查一次 run 狀態（socket 掉線/漏 done 事件時仍能收斂）。
+  // done/error/unmount 清 interval。查無此 run（in-flight 未落 DB 或已過期）→ 顯示「進度未知」並解鎖表單。
+  useEffect(() => {
+    if (researchProgress?.status !== "running") return;
+    const runId = activeRunId.current;
+    if (!runId) return;
+    const iv = setInterval(() => {
+      api.getResearchRun(runId)
+        .then((r) => {
+          setResearchProgress({
+            status: r.status as ResearchProgressState["status"],
+            stage: r.stage,
+            total: r.total,
+            done: r.done,
+          });
+          if (r.status === "done") api.notes().then(setNotes).catch(() => {});
+        })
+        .catch(() => {
+          // 端點回 404 / 查無此 run → 收斂到 unknown（解鎖表單，避免卡在 running 永久禁用）。
+          setResearchProgress({ status: "unknown", stage: "unknown", total: 0, done: 0 });
+        });
+    }, 8000);
+    return () => clearInterval(iv);
+  }, [researchProgress?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submitResearch = async () => {
+    const q = researchQ.trim();
+    if (!q) return;
+    setResearchSubmitting(true);
+    setResearchProgress(null);
+    try {
+      const { runId } = await api.startResearch(q, getActiveWorkspace());
+      activeRunId.current = runId;
+      setResearchProgress({ status: "running", stage: "planning", total: 0, done: 0 });
+    } catch {
+      setResearchProgress({ status: "error", stage: "error", total: 0, done: 0 });
+    } finally {
+      setResearchSubmitting(false);
+    }
+  };
 
   const submit = async () => {
     if (!draft.title.trim() || !draft.body.trim()) return;
@@ -47,6 +134,44 @@ export function NotesPanel() {
           <p className="text-xs text-zinc-500 mt-1">
             存品牌語氣、產品資訊、長期 context。對話框旁可一鍵附加筆記到下一條訊息。
           </p>
+        </div>
+
+        {/* 深入研究區塊 */}
+        <div className="bg-panel border border-zinc-800 rounded-lg p-4 mb-6 space-y-3">
+          <div className="font-medium text-sm">🔬 深入研究</div>
+          <p className="text-xs text-zinc-500">
+            輸入主題，AI 自動拆子問題 → 並行多來源研究 → 綜合結論，成果自動存入本庫
+          </p>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-zinc-900 px-3 py-2 rounded text-sm"
+              placeholder="輸入研究主題，例如：台灣 AI 產業前景"
+              value={researchQ}
+              onChange={(e) => setResearchQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) submitResearch(); }}
+              disabled={researchSubmitting || researchProgress?.status === "running"}
+            />
+            <button
+              onClick={submitResearch}
+              disabled={researchSubmitting || researchProgress?.status === "running"}
+              className="px-4 py-2 rounded bg-violet-700 hover:bg-violet-600 disabled:opacity-50 text-white text-sm whitespace-nowrap"
+            >
+              {researchSubmitting ? "送出中…" : "深入研究"}
+            </button>
+          </div>
+          {researchProgress && (
+            <div className={`text-xs px-3 py-2 rounded ${
+              researchProgress.status === "error"
+                ? "bg-rose-900/40 text-rose-300"
+                : researchProgress.status === "done"
+                ? "bg-emerald-900/40 text-emerald-300"
+                : researchProgress.status === "unknown"
+                ? "bg-zinc-800 text-zinc-400"
+                : "bg-sky-900/40 text-sky-300 animate-pulse"
+            }`}>
+              {stageText(researchProgress.stage, researchProgress.total, researchProgress.done)}
+            </div>
+          )}
         </div>
 
         <div className="bg-panel border border-zinc-800 rounded-lg p-4 mb-6 space-y-3">
