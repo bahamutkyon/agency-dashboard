@@ -332,6 +332,21 @@ CREATE TABLE IF NOT EXISTS delegations (
 );
 CREATE INDEX IF NOT EXISTS idx_deleg_pm ON delegations(pm_session_id);
 CREATE INDEX IF NOT EXISTS idx_deleg_status ON delegations(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS workspace_goals (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  metric TEXT NOT NULL DEFAULT '',
+  current_value TEXT NOT NULL DEFAULT '',
+  target_value TEXT NOT NULL DEFAULT '',
+  deadline TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_goals_ws ON workspace_goals(workspace_id, status);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {

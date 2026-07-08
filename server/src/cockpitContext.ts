@@ -1,5 +1,6 @@
 import { listWorkspaces, listSessions, DEFAULT_WORKSPACE_ID } from "./store.js";
 import { listPendingProposals } from "./learningStore.js";
+import { listGoals } from "./store/goals.js";
 import type { CockpitContextPack } from "./cockpitTypes.js";
 
 const MEMO_EXCERPT = 800;
@@ -13,13 +14,24 @@ function latestReportFor(workspaceId: string): string | undefined {
 export function buildCockpitContext(): CockpitContextPack {
   const workspaces = listWorkspaces()
     .filter((w) => !w.id.startsWith("__"))
-    .map((w) => ({
-      id: w.id,
-      name: w.name,
-      memoryExcerpt: (w.memory || "").slice(0, MEMO_EXCERPT),
-      latestReport: latestReportFor(w.id),
-    }))
-    .filter((w) => w.memoryExcerpt.trim() || w.latestReport);
+    .map((w) => {
+      const goals = listGoals(w.id, "active").map((g) => ({
+        id: g.id,
+        title: g.title,
+        metric: g.metric,
+        currentValue: g.currentValue,
+        targetValue: g.targetValue,
+        deadline: g.deadline,
+      }));
+      return {
+        id: w.id,
+        name: w.name,
+        memoryExcerpt: (w.memory || "").slice(0, MEMO_EXCERPT),
+        latestReport: latestReportFor(w.id),
+        goals,
+      };
+    })
+    .filter((w) => w.memoryExcerpt.trim() || w.latestReport || w.goals.length > 0);
 
   const pendingProposals = listPendingProposals(DEFAULT_WORKSPACE_ID)
     .map((p) => ({ id: p.id, agentId: p.agentId, kind: p.kind, content: p.content }));

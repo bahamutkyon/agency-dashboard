@@ -25,6 +25,7 @@ interface Props {
   onOpenWorkflows: () => void;
   onOpenActivity: () => void;
   onOpenDelegations: () => void;
+  onOpenGoals: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
@@ -109,7 +110,7 @@ function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenCockpit, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -174,6 +175,7 @@ function AgentSidebarInner({
           <button onClick={onOpenTemplates} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="常用 prompt 模板"><span>📋</span><span>模板</span></button>
           <button onClick={onOpenActivity} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="活動時間軸總覽"><span>📡</span><span>活動</span></button>
           <button onClick={onOpenDelegations} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="在途交辦進度"><span>🚀</span><span>在途</span></button>
+          <button onClick={onOpenGoals} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="目標帳本"><span>🎯</span><span>目標</span></button>
           <button onClick={onOpenSettings} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="主題、字體、通知設定"><span>⚙️</span><span>設定</span></button>
         </div>
         <button

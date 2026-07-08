@@ -39,6 +39,7 @@ import { listActiveRuns } from "./store/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
 import { reconcileDelegationsOnBoot } from "./store/delegations.js";
 import { delegationsRouter } from "./routes/delegations.js";
+import { goalsRouter } from "./routes/goals.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -129,6 +130,9 @@ app.use("/api/research", researchRouter);
 
 // Delegation ledger: /api/delegations
 app.use("/api/delegations", delegationsRouter);
+
+// Goals ledger (Layer 2): /api/goals
+app.use("/api/goals", goalsRouter);
 
 // Guard check (shellward hook): /api/guard/check, /api/guard/decisions
 // Note: hook POST has no Origin header → isOriginAllowed(undefined)===true → passes origin guard.

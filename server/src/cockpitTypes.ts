@@ -41,6 +41,15 @@ export interface CockpitContextPack {
     name: string;
     memoryExcerpt: string;
     latestReport?: string;
+    /** 此工作區目前 active 的目標（空陣列表示無目標） */
+    goals: {
+      id: string;
+      title: string;
+      metric: string;
+      currentValue: string;
+      targetValue: string;
+      deadline: string;
+    }[];
   }[];
   pendingProposals: {
     id: string;

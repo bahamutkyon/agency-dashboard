@@ -67,6 +67,9 @@ const CockpitPanel = lazy(() =>
 const DelegationsPanel = lazy(() =>
   import("./components/DelegationsPanel").then((m) => ({ default: m.DelegationsPanel }))
 );
+const GoalsPanel = lazy(() =>
+  import("./components/GoalsPanel").then((m) => ({ default: m.GoalsPanel }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
@@ -88,6 +91,7 @@ type View =
   | { kind: "workflows" }
   | { kind: "activity" }
   | { kind: "delegations" }
+  | { kind: "goals" }
   | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
@@ -277,6 +281,7 @@ export default function App() {
   const openWorkflows = useCallback(() => setView({ kind: "workflows" }), []);
   const openActivity = useCallback(() => setView({ kind: "activity" }), []);
   const openDelegations = useCallback(() => setView({ kind: "delegations" }), []);
+  const openGoals = useCallback(() => setView({ kind: "goals" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -462,6 +467,11 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openDelegations, toggleSidebar]);
 
+  const onOpenGoalsMobile = useCallback(() => {
+    openGoals();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [openGoals, toggleSidebar]);
+
   const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
     setView({ kind: v });
   }, []);
@@ -552,6 +562,7 @@ ${message}
               onOpenWorkflows={onOpenWorkflowsMobile}
               onOpenActivity={onOpenActivityMobile}
               onOpenDelegations={onOpenDelegationsMobile}
+              onOpenGoals={onOpenGoalsMobile}
               providersAvail={providersAvail}
             />
           </div>
@@ -720,6 +731,11 @@ ${message}
           {isView("delegations") && (
             <Suspense fallback={LazyFallback}>
               <DelegationsPanel key={`dlg-${reloadKey}`} onOpenSession={openHistorySession} />
+            </Suspense>
+          )}
+          {isView("goals") && (
+            <Suspense fallback={LazyFallback}>
+              <GoalsPanel key={`goals-${reloadKey}`} />
             </Suspense>
           )}
           {isView("chat") && (() => {

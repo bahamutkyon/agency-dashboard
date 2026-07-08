@@ -417,6 +417,34 @@ export const api = {
     return fetch(`/api/delegations?${p}`).then(j<DelegationWithProgress[]>);
   },
 
+  // === 目標帳本 ===
+  goals: (opts: { workspace?: string; status?: "active" | "done" | "archived" } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.workspace) p.set("workspace", opts.workspace);
+    if (opts.status) p.set("status", opts.status);
+    return fetch(`/api/goals?${p}`).then(j<WorkspaceGoal[]>);
+  },
+  createGoal: (workspace: string, body: {
+    title: string;
+    metric?: string;
+    currentValue?: string;
+    targetValue?: string;
+    deadline?: string;
+    note?: string;
+  }) =>
+    fetch(`/api/goals?workspace=${encodeURIComponent(workspace)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(j<WorkspaceGoal>),
+  updateGoal: (id: string, patch: Partial<Omit<WorkspaceGoal, "id" | "workspaceId" | "createdAt" | "updatedAt">>) =>
+    fetch(`/api/goals/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j<WorkspaceGoal>),
+  deleteGoal: (id: string) => fetch(`/api/goals/${id}`, { method: "DELETE" }).then(j<{ ok: boolean }>),
+
   // === 專案管理 ===
   listProjects: (workspace: string) =>
     fetch(`/api/projects?workspace=${encodeURIComponent(workspace)}`).then(j<{ projects: Project[] }>),
@@ -625,6 +653,20 @@ export interface NotifierStatus {
   chatId: string | null;
   envLocked: boolean;
   lastResult: { ok: boolean; at: number; error?: string } | null;
+}
+
+export interface WorkspaceGoal {
+  id: string;
+  workspaceId: string;
+  title: string;
+  metric: string;
+  currentValue: string;
+  targetValue: string;
+  deadline: string;
+  status: "active" | "done" | "archived";
+  note: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface DelegationWithProgress {

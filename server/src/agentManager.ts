@@ -23,6 +23,7 @@ import { createPendingAction, listPending, getActiveRunForSession } from "./stor
 import { notify } from "./notifier.js";
 import { getProjectMemory } from "./store/projects.js";
 import { getDelegationProgress } from "./store/delegationProgress.js";
+import { detectGoalUpdate, updateGoal } from "./store/goals.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -555,6 +556,23 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         if (wsForDispatch) {
           try { detectAndEnqueueDispatch({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content), this.io); }
           catch (e: any) { console.warn("[agentManager] detectAndEnqueueDispatch", e?.message); }
+        }
+        // 目標帳本：偵測 PM 輸出的 GOAL_UPDATE 標記 → 直接更新目標現值（低風險自動化）。
+        // 邊界（安全）：只認 orchestrator 的輸出——goals block 只注入 PM，子 agent 沒有
+        // 正當理由改目標；且子 agent 常處理不可信外部內容（網頁/檔案），若照抄了內容裡的
+        // 標記不能讓它觸發 DB 寫入。同時要求 workspaceId 存在並傳入 updateGoal 驗證，
+        // 杜絕跨工作區誤改。
+        if (s.agentId === "agents-orchestrator" && wsForDispatch) {
+          try {
+            const goalHit = detectGoalUpdate(String(evt.payload.content));
+            if (goalHit) {
+              const updated = updateGoal(goalHit.goalId, { currentValue: goalHit.newValue }, wsForDispatch);
+              if (updated) {
+                const row = logActivity({ workspaceId: wsForDispatch, sessionId: s.id, kind: "goal_update", summary: `目標現值更新：${updated.title} → ${goalHit.newValue}` });
+                this.io?.emit("activity:event", row);
+              }
+            }
+          } catch (e: any) { console.warn("[agentManager] detectGoalUpdate", e?.message); }
         }
         buffer = "";
       } else if (evt.type === "result") {
