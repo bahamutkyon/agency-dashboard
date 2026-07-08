@@ -18,6 +18,7 @@ import { createDelegation, finishDelegation } from "../store/delegations.js";
 import { ledgerBegin, ledgerFinish, type DispatchLedgerContext, type DispatchLedgerDeps } from "../dispatchLedger.js";
 import { notify } from "../notifier.js";
 import { listGoals } from "../store/goals.js";
+import { listOpen, listRecent } from "../store/outcomes.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
 const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
@@ -295,6 +296,28 @@ ${labelled.slice(0, 25000)}
   }
 });
 
+/**
+ * EXEC_REPORT 截斷但保留【完成自驗】區塊。Exported for unit testing。
+ * - 長度 ≤ limit：原樣回。
+ * - 超過 limit：取頭部 (limit-2200) 字 + 中略提示 +（從**最後一個**「【完成自驗】」起最多 2000 字）。
+ *   找不到自驗段時，退回原本的「頭部截斷 + 導流提示」。
+ * 動機：外包回報常把最關鍵的【完成自驗】證據放尾端，粗暴 slice(0,6000) 會把它砍掉，
+ * 導致 PM 收貨時看不到驗收依據。
+ */
+export function trimReportKeepSelfCheck(text: string, limit = 6000): string {
+  if (text.length <= limit) return text;
+  const headLen = Math.max(0, limit - 2200);
+  const head = text.slice(0, headLen);
+  const marker = "【完成自驗】";
+  const idx = text.lastIndexOf(marker);
+  if (idx === -1) {
+    // 無自驗段 → 頭部截斷 + 導流提示（維持舊行為語意）。
+    return head + "\n…（完整回覆見該同事的子對話）";
+  }
+  const selfCheck = text.slice(idx).slice(0, 2000);
+  return head + "\n…（中略，完整見子對話）\n" + selfCheck;
+}
+
 /** Truncate catalog description to 60 chars + ellipsis. Exported for unit testing. */
 export function truncateForCatalog(desc: string, limit = 60): string {
   // 以 code point 為單位截斷（[...desc]），避免 String.slice 把 emoji 等
@@ -314,84 +337,57 @@ sessionsRouter.post("/orchestrator", (req, res) => {
     .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${truncateForCatalog(a.description)}`)
     .join("\n");
   const dispatchGuide = `
-你不是「把使用者的話拆開丟給同事的傳聲筒」。你是**主管**：交辦前先把需求問清楚、交辦時下清楚的契約、收貨時逐條驗收，不合格就退回重做。以下是你的完整閉環。
+你不是傳聲筒，你是**主管**：交辦前問清楚、交辦時下清楚的契約、收貨時逐條驗收，不合格就退回重做。
 
 ## 第 0 步：交辦前先釐清（不清楚就不要急著派工）
 
-收到需求，先自問這五件事是否清楚：
-1. **目標**：使用者到底想達成什麼？（不是「做什麼動作」，是「要什麼結果」）
-2. **成功標準**：怎樣算做好了？有沒有可檢查的驗收點？
-3. **受眾／情境**：給誰看、在哪用、什麼語氣或格式？
-4. **範圍邊界**：要做到哪、不用做哪？一次做多少？
-5. **期限或預算敏感度**：急不急？有沒有成本／字數／篇幅上限？
+先自問這三件事是否清楚：
+1. **目標與驗收**：要達成什麼結果？怎樣算做好、有沒有可檢查的驗收點？
+2. **受眾與範圍**：給誰用、在哪用？要做到哪、不用做哪？
+3. **期限或預算**：急不急？有沒有成本／字數／篇幅上限？
 
-只要**任一項模糊**，先**問使用者 1-3 個結構化釐清問題**，每個問題用這個格式，不要一次丟一長串：
-- **問題**：<具體、封閉、好回答的問題>
-- **為什麼需要知道**：<這個答案會怎麼影響交辦方向>
-- **我的預設假設**：<若你不回，我就先假設 ___ 往下走>
+任一項模糊，先問使用者 1-3 個結構化釐清問題，每題格式：
+- **問題**：<具體、封閉、好回答>
+- **為什麼需要知道**：<答案怎麼影響交辦方向>
+- **我的預設假設**：<若不回，我先假設 ___ 往下走>
 
-需求夠清楚了，才進入派工。**寧可多問一句，不要讓同事做錯方向白跑一趟。**
+寧可多問一句，不要讓同事做錯方向白跑一趟。
 
 ## 第 1 步：選對模式（consult vs execute vs workflow）
 
-判斷「使用者要的是想法，還是要有人動手做完一件事」：
+- **consult（諮詢．同步）**：要**意見／分析／建議**，同事回一段文字，收齊後你**整合**成給使用者的答覆。例：「這份合約有哪些風險條款」。
+- **execute（外包執行．背景非同步，可能跑很久）**：要同事**實際動手把一件事做完**（操作工具、產檔案、跑流程），完成時系統把回報餵回給你；回報必附**【完成自驗】證據區塊**（做了什麼／怎麼驗證／證據／結論），是你之後驗收的依據。例：「把這 10 張圖去背並輸出 PNG」。
+- **workflow（可重跑流程）**：**會一直重複跑的多步流程**（每週內容生產、新客戶提案 SOP），不用 DISPATCH，改提議排成可存可重跑的 workflow。
 
-- **consult（諮詢．同步．快）**：你要的是**意見／分析／建議／草稿評估**，同事回一段文字就結束。它是**同步**跑的，收齊後你要**整合**成給使用者的答覆。例：「這份合約有哪些風險條款」「這三個定價方案哪個好」「幫我看這篇貼文文案」。
-- **execute（外包執行．背景非同步．可能跑很久）**：你要同事**實際動手把一件事做完**——會操作工具、產檔案、跑流程、可能花好幾分鐘到數十分鐘。它是**背景非同步**跑的，你不用等，完成時系統會把回報餵回給你。**execute 的回報一定會附一段【完成自驗】證據區塊**（做了什麼／怎麼驗證／證據／結論），這是你之後驗收的依據。例：「把這 10 張圖去背並輸出 PNG」「上架這批商品到蝦皮」「跑完這份資料清洗並存檔」。
-- **workflow（可重跑流程）**：需求是**會一直重複跑的多步流程**（每週多平台內容生產、每個新客戶的提案 SOP），不要用 DISPATCH，改提議排成可存可重跑的 workflow。
-
-判準速記：要**想法/判斷** → consult；要**把事做完、可能跑很久** → execute；**會重複的多步 SOP** → workflow。同一張 DISPATCH 裡 consult 與 execute 可混用。
+判準速記：要想法 → consult；要把事做完 → execute；會重複的多步 SOP → workflow。同一張 DISPATCH 裡 consult 與 execute 可混用。
 
 ## 第 2 步：下清楚的「交辦契約」（不是一行字）
 
-同事**看不到你和使用者的對話**，只看得到你在 task 裡寫的東西。所以交辦要「豐富」：把方向、背景、交付物、驗收標準講清楚，否則同事只能猜。輸出下列標記（**只寫計畫、不要自己代答那部分**），系統會跳出批准卡，使用者按下才會真的執行：
+同事**看不到你和使用者的對話**，只看得到 task 裡的內容，所以把方向、背景、交付物、驗收標準寫清楚，否則同事只能猜。輸出下列標記（**只寫計畫、不要自己代答**），系統會跳出批准卡，使用者按下才會真的執行：
 
 \`\`\`
 === DISPATCH ===
 - agentId: <團隊清單中的 id>
   mode: consult | execute
-  task: 這位同事要做的事（可多行）。
-    延續行只要比 "task:" 這個欄位名再多縮排，就會被併進同一個 task。
-    想寫幾行就寫幾行，把要求講具體。
-  context: 你從跟使用者的對話裡摘要出的相關背景（同事看不到那段對話，
-    這是它做對方向的關鍵）。可多行，一樣用縮排延續。
-  deliverable: 交付物長什麼樣（格式、數量、範例、放哪）。可多行。
+  task: 這位同事要做的事（可多行；延續行比 "task:" 欄位名多縮排即可）。
+  context: 從你和使用者的對話摘要出的背景（同事看不到那段對話，這是做對方向的關鍵）。
+  deliverable: 交付物長什麼樣（格式、數量、範例、放哪）。
   accept:
-    - 驗收標準一（可檢查、不含糊）
-    - 驗收標準二
-    - 驗收標準三（最多 3 條）
+    - 驗收標準（可檢查、不含糊，最多 3 條）
 - agentId: <下一位同事的 id>
-  mode: consult
   task: ...
 === END DISPATCH ===
 \`\`\`
 
 **欄位規則**：
-- \`agentId\`：必填，必須完全來自下方團隊清單。以 \`- agentId:\` 開頭代表一個新派工項。
+- \`agentId\`：必填，必須完全來自下方團隊清單；以 \`- agentId:\` 開頭代表一個新派工項。
 - \`mode\`：\`consult\` 或 \`execute\`；省略預設 \`consult\`。
-- \`task\`：必填。**可多行**——第一行寫在 \`task:\` 後面，之後每一行只要**比 \`task:\` 這個欄位名多縮排**就是同一個 task 的延續，直到遇到下一個欄位名（\`context:\`/\`deliverable:\`/\`accept:\`/\`mode:\`）或下一個 \`- agentId:\`。
-- \`context\`、\`deliverable\`：選填但**強烈建議**，多行規則同 task。
-- \`accept\`：選填但**強烈建議**（execute 幾乎必寫）。寫成 1-3 條 \`-\` 開頭的子項；這是你之後收貨逐條驗收的依據。
-- 只寫 \`agentId\`+\`task\` 的**單行舊格式仍然有效**（向後相容），但那是「傳聲筒」等級，能補 context/deliverable/accept 就補。
+- \`task\`：必填，可多行——延續行只要比欄位名多縮排，直到下一個欄位名或下一個 \`- agentId:\`；context/deliverable 多行規則相同。
+- \`context\`、\`deliverable\`、\`accept\`：選填但**強烈建議**（execute 幾乎必寫 accept）。accept 寫成 1-3 條 \`-\` 子項，是你之後收貨逐條驗收的依據。
+- 只寫 \`agentId\`+\`task\` 的單行舊格式仍有效（向後相容），能補 context/deliverable/accept 就補。
 - 寫完標記後，用一句話告訴使用者「我要交辦 X、Y，按批准卡即可」，**不要自己代答**。
 
-**範例一（consult，帶完整契約）**：
-\`\`\`
-=== DISPATCH ===
-- agentId: legal-contract-reviewer
-  mode: consult
-  task: 審查附件這份「網站外包開發合約」，找出對我方（發案方）不利的風險條款，
-    並針對每一條給出修改建議。
-  context: 使用者是新創公司要外包做官網，預算 30 萬、兩個月交付，最擔心的是
-    驗收標準不清跟智慧財產權歸屬。這是第一次跟這家廠商合作。
-  deliverable: 一份風險清單，每條含【條款位置】【風險說明】【建議改法】三欄。
-  accept:
-    - 至少涵蓋付款條件、驗收標準、智財歸屬、違約與終止四大面向
-    - 每條都有具體改法，不只說「有風險」
-=== END DISPATCH ===
-\`\`\`
-
-**範例二（execute，帶完整契約）**：
+**範例（execute，帶完整契約）**：
 \`\`\`
 === DISPATCH ===
 - agentId: ecommerce-ops
@@ -409,31 +405,22 @@ sessionsRouter.post("/orchestrator", (req, res) => {
 
 ## 重複性多步流程 → 排成 Workflow（而非 DISPATCH）
 
-若是會一直重複跑的多步流程，輸出一個 \`\`\`workflow 程式碼區塊（JSON），系統會跳出「套用為 Workflow」按鈕。範例：
-
+會重複跑的多步流程，輸出 \`\`\`workflow JSON，系統跳出「套用為 Workflow」按鈕；step 的 agentId 須來自下方清單，可用 \`{{stepId.out}}\` 傳遞前一步輸出。
 \`\`\`workflow
-{
-  "name": "每週內容生產",
-  "description": "一句話用途",
-  "maxConcurrency": 2,
-  "steps": [
-    { "id": "research", "agentId": "marketing-trend-researcher", "prompt": "本週選題研究" },
-    { "id": "ig", "agentId": "marketing-content-creator", "dependsOn": ["research"], "prompt": "把這些選題改寫成 IG 貼文：{{research.out}}" }
-  ]
-}
+{"name":"每週內容生產","steps":[{"id":"r","agentId":"marketing-trend-researcher","prompt":"本週選題"},{"id":"ig","agentId":"marketing-content-creator","dependsOn":["r"],"prompt":"改寫成 IG：{{r.out}}"}]}
 \`\`\`
-
-step 的 agentId 必須來自下方團隊清單。
 
 ## 第 3 步：收貨要驗收（不要當傳聲筒）
 
-同事回報回來後，你**不是照抄轉達**，而是**主管收貨**：
-1. **逐條對照你當初下的 \`accept\` 驗收標準**檢查——每一條到底達成了沒？
-2. execute 的回報要特別看最後的**【完成自驗】區塊**：做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。
-3. **證據不足、或結論是「部分完成／未驗證／未完成」時**，不要當沒事一句話帶過。你有兩個選擇：
-   - **退回重做一次**（首選）：對同一位同事再開一張 DISPATCH，在 task 裡**具體講清楚缺什麼、要補什麼證據**。
-   - **標紅告知使用者**：若無法自行補救，明確跟使用者說「這件只做到 X、Y 還沒驗證，風險是 ___」，讓使用者決定。
-4. 全部達標，才整合成給使用者的答覆——可以精簡，但要**誠實反映品質**，不要粉飾。
+同事回報後，你不是照抄轉達，而是**主管收貨**：
+1. **逐條對照你當初下的 \`accept\` 驗收標準**檢查；execute 特別看**【完成自驗】區塊**的證據與結論（已驗證完成／部分完成／未完成）。
+2. 證據不足、或結論是「部分完成／未驗證／未完成」時，**不要粉飾**。首選**退回重做一次**（再開一張 DISPATCH，task 裡具體講清楚缺什麼、要補什麼證據）；無法自行補救就明確告知使用者「只做到 X、Y 未驗證、風險是 ___」讓使用者決定。
+3. 全部達標，才整合成給使用者的答覆——可以精簡，但要**誠實反映品質**。
+
+## 收尾：對外發布類要掛成效回訪
+對外發布/上架/寄出類的 execute 完成後（上架、發文、寄提案信…），現實結果不會馬上知道。主動吐
+\`=== FOLLOWUP: <N>d | <要查什麼> ===\`（N=天數，可小數，上限 90）掛成效回訪，到期系統會提醒使用者回填結果。
+例：\`=== FOLLOWUP: 7d | 露天 Hairball 那檔有沒有詢問/成交 ===\`。
 `;
   const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
 請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
@@ -461,8 +448,30 @@ ${catalog}
     goalsBlock = `\n\n# 🎯 這個工作區的目標帳本（你要主動追）\n${goalLines.join("\n")}\n（開場時若對話與目標相關，先錨定進度：「我們說好 X，目前 Z」。使用者回報新進度時，可直接吐 \`=== GOAL_UPDATE: <上方方括號內的目標id> | <新現值> ===\` 標記讓系統自動更新現值；或請使用者到 🎯 目標面板手動更新。沒有 active 目標時本區塊不出現。）`;
   }
 
+  // 成效回訪注入：待回訪（open）＋近 5 筆已填結果——有才注入、零則不注入（比照 goalsBlock）。
+  const openOutcomes = listOpen(wsId);
+  const recentOutcomes = listRecent(wsId, 5);
+  let outcomesBlock = "";
+  if (openOutcomes.length > 0 || recentOutcomes.length > 0) {
+    const lines: string[] = [];
+    if (openOutcomes.length > 0) {
+      lines.push("待回訪（該追現實結果了）：");
+      for (const o of openOutcomes.slice(0, 10)) {
+        const flag = o.status === "notified" ? "（已提醒使用者）" : "";
+        lines.push(`- [${o.id}] ${o.description}${flag}`);
+      }
+    }
+    if (recentOutcomes.length > 0) {
+      lines.push("近期已回填的成效：");
+      for (const o of recentOutcomes) {
+        lines.push(`- ${o.description} → ${o.result}`);
+      }
+    }
+    outcomesBlock = `\n\n# 📈 成效回訪（對外交辦的現實結果）\n${lines.join("\n")}\n（有待回訪且對話相關時，主動問使用者現況並請他到 📈 成效面板填結果。沒有回訪時本區塊不出現。）`;
+  }
+
   const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra + goalsBlock, wsId, false, "claude", orchProjectId || undefined);
+  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra + goalsBlock + outcomesBlock, wsId, false, "claude", orchProjectId || undefined);
   res.json({ id: session.id });
 });
 
@@ -507,7 +516,7 @@ export async function executeDispatch(
       const item = execute.find((i) => i.agentId === d.agentId) ?? { agentId: d.agentId, mode: "execute" as const, task: "" };
       ledgerFinish(execDelegIds.get(d.subSessionId), item, { ok: d.status === "ok", output: d.output, subSessionId: d.subSessionId }, ledger);
       const label = nameOf.get(d.agentId) ?? d.agentId;
-      const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
+      const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${trimReportKeepSelfCheck(d.output)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
       agentManager.send(d.pmSessionId, report);
       io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
     });
@@ -544,11 +553,15 @@ export async function executeDispatch(
       ledgerFinish(consultDelegIds[i], consult[i], { ok: r.status === "ok", output: r.output, subSessionId: r.subSessionId }, ledger);
     });
     const labelled = consulted
-      .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
+      .map((r) => {
+        const raw = r.output || "（未取得回覆）";
+        const out = raw.length > 3000 ? raw.slice(0, 3000) + "\n…（完整回覆見該同事的子對話）" : raw;
+        return `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${out}`;
+      })
       .join("\n\n");
     // B5：部分核可時，在回饋開頭附一句「哪些被拿掉」，PM 才知道全貌。
     const notePrefix = opts?.approvalNote ? `${opts.approvalNote}\n\n` : "";
-    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n${notePrefix}以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 逾時／錯誤的同事就說明未能取得。\n4) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled.slice(0, 25000)}`;
+    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n${notePrefix}以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 逾時／錯誤的同事就說明未能取得。\n4) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled.slice(0, 10000)}`;
     agentManager.send(pmSessionId, feedback);
   } else if (execute.length > 0) {
     // 只有 execute：請 PM 先回一句「已交辦」。B5：部分核可時附上被拿掉的清單。

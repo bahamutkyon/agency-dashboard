@@ -26,6 +26,7 @@ interface Props {
   onOpenActivity: () => void;
   onOpenDelegations: () => void;
   onOpenGoals: () => void;
+  onOpenOutcomes: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
@@ -106,17 +107,43 @@ function AgentRow({ ariaAttributes, index, style, filtered, liveAgentIds, sessio
   );
 }
 
+// ── Collapsible group helpers ─────────────────────────────────────────────────
+const STORAGE_KEY = "sidebar_groups";
+type GroupId = "經營" | "對話" | "學習/研究" | "系統";
+
+function loadGroupState(): Record<GroupId, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { "經營": true, "對話": false, "學習/研究": false, "系統": false, ...JSON.parse(raw) };
+  } catch {}
+  return { "經營": true, "對話": false, "學習/研究": false, "系統": false };
+}
+
+function saveGroupState(state: Record<GroupId, boolean>) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
+const BTN = "px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5";
+
 function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenCockpit, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals, onOpenOutcomes,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [groups, setGroups] = useState<Record<GroupId, boolean>>(loadGroupState);
   const [showFilters, setShowFilters] = useState(false);
+
+  function toggleGroup(g: GroupId) {
+    setGroups((prev) => {
+      const next = { ...prev, [g]: !prev[g] };
+      saveGroupState(next);
+      return next;
+    });
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -149,52 +176,81 @@ function AgentSidebarInner({
           <span>👨‍💼</span>
           <span>找專案經理討論</span>
         </button>
-        <button
-          data-tour="batch-btn"
-          onClick={onOpenBatch}
-          className="w-full px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center justify-center gap-2"
-          title="多位 agent 同時做同一題"
-        >
-          <span>🎯</span>
-          <span>批次同題</span>
-        </button>
-        <button
-          data-tour="workflow-btn"
-          onClick={onOpenWorkflows}
-          className="w-full px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center justify-center gap-2"
-          title="多位 agent 順序接力跑完一個流程"
-        >
-          <span>🔗</span>
-          <span>自動接力</span>
-        </button>
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={onOpenCockpit} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="今日總管簡報"><span>🧭</span><span>駕駛艙</span></button>
-          <button onClick={onOpenSchedules} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="設定週期任務"><span>⏰</span><span>排程</span></button>
-          <button onClick={onOpenHistory} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="所有過往對話"><span>📚</span><span>歷史</span></button>
-          <button onClick={onOpenNotes} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="共享筆記/知識庫"><span>📒</span><span>筆記</span></button>
-          <button onClick={onOpenTemplates} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="常用 prompt 模板"><span>📋</span><span>模板</span></button>
-          <button onClick={onOpenActivity} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="活動時間軸總覽"><span>📡</span><span>活動</span></button>
-          <button onClick={onOpenDelegations} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="在途交辦進度"><span>🚀</span><span>在途</span></button>
-          <button onClick={onOpenGoals} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="目標帳本"><span>🎯</span><span>目標</span></button>
-          <button onClick={onOpenSettings} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="主題、字體、通知設定"><span>⚙️</span><span>設定</span></button>
+
+        <div className="space-y-2">
+          {/* 經營 group */}
+          <button
+            onClick={() => toggleGroup("經營")}
+            className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center justify-between font-medium"
+            data-testid="group-header-經營"
+          >
+            <span>經營</span>
+            <span>{groups["經營"] ? "▾" : "▸"}</span>
+          </button>
+          {groups["經營"] && (
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              <button onClick={onOpenGoals} className={BTN} title="目標帳本"><span>🎯</span><span>目標</span></button>
+              <button onClick={onOpenOutcomes} className={BTN} title="成效回訪"><span>📈</span><span>成效</span></button>
+              <button onClick={onOpenDelegations} className={BTN} title="在途交辦進度"><span>🚀</span><span>在途</span></button>
+              <button onClick={onOpenCockpit} className={BTN} title="今日總管簡報"><span>🧭</span><span>駕駛艙</span></button>
+            </div>
+          )}
+
+          {/* 對話 group */}
+          <button
+            onClick={() => toggleGroup("對話")}
+            className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center justify-between font-medium"
+            data-testid="group-header-對話"
+          >
+            <span>對話</span>
+            <span>{groups["對話"] ? "▾" : "▸"}</span>
+          </button>
+          {groups["對話"] && (
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              <button onClick={onOpenHistory} className={BTN} title="所有過往對話"><span>📚</span><span>歷史</span></button>
+              <button data-tour="batch-btn" onClick={onOpenBatch} className={BTN} title="多位 agent 同時做同一題"><span>🎯</span><span>批次同題</span></button>
+              <button onClick={onOpenActivity} className={BTN} title="活動時間軸總覽"><span>📡</span><span>活動</span></button>
+            </div>
+          )}
+
+          {/* 學習/研究 group */}
+          <button
+            onClick={() => toggleGroup("學習/研究")}
+            className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center justify-between font-medium"
+            data-testid="group-header-學習/研究"
+          >
+            <span>學習/研究</span>
+            <span>{groups["學習/研究"] ? "▾" : "▸"}</span>
+          </button>
+          {groups["學習/研究"] && (
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              <button onClick={onOpenNotes} className={BTN} title="共享筆記/知識庫"><span>📒</span><span>筆記</span></button>
+              <button onClick={onOpenLearning} className={BTN} title="學習審核佇列"><span>🧠</span><span>學習</span></button>
+              <button onClick={onOpenCapabilityLearning} className={BTN} title="能力學習進程"><span>🎓</span><span>能力學習</span></button>
+              <button onClick={onOpenAutonomousStudy} className={BTN} title="常用 agent 定期自主上網研究領域最新做法"><span>📡</span><span>自主進修</span></button>
+              <button onClick={onOpenMemoryEditor} className={BTN} title="直接編輯類層 / 手藝記憶"><span>✏️</span><span>記憶編輯</span></button>
+              <button onClick={onOpenLegacyReview} className="px-2 py-2 rounded bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5 border border-amber-800/40" title="重審 v2 遷移前累積的全域記憶（legacy-global）"><span>⚠️</span><span>Legacy 重審</span></button>
+            </div>
+          )}
+
+          {/* 系統 group */}
+          <button
+            onClick={() => toggleGroup("系統")}
+            className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center justify-between font-medium"
+            data-testid="group-header-系統"
+          >
+            <span>系統</span>
+            <span>{groups["系統"] ? "▾" : "▸"}</span>
+          </button>
+          {groups["系統"] && (
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              <button onClick={onOpenSettings} className={BTN} title="主題、字體、通知設定"><span>⚙️</span><span>設定</span></button>
+              <button data-tour="workflow-btn" onClick={onOpenWorkflows} className={BTN} title="多位 agent 順序接力跑完一個流程"><span>🔗</span><span>自動接力</span></button>
+              <button onClick={onOpenSchedules} className={BTN} title="設定週期任務"><span>⏰</span><span>排程</span></button>
+              <button onClick={onOpenTemplates} className={BTN} title="常用 prompt 模板"><span>📋</span><span>模板</span></button>
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => setShowAdvanced((v) => !v)}
-          className="w-full px-2 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-xs flex items-center justify-between"
-          title="進階：學習與記憶治理"
-        >
-          <span>⋯ 進階</span>
-          <span>{showAdvanced ? "▾" : "▸"}</span>
-        </button>
-        {showAdvanced && (
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={onOpenLearning} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="學習審核佇列"><span>🧠</span><span>學習</span></button>
-            <button onClick={onOpenCapabilityLearning} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="能力學習進程"><span>🎓</span><span>能力學習</span></button>
-            <button onClick={onOpenAutonomousStudy} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="常用 agent 定期自主上網研究領域最新做法"><span>📡</span><span>自主進修</span></button>
-            <button onClick={onOpenMemoryEditor} className="px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5" title="直接編輯類層 / 手藝記憶"><span>✏️</span><span>記憶編輯</span></button>
-            <button onClick={onOpenLegacyReview} className="px-2 py-2 rounded bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 text-xs font-medium flex flex-col items-center justify-center gap-0.5 border border-amber-800/40" title="重審 v2 遷移前累積的全域記憶（legacy-global）"><span>⚠️</span><span>Legacy 重審</span></button>
-          </div>
-        )}
       </div>
 
       <div className="px-3 pb-3 border-b border-zinc-800" data-tour="agent-search">
