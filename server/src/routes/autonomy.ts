@@ -76,14 +76,15 @@ function makeDeps(io: any): AutonomyDeps {
       };
       trySend(0);
     }),
-    runDispatch: async (items: DispatchItem[], workspaceId: string) => {
+    runDispatch: async (items: DispatchItem[], workspaceId: string, ledger?: { pmSessionId: string; runId: string }) => {
       // 依 mode 分流：consult 項 5 分鐘同步諮詢；execute 項 10 分鐘同步等待＋「完成自驗」prompt。
       // 兩者均同步等待，確保迴圈拿到真實結果、不引入非同步回報插回迴圈的 race。
+      // ledger 脈絡（自主迴圈傳入）→ 每項派工進台帳＋（execute）推播，在途面板/手機通知不再失聲。
       return runDispatchByMode(items, workspaceId, {
         concurrency: DISPATCH_CONCURRENCY,
         consultTimeoutMs: CONSULT_TIMEOUT_MS,
         executeTimeoutMs: EXECUTE_CONSULT_TIMEOUT_MS,
-      });
+      }, undefined, undefined, ledger ? { pmSessionId: ledger.pmSessionId, workspaceId, runId: ledger.runId } : undefined);
     },
     now: () => Date.now(),
     emit: (runId, evt) => {

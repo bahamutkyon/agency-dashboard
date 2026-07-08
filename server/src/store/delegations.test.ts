@@ -51,6 +51,22 @@ describe("delegations store", () => {
     expect(row.status).toBe("failed");
   });
 
+  it("finishDelegation 帶 subSessionId → 回填 sub_session_id（同步派工事後才知）", () => {
+    const id = createDelegation({ ...base }); // 建立時無 subSessionId
+    finishDelegation(id, { status: "done", resultExcerpt: "好", subSessionId: "sub_final_1" });
+    const rows = listDelegations({ pmSessionId: base.pmSessionId });
+    const row = rows.find((r) => r.id === id)!;
+    expect(row.subSessionId).toBe("sub_final_1");
+  });
+
+  it("finishDelegation 不帶 subSessionId → 不動既有 sub_session_id", () => {
+    const id = createDelegation({ ...base, subSessionId: "sub_orig" });
+    finishDelegation(id, { status: "done" });
+    const rows = listDelegations({ pmSessionId: base.pmSessionId });
+    const row = rows.find((r) => r.id === id)!;
+    expect(row.subSessionId).toBe("sub_orig");
+  });
+
   it("inFlightOnly 過濾：只回 queued/running", () => {
     const pmId = `pm_if_${Date.now().toString(36)}`;
     const id1 = createDelegation({ ...base, pmSessionId: pmId });

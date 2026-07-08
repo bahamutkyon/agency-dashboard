@@ -15,7 +15,9 @@ import { isGeminiAvailable } from "../geminiProcess.js";
 import { runConsult, startExecute } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 import { createDelegation, finishDelegation } from "../store/delegations.js";
+import { ledgerBegin, ledgerFinish, type DispatchLedgerContext, type DispatchLedgerDeps } from "../dispatchLedger.js";
 import { notify } from "../notifier.js";
+import { listGoals } from "../store/goals.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
 const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
@@ -442,8 +444,25 @@ ${catalog}
 `;
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
   const standing = getWorkspace(wsId)?.standingContext || "";
+
+  // 目標帳本注入：只在有 active 目標時附上，否則完全不注入（零成本）。
+  // 上限 10 筆防 prompt 膨脹——真超過 10 個 active 目標時，該整理的是目標不是 prompt。
+  const activeGoals = listGoals(wsId, "active").slice(0, 10);
+  let goalsBlock = "";
+  if (activeGoals.length > 0) {
+    const goalLines = activeGoals.map((g) => {
+      const parts = [`- [${g.id}] ${g.title}`];
+      if (g.metric || g.currentValue || g.targetValue) {
+        parts.push(`｜指標:${g.metric || "—"} 現在 ${g.currentValue || "—"}/目標 ${g.targetValue || "—"}`);
+      }
+      if (g.deadline) parts.push(`｜期限 ${g.deadline}`);
+      return parts.join("");
+    });
+    goalsBlock = `\n\n# 🎯 這個工作區的目標帳本（你要主動追）\n${goalLines.join("\n")}\n（開場時若對話與目標相關，先錨定進度：「我們說好 X，目前 Z」。使用者回報新進度時，可直接吐 \`=== GOAL_UPDATE: <上方方括號內的目標id> | <新現值> ===\` 標記讓系統自動更新現值；或請使用者到 🎯 目標面板手動更新。沒有 active 目標時本區塊不出現。）`;
+  }
+
   const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra, wsId, false, "claude", orchProjectId || undefined);
+  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra + goalsBlock, wsId, false, "claude", orchProjectId || undefined);
   res.json({ id: session.id });
 });
 
@@ -468,42 +487,36 @@ export async function executeDispatch(
 
   const nameOf = new Map(loadAgentsImpl().map((a) => [a.id, a.name]));
 
+  // 台帳/推播共用層：手動路徑與自主路徑收斂到同一套 ledgerBegin/ledgerFinish 原子。
+  // 用明確的 delegationId 綁生命週期（不靠 agentId 比對）；nameOf 沿用本地 map，推播文字不變。
+  const ledgerCtx: DispatchLedgerContext = { pmSessionId, workspaceId };
+  const ledger: DispatchLedgerDeps = {
+    createDelegation, finishDelegation,
+    notify: (e) => { void notify(e); },
+    nameOf: (id) => nameOf.get(id) ?? id,
+  };
+
   // execute：背景跑、不等完成；完成時把結果餵回 PM（PM 貼回報）+ socket 通知前端 toast。
   let executing: { subSessionId: string; agentId: string }[] = [];
   if (execute.length > 0) {
     // 記帳：execute 開始時建台帳（subSessionId 在 startExecute 之後才知道，故先建再更新）
-    // 旁路：記帳失敗不可讓派工崩，各項獨立 try/catch。
+    // 旁路：記帳/推播失敗不可讓派工崩，全在 ledgerBegin/ledgerFinish 內 try/catch。
     const execDelegIds = new Map<string, string>(); // subSessionId → delegationId
     executing = startExecute(execute, workspaceId, pmSessionId, (d) => {
-      // 記帳：完成時 finishDelegation
-      const delegId = execDelegIds.get(d.subSessionId);
-      if (delegId) {
-        try { finishDelegation(delegId, { status: d.status === "ok" ? "done" : "failed", resultExcerpt: d.output.slice(0, 500) }); } catch {}
-      }
+      // 記帳＋推播：完成時 finishDelegation（回填 subSessionId）＋ execute 推播（交辦完成/失敗）
+      const item = execute.find((i) => i.agentId === d.agentId) ?? { agentId: d.agentId, mode: "execute" as const, task: "" };
+      ledgerFinish(execDelegIds.get(d.subSessionId), item, { ok: d.status === "ok", output: d.output, subSessionId: d.subSessionId }, ledger);
       const label = nameOf.get(d.agentId) ?? d.agentId;
-      // 員工化推播：外包任務完成/失敗 → Telegram（未設定 env 時為 no-op；fire-and-forget 不阻塞）
-      void notify({
-        kind: d.status === "ok" ? "交辦完成" : "交辦失敗",
-        title: `${label}：${(execute.find((i) => i.agentId === d.agentId)?.task ?? "").slice(0, 60)}`,
-        body: d.output.slice(0, 300),
-      });
       const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${d.output.slice(0, 12000)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
       agentManager.send(d.pmSessionId, report);
       io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
     });
-    // 記帳：startExecute 回傳 handle 後才有 subSessionId，此時建台帳
+    // 記帳：startExecute 回傳 handle 後才有 subSessionId，此時建台帳（帶 subSessionId）
     for (const handle of executing) {
       const item = execute.find((i) => i.agentId === handle.agentId);
-      try {
-        const delegId = createDelegation({
-          pmSessionId, workspaceId,
-          agentId: handle.agentId,
-          mode: "execute",
-          task: item?.task ?? "",
-          subSessionId: handle.subSessionId,
-        });
-        execDelegIds.set(handle.subSessionId, delegId);
-      } catch {}
+      if (!item) continue;
+      const delegId = ledgerBegin(ledgerCtx, item, ledger, handle.subSessionId);
+      if (delegId) execDelegIds.set(handle.subSessionId, delegId);
     }
   }
 
@@ -519,25 +532,17 @@ export async function executeDispatch(
       appendMessage(pmSessionId, { role: "system", content: ackNote, ts: Date.now() });
       io?.to(`session:${pmSessionId}`).emit("session:event", { sessionId: pmSessionId, type: "system-note", payload: { content: ackNote } });
     } catch {}
-    // 記帳：consult 開始前建台帳
-    const consultDelegIds = new Map<string, string>(); // agentId+task → delegationId（consult 同步、subSessionId 事後才知）
-    for (const item of consult) {
-      try {
-        const delegId = createDelegation({ pmSessionId, workspaceId, agentId: item.agentId, mode: "consult", task: item.task });
-        consultDelegIds.set(`${item.agentId}||${item.task}`, delegId);
-      } catch {}
-    }
+    // 記帳：consult 開始前建台帳。用「索引」綁 delegationId（runConsult 保序，consulted[i]↔consult[i]），
+    // 取代舊的 agentId||task 比對——同 agent 重複派工也不會誤配。
+    const consultDelegIds = consult.map((item) => ledgerBegin(ledgerCtx, item, ledger));
     consulted = await runConsult(consult, workspaceId, {
       concurrency: DISPATCH_CONCURRENCY,
       perItemTimeoutMs: CONSULT_TIMEOUT_MS,
     });
-    // 記帳：consult 完成後 finish
-    for (const r of consulted) {
-      const delegId = consultDelegIds.get(`${r.agentId}||${r.task}`);
-      if (delegId) {
-        try { finishDelegation(delegId, { status: r.status === "ok" ? "done" : "failed", resultExcerpt: r.output.slice(0, 500) }); } catch {}
-      }
-    }
+    // 記帳：consult 完成後 finish（consult 不推播；回填最後一次嘗試的 subSessionId 供深聊）
+    consulted.forEach((r, i) => {
+      ledgerFinish(consultDelegIds[i], consult[i], { ok: r.status === "ok", output: r.output, subSessionId: r.subSessionId }, ledger);
+    });
     const labelled = consulted
       .map((r) => `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${r.output || "（未取得回覆）"}`)
       .join("\n\n");

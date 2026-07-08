@@ -2,6 +2,12 @@ import { agentManager } from "./agentManager.js";
 import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
 import type { DispatchItem } from "./dispatchParser.js";
+import {
+  ledgerBegin, ledgerFinish, defaultLedgerDeps,
+  type DispatchLedgerContext, type DispatchLedgerDeps,
+} from "./dispatchLedger.js";
+
+export type { DispatchLedgerContext, DispatchLedgerDeps };
 
 /**
  * 組合結構化交辦簡報（Brief）送給子 agent。
@@ -224,18 +230,43 @@ export async function runDispatchByMode(
   opts: { concurrency: number; consultTimeoutMs: number; executeTimeoutMs: number },
   runOneConsultFn: RunOneFn = runOneConsult,
   runOneExecuteFn: RunOneFn = runOneExecuteAsConsult,
+  ctx?: DispatchLedgerContext,
+  ledger: DispatchLedgerDeps = defaultLedgerDeps,
 ): Promise<string> {
   const results = await mapWithConcurrency(items, opts.concurrency, (item) => {
     // consult 才機械重試（純諮詢無副作用，error=零輸出重開新 session 試一次）。
     // execute 刻意不重試：有副作用的任務「零輸出的 error」不代表沒做事，
     // 機械重跑可能重複執行（重複上架/發文/下單）。execute 失敗交給 PM 層
     // 判斷（收到失敗回報後決定退回重做），與非同步 execute 路徑的邊界一致。
-    if (item.mode === "execute") {
-      return runOneWithRetry(runOneExecuteFn, item, workspaceId, opts.executeTimeoutMs, { maxAttempts: 1 });
-    }
-    return runOneWithRetry(runOneConsultFn, item, workspaceId, opts.consultTimeoutMs);
+    const run = item.mode === "execute"
+      ? () => runOneWithRetry(runOneExecuteFn, item, workspaceId, opts.executeTimeoutMs, { maxAttempts: 1 })
+      : () => runOneWithRetry(runOneConsultFn, item, workspaceId, opts.consultTimeoutMs);
+    return runItemWithLedger(item, ctx, ledger, run);
   });
   return results.map((r) => `### ${r.agentId}（${r.status}）\n${r.output || "（無回覆）"}`).join("\n\n");
+}
+
+/**
+ * 用台帳/推播包裝一項（含重試）派工：開始建 delegation → 跑（重試在內）→ 結束記最終結果＋推播。
+ * - ctx 為 undefined → 完全不記帳、不推播（直接跑），向後相容既有呼叫端與測試。
+ * - 記帳以「一個 dispatch 項」為單位（一筆 delegation）；重試不另開新筆，finish 記最終結果，
+ *   subSessionId 記最後一次嘗試的（來自最終 result）。
+ */
+async function runItemWithLedger(
+  item: DispatchItem,
+  ctx: DispatchLedgerContext | undefined,
+  ledger: DispatchLedgerDeps,
+  run: () => Promise<ConsultResult>,
+): Promise<ConsultResult> {
+  if (!ctx) return run(); // 無脈絡 → 不記帳（含不推播）
+  const delegId = ledgerBegin(ctx, item, ledger);
+  const result = await run();
+  ledgerFinish(
+    delegId, item,
+    { ok: result.status === "ok", output: result.output, subSessionId: result.subSessionId },
+    ledger,
+  );
+  return result;
 }
 
 // ====================== execute（非同步外包執行，切片②）======================

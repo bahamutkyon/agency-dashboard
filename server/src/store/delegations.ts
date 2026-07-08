@@ -62,12 +62,24 @@ export function createDelegation(input: {
 
 /**
  * 結束一筆派工台帳記錄：更新 status、ended_at、result 摘要。
+ * 選填 subSessionId：同步派工（consult/execute-as-consult）建立時還不知道 sub-session，
+ * 完成後才拿到（重試時記最後一次嘗試的），於此回填以支援「開啟對話」深聊。
+ * 不給 subSessionId 時完全不動 sub_session_id 欄位（保留 create 時寫入的值）。
  */
-export function finishDelegation(id: string, result: { status: "done" | "failed"; resultExcerpt?: string }): void {
+export function finishDelegation(
+  id: string,
+  result: { status: "done" | "failed"; resultExcerpt?: string; subSessionId?: string },
+): void {
   const excerpt = result.resultExcerpt ? result.resultExcerpt.slice(0, EXCERPT_MAX) : null;
-  db.prepare(`
-    UPDATE delegations SET status = ?, result_excerpt = ?, ended_at = ? WHERE id = ?
-  `).run(result.status, excerpt, Date.now(), id);
+  if (result.subSessionId) {
+    db.prepare(`
+      UPDATE delegations SET status = ?, result_excerpt = ?, ended_at = ?, sub_session_id = ? WHERE id = ?
+    `).run(result.status, excerpt, Date.now(), result.subSessionId, id);
+  } else {
+    db.prepare(`
+      UPDATE delegations SET status = ?, result_excerpt = ?, ended_at = ? WHERE id = ?
+    `).run(result.status, excerpt, Date.now(), id);
+  }
 }
 
 /** 依 id 查一筆派工台帳。找不到回 undefined。 */
