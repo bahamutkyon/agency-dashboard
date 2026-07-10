@@ -147,7 +147,16 @@ export function useAutonomy(sessionId: string) {
     if (!autorunPending) return;
     const goal = autorunPending;
     setAutorunPending(null);
-    await start(goal);
+    try {
+      await start(goal);
+    } catch (e) {
+      // 該 session 已有 active run → 後端回 409。給提示而非靜默 console（不會起雙 run）。
+      if (e instanceof ApiError && e.status === 409) {
+        alert("這個對話已經有一個自走 run 在進行中，請先停止或等它結束再起新的");
+        return;
+      }
+      throw e;
+    }
   };
 
   /** G1：使用者按取消 → 清除確認狀態，不起 run */

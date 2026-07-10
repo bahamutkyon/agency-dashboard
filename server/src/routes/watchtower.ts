@@ -4,7 +4,6 @@
  * workspace 走 ?workspace= 或 x-workspace header（對齊既有排程 API 慣例，不是 body）。
  */
 import { Router } from "express";
-import { v4 as uuid } from "uuid";
 import cron from "node-cron";
 import {
   listWatchtowerTasks,

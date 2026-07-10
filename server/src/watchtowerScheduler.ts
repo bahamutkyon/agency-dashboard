@@ -11,7 +11,6 @@
  *   不走裸 agentManager.start → PM 拿不到派工手冊而空轉。
  */
 import cron, { ScheduledTask } from "node-cron";
-import { v4 as uuid } from "uuid";
 import {
   listEnabledTasks,
   getWatchtowerTask,
@@ -368,7 +367,8 @@ class WatchtowerScheduler {
    */
   async runNow(taskId: string, opts: { force?: boolean } = {}, deps: WatchtowerFireDeps = defaultDeps): Promise<string> {
     const task = getWatchtowerTask(taskId);
-    if (!task || !task.enabled) return "error";
+    if (!task) return "error";
+    if (!task.enabled) return "disabled"; // 停用不是錯誤——回中性 decision，前端別標紅
     if (this.running.has(taskId)) {
       appendLog({ taskId, workspaceId: task.workspaceId, decision: "overlap", reason: "上一輪仍在執行，跳過本次（手動）" });
       return "overlap";

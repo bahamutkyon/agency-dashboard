@@ -232,7 +232,7 @@ export function countActsToday(taskId: string, now: number): number {
  */
 export function getLastActRunId(taskId: string): string | null {
   const r = db.prepare(
-    "SELECT run_id FROM watchtower_logs WHERE task_id = ? AND decision = 'act' AND run_id IS NOT NULL ORDER BY fired_at DESC LIMIT 1",
+    "SELECT run_id FROM watchtower_logs WHERE task_id = ? AND decision = 'act' AND run_id IS NOT NULL ORDER BY fired_at DESC, rowid DESC LIMIT 1",
   ).get(taskId) as { run_id: string } | undefined;
   return r?.run_id ?? null;
 }

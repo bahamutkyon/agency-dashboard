@@ -21,6 +21,7 @@ const DECISION_CHIP: Record<string, string> = {
   quiet: "bg-sky-700/40 text-sky-300",
   quota: "bg-amber-700/40 text-amber-300",
   overlap: "bg-violet-700/40 text-violet-300",
+  disabled: "bg-zinc-700/40 text-zinc-400",
   error: "bg-rose-700/40 text-rose-300",
 };
 
@@ -30,6 +31,7 @@ const DECISION_LABEL: Record<string, string> = {
   quiet: "靜音",
   quota: "配額滿",
   overlap: "重疊",
+  disabled: "已停用",
   error: "錯誤",
 };
 
