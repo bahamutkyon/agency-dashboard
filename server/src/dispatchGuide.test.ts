@@ -11,14 +11,13 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "routes", "sessions.ts"), "utf8");
 
-/** 抽出 dispatchGuide 模板字串內容（原始碼字面，含跳脫字元）。 */
+/** 抽出 buildDispatchGuide 函式內的模板字串內容（原始碼字面，含跳脫字元）。 */
 function extractGuide(): string {
-  const startMark = "const dispatchGuide = `";
-  const start = src.indexOf(startMark);
-  expect(start).toBeGreaterThan(-1);
-  const end = src.indexOf("\n`;", start);
-  expect(end).toBeGreaterThan(start);
-  return src.slice(start + startMark.length, end);
+  // 重構後 dispatchGuide 由 buildDispatchGuide() 函式以 return ` ... ` 形式回傳。
+  // 用正規表達式而非字面換行，以容納 CRLF / LF 差異。
+  const m = src.match(/function buildDispatchGuide\(\)[^{]*\{[^`]*return `([\s\S]*?)\n`;/);
+  expect(m).not.toBeNull();
+  return m![1];
 }
 
 describe("dispatchGuide 必要段落守護（瘦身不可損語意）", () => {

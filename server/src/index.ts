@@ -44,6 +44,8 @@ import { reconcileDelegationsOnBoot } from "./store/delegations.js";
 import { delegationsRouter } from "./routes/delegations.js";
 import { goalsRouter } from "./routes/goals.js";
 import { outcomesRouter } from "./routes/outcomes.js";
+import { watchtowerRouter } from "./routes/watchtower.js";
+import { watchtowerScheduler } from "./watchtowerScheduler.js";
 
 const PORT = Number(process.env.PORT || 5191);
 const REMOTE_CFG = loadRemoteConfig();
@@ -139,6 +141,9 @@ app.use("/api/delegations", delegationsRouter);
 app.use("/api/goals", goalsRouter);
 // Outcome checks (Layer 2 經營迴路地基): /api/outcomes
 app.use("/api/outcomes", outcomesRouter);
+
+// Watchtower tasks + logs: /api/watchtower/tasks, /api/watchtower/logs
+app.use("/api/watchtower", watchtowerRouter);
 
 // Guard check (shellward hook): /api/guard/check, /api/guard/decisions
 // Note: hook POST has no Origin header → isOriginAllowed(undefined)===true → passes origin guard.
@@ -322,6 +327,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   studyScheduler.init((payload) => io.emit("learning:progress", payload));
   cockpitScheduler.init();
   outcomeScheduler.init((event, payload) => io.emit(event, payload));
+  // 常駐看守任務排程器（缺口A 批次②）
+  watchtowerScheduler.init(io);
   // Telegram 雙向批准輪詢（未設定 notifier 或 TELEGRAM_TWO_WAY=off 時自動不啟動）
   startTelegramPoller();
   resumeUnfinishedRuns((r) => {

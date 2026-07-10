@@ -57,6 +57,32 @@ Fable A 的旗艦功能「常駐看守任務」＝讓 PM 真正無人值守跑�
   - **護欄**：overlap guard（仿 `learningScheduler.ts:16-17,52-55` running set）、每日看守額度上限、quiet hours。
 - **驗收**：cron fire→組包→評估→（有事才）起 balanced run→日誌+推播；重疊被擋；額度/quiet hours 生效；無事時零昂貴動作。
 
+#### 缺口A 具體設計決策（2026-07-10 鎖定，實作照此，別重新發明）
+
+**DB（`dbSchema.ts` BASE_SCHEMA 加表 + migration idempotent）**
+- `watchtower_tasks`：`id TEXT PK`、`workspace_id TEXT`、`name TEXT`、`cron TEXT`（Asia/Taipei）、`enabled INTEGER DEFAULT 1`、`quiet_hours TEXT`（如 `"22-8"`，空=無）、`daily_quota INTEGER DEFAULT 3`（每日最多升級成 run 的次數）、`last_fired_at INTEGER`、`last_conclusion TEXT`、`created_at`、`updated_at`。
+- `watchtower_logs`：`id TEXT PK`、`task_id TEXT`、`workspace_id TEXT`、`fired_at INTEGER`、`decision TEXT`（`act`/`skip`/`quiet`/`quota`/`overlap`/`error`）、`reason TEXT`、`run_id TEXT`（升級成 autonomy run 時綁定，否則 null）、`created_at`。
+
+**store（`store/watchtower.ts`）**：CRUD tasks、`listEnabledTasks()`、`appendLog()`、`countActsToday(taskId, now)`（讀 logs 算今日 decision=act 次數，比對 daily_quota）、`updateLastFired/Conclusion`。工作區隔離：所有查詢帶 workspace_id。
+
+**scheduler（`watchtowerScheduler.ts`，對齊 `scheduler.ts` + `learningScheduler.ts`）**
+- 每個 enabled task 一條 node-cron（TZ Asia/Taipei）。啟動時 register、CRUD 變動 reschedule。
+- **overlap guard**：模組級 `running = new Set<taskId>()`（仿 `learningScheduler` 的 running set）——fire 時若已在集合內 → log `overlap` 跳過。
+- fire 流程（每步失敗都 log 對應 decision、絕不讓排程崩）：
+  1. **quiet hours**：現在時刻落在 quiet_hours 內 → log `quiet`、return。
+  2. **daily quota**：`countActsToday >= daily_quota` → log `quota`、return。
+  3. **組狀態包**：呼叫 `buildWatchtowerContext(workspaceId)`（新檔或併入 `cockpitContext.ts` 風格）——取該工作區 active goals（上限）、open outcomes、在途/失敗 delegations、`last_conclusion`。**只讀該工作區資料，維持工作區隔離**。
+  4. **便宜評估回合**：`runClaudeOneShot`，**model=haiku**（source 標 `watchtower`），要求結構化輸出：`{ shouldAct: boolean, reason: string, goal: string }`（goal = 若要動手，給 autonomy run 的目標句）。parse 防呆：解析失敗當 `shouldAct:false` + log error，不升級。
+  5. **升級**：`shouldAct` → `startRun(sessionId?, workspaceId, goal, {}, deps, policy=balanced)`（**吃批次① F1–F4 護欄 + B2 execute 轉待批**）；log `act` + run_id；`updateLastConclusion`。推播「看守任務動手了」（notifier best-effort）。
+  6. `shouldAct:false` → log `skip` + reason + updateLastConclusion（供下次狀態包參考）。
+- **模型分級**：評估回合 haiku（便宜、高頻）；升級後的 autonomy run 沿用既有 balanced 政策模型。**別讓評估回合吃 opus**。
+
+**routes（`routes/watchtower.ts`）**：tasks CRUD（workspace 走 `?workspace=`/`x-workspace` header，**對齊既有排程 API 慣例，不是 body**）、`GET /logs?taskId=`、`POST /:id/run-now`（手動觸發一次 fire，同 quota/quiet/overlap 檢查或帶 force 旗標略過——force 僅手動）。掛進 `index.ts` router 列 + 啟動 `watchtowerScheduler`。
+
+**前端（`WatchtowerPanel.tsx`）**：列看守任務（新增/編輯 cron/quiet/quota/enable）、看 logs 時間軸（decision 有色標 + reason + 連到升級的 run）。加進側欄「經營」或「系統」組（照 §側欄 4 組折疊既有結構）。React.lazy 掛載。
+
+**測試（TDD）**：store CRUD/quota 計數/工作區隔離；scheduler fire 的四道護欄（quiet/quota/overlap/正常升級）用注入式 deps（假 oneShot 回 shouldAct、假 startRun 記呼叫）；routes HTTP（照 `app.test.ts` 模式）。**驗收**：quiet/quota/overlap 各自擋下且 log 正確；shouldAct=false 不起 run；shouldAct=true 起 balanced run 並綁 run_id + 推播；無事時零昂貴動作（不誤升級）。
+
 ### D1 — 每步 goal 快照
 - **現況**：goals 只在 session 建立時注入一次（`sessions.ts:474`），自走跑到第 15 步對的還是開場快照。
 - **修法**：`autonomyRunner.loop()` 組 prompt 時附一行最新 active goal 快照（便宜、上限筆數）。量級 0.5–1 天。

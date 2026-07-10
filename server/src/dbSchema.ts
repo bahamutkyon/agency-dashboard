@@ -365,6 +365,35 @@ CREATE TABLE IF NOT EXISTS outcome_checks (
 );
 CREATE INDEX IF NOT EXISTS idx_outcomes_due ON outcome_checks(status, due_at);
 CREATE INDEX IF NOT EXISTS idx_outcomes_ws ON outcome_checks(workspace_id, status);
+
+-- 常駐看守任務（缺口A 批次②）
+CREATE TABLE IF NOT EXISTS watchtower_tasks (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  cron TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  quiet_hours TEXT NOT NULL DEFAULT '',
+  daily_quota INTEGER NOT NULL DEFAULT 3,
+  last_fired_at INTEGER,
+  last_conclusion TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wt_tasks_ws ON watchtower_tasks(workspace_id, enabled);
+
+CREATE TABLE IF NOT EXISTS watchtower_logs (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  fired_at INTEGER NOT NULL,
+  decision TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  run_id TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wt_logs_task ON watchtower_logs(task_id, fired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wt_logs_ws ON watchtower_logs(workspace_id, fired_at DESC);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {

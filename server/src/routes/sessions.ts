@@ -326,17 +326,111 @@ export function truncateForCatalog(desc: string, limit = 60): string {
   return chars.length > limit ? chars.slice(0, limit).join("") + "…" : desc;
 }
 
+// ─── POST /orchestrator（使用共用 seeding）──────────────────────────────────────
+
 // Orchestrator (Project Manager) — uses the built-in `agents-orchestrator`
-// agent and supplements its system prompt with the live catalog of 211 team
-// members so it can recommend who to call for a given project.
+// agent and supplements its system prompt with the live catalog of agents
+// so it can recommend who to call for a given project.
 sessionsRouter.post("/orchestrator", (req, res) => {
+  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
+  const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
+  // 使用共用 seeding 函式（與 watchtower 升級路徑同一套 dispatchGuide + catalog + goals）
+  const { systemExtra, standing } = buildOrchestratorSeed(wsId);
+  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + systemExtra, wsId, false, "claude", orchProjectId || undefined);
+  res.json({ id: session.id });
+});
+
+// ─── Orchestrator Seeding（可重用）────────────────────────────────────────────
+
+/**
+ * 組裝 PM（agents-orchestrator）session 開場所需的完整 system prompt 附加內容。
+ * 包含：dispatchGuide + catalog + active goals + open outcomes。
+ *
+ * 供 POST /orchestrator（互動）與 watchtower 升級（無人值守）共用，
+ * 確保自主 run 拿得到派工手冊與團隊名單，實際會派工而不是空轉。
+ */
+export function buildOrchestratorSeed(wsId: string): { systemExtra: string; standing: string } {
   const allAgents = loadAgentsImpl();
-  // PM catalog：description 截到 60 字（避免 42KB+ system prompt 浪費 token）；
-  // id / name / category 完整保留，格式不變，下游 parser 不受影響。
   const catalog = allAgents
     .map((a) => `- [${a.category}] \`${a.id}\` — ${a.name}: ${truncateForCatalog(a.description)}`)
     .join("\n");
-  const dispatchGuide = `
+
+  // (dispatchGuide 內容與下方 POST /orchestrator 路由完全相同，同步維護)
+  const dispatchGuide = buildDispatchGuide();
+
+  const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
+請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
+回覆時請用 Markdown，並在推薦 agent 時用反引號包住其 \`agent-id\`，方便使用者複製對應名稱去儀表板開啟對話。
+${dispatchGuide}
+可用團隊清單：
+${catalog}
+`;
+
+  const standing = getWorkspace(wsId)?.standingContext || "";
+
+  const activeGoals = listGoals(wsId, "active").slice(0, 10);
+  let goalsBlock = "";
+  if (activeGoals.length > 0) {
+    const goalLines = activeGoals.map((g) => {
+      const parts = [`- [${g.id}] ${g.title}`];
+      if (g.metric || g.currentValue || g.targetValue) {
+        parts.push(`｜指標:${g.metric || "—"} 現在 ${g.currentValue || "—"}/目標 ${g.targetValue || "—"}`);
+      }
+      if (g.deadline) parts.push(`｜期限 ${g.deadline}`);
+      return parts.join("");
+    });
+    goalsBlock = `\n\n# 🎯 這個工作區的目標帳本（你要主動追）\n${goalLines.join("\n")}\n（開場時若對話與目標相關，先錨定進度：「我們說好 X，目前 Z」。使用者回報新進度時，可直接吐 \`=== GOAL_UPDATE: <上方方括號內的目標id> | <新現值> ===\` 標記讓系統自動更新現值；或請使用者到 🎯 目標面板手動更新。沒有 active 目標時本區塊不出現。）`;
+  }
+
+  const openOutcomes = listOpen(wsId);
+  const recentOutcomes = listRecent(wsId, 5);
+  let outcomesBlock = "";
+  if (openOutcomes.length > 0 || recentOutcomes.length > 0) {
+    const lines: string[] = [];
+    if (openOutcomes.length > 0) {
+      lines.push("待回訪（該追現實結果了）：");
+      for (const o of openOutcomes.slice(0, 10)) {
+        const flag = o.status === "notified" ? "（已提醒使用者）" : "";
+        lines.push(`- [${o.id}] ${o.description}${flag}`);
+      }
+    }
+    if (recentOutcomes.length > 0) {
+      lines.push("近期已回填的成效：");
+      for (const o of recentOutcomes) {
+        lines.push(`- ${o.description} → ${o.result}`);
+      }
+    }
+    outcomesBlock = `\n\n# 📈 成效回訪（對外交辦的現實結果）\n${lines.join("\n")}\n（有待回訪且對話相關時，主動問使用者現況並請他到 📈 成效面板填結果。沒有回訪時本區塊不出現。）`;
+  }
+
+  return {
+    systemExtra: extra + goalsBlock + outcomesBlock,
+    standing,
+  };
+}
+
+/**
+ * 開一個有完整 seeding 的 PM session（agentManager.start）並回傳 session id。
+ * watchtower 升級路徑呼叫此函式，確保 PM 拿到 dispatchGuide + catalog + goals。
+ * enableAutoFork=false（無人值守背景 session）。
+ */
+export function startOrchestratorSession(wsId: string, title: string, projectId?: string): string {
+  const { systemExtra, standing } = buildOrchestratorSeed(wsId);
+  const session = agentManager.start(
+    "agents-orchestrator",
+    title,
+    standing + systemExtra,
+    wsId,
+    false, // enableAutoFork=false，對齊 scheduler.ts 背景 session 模式
+    "claude",
+    projectId,
+  );
+  return session.id;
+}
+
+/** dispatchGuide 字串（從 POST /orchestrator 路由獨立出來以便 buildOrchestratorSeed 複用）。*/
+function buildDispatchGuide(): string {
+  return `
 你不是傳聲筒，你是**主管**：交辦前問清楚、交辦時下清楚的契約、收貨時逐條驗收，不合格就退回重做。
 
 ## 第 0 步：交辦前先釐清（不清楚就不要急著派工）
@@ -422,58 +516,7 @@ sessionsRouter.post("/orchestrator", (req, res) => {
 \`=== FOLLOWUP: <N>d | <要查什麼> ===\`（N=天數，可小數，上限 90）掛成效回訪，到期系統會提醒使用者回填結果。
 例：\`=== FOLLOWUP: 7d | 露天 Hairball 那檔有沒有詢問/成交 ===\`。
 `;
-  const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
-請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
-回覆時請用 Markdown，並在推薦 agent 時用反引號包住其 \`agent-id\`，方便使用者複製對應名稱去儀表板開啟對話。
-${dispatchGuide}
-可用團隊清單：
-${catalog}
-`;
-  const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
-  const standing = getWorkspace(wsId)?.standingContext || "";
-
-  // 目標帳本注入：只在有 active 目標時附上，否則完全不注入（零成本）。
-  // 上限 10 筆防 prompt 膨脹——真超過 10 個 active 目標時，該整理的是目標不是 prompt。
-  const activeGoals = listGoals(wsId, "active").slice(0, 10);
-  let goalsBlock = "";
-  if (activeGoals.length > 0) {
-    const goalLines = activeGoals.map((g) => {
-      const parts = [`- [${g.id}] ${g.title}`];
-      if (g.metric || g.currentValue || g.targetValue) {
-        parts.push(`｜指標:${g.metric || "—"} 現在 ${g.currentValue || "—"}/目標 ${g.targetValue || "—"}`);
-      }
-      if (g.deadline) parts.push(`｜期限 ${g.deadline}`);
-      return parts.join("");
-    });
-    goalsBlock = `\n\n# 🎯 這個工作區的目標帳本（你要主動追）\n${goalLines.join("\n")}\n（開場時若對話與目標相關，先錨定進度：「我們說好 X，目前 Z」。使用者回報新進度時，可直接吐 \`=== GOAL_UPDATE: <上方方括號內的目標id> | <新現值> ===\` 標記讓系統自動更新現值；或請使用者到 🎯 目標面板手動更新。沒有 active 目標時本區塊不出現。）`;
-  }
-
-  // 成效回訪注入：待回訪（open）＋近 5 筆已填結果——有才注入、零則不注入（比照 goalsBlock）。
-  const openOutcomes = listOpen(wsId);
-  const recentOutcomes = listRecent(wsId, 5);
-  let outcomesBlock = "";
-  if (openOutcomes.length > 0 || recentOutcomes.length > 0) {
-    const lines: string[] = [];
-    if (openOutcomes.length > 0) {
-      lines.push("待回訪（該追現實結果了）：");
-      for (const o of openOutcomes.slice(0, 10)) {
-        const flag = o.status === "notified" ? "（已提醒使用者）" : "";
-        lines.push(`- [${o.id}] ${o.description}${flag}`);
-      }
-    }
-    if (recentOutcomes.length > 0) {
-      lines.push("近期已回填的成效：");
-      for (const o of recentOutcomes) {
-        lines.push(`- ${o.description} → ${o.result}`);
-      }
-    }
-    outcomesBlock = `\n\n# 📈 成效回訪（對外交辦的現實結果）\n${lines.join("\n")}\n（有待回訪且對話相關時，主動問使用者現況並請他到 📈 成效面板填結果。沒有回訪時本區塊不出現。）`;
-  }
-
-  const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + extra + goalsBlock + outcomesBlock, wsId, false, "claude", orchProjectId || undefined);
-  res.json({ id: session.id });
-});
+}
 
 /**
  * 派工執行核心 —— 跑 consult/execute 並把結果餵回 PM。
