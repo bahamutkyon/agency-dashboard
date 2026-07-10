@@ -25,7 +25,7 @@ const SEND_TURN_TIMEOUT_MS = 6 * 60 * 1000;
 const BUSY_POLL_MS = 1500;
 const BUSY_MAX_WAIT_MS = 90 * 1000;
 
-function makeDeps(io: any): AutonomyDeps {
+export function makeDeps(io: any): AutonomyDeps {
   return {
     sendTurn: (sessionId, prompt) => new Promise<string>((resolve, reject) => {
       const s = agentManager.get(sessionId) || agentManager.reattach(sessionId);

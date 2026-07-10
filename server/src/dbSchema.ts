@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS autonomy_runs (
   last_error TEXT,
   policy TEXT NOT NULL DEFAULT 'manual',
   pending_injection TEXT,
+  resume_count INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -452,6 +453,9 @@ export function applyMigrations(db: DatabaseSync): void {
     }
     if (!hasColumn(db, "autonomy_runs", "pending_injection")) {
       db.exec("ALTER TABLE autonomy_runs ADD COLUMN pending_injection TEXT");
+    }
+    if (!hasColumn(db, "autonomy_runs", "resume_count")) {
+      db.exec("ALTER TABLE autonomy_runs ADD COLUMN resume_count INTEGER NOT NULL DEFAULT 0");
     }
   }
   // agent_memory.distilled_from_session_id —— 修 fresh DB 缺欄（BASE_SCHEMA 過去漏建，

@@ -36,8 +36,9 @@ import { projectsRouter } from "./routes/projects.js";
 import { cockpitRouter } from "./routes/cockpit.js";
 import { researchRouter } from "./routes/research.js";
 import { guardRouter } from "./routes/guard.js";
-import { pauseRunningRunsOnBoot } from "./autonomyRunner.js";
+import { pauseRunningRunsOnBoot, autoResumeOnBoot } from "./autonomyRunner.js";
 import { listActiveRuns } from "./store/autonomy.js";
+import { makeDeps as makeAutonomyDeps } from "./routes/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
 import { reconcileDelegationsOnBoot } from "./store/delegations.js";
 import { delegationsRouter } from "./routes/delegations.js";
@@ -331,6 +332,14 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   });
   const pausedCount = pauseRunningRunsOnBoot(listActiveRuns);
   if (pausedCount) console.log(`[autonomy] 重啟：${pausedCount} 個 run 轉為 paused（待使用者續跑/停止）`);
+  if (process.env.AUTONOMY_AUTO_RESUME === "true") {
+    void autoResumeOnBoot(
+      () => listActiveRuns().filter(r => r.status === "paused"),
+      (_run) => makeAutonomyDeps(io),
+    ).then(count => {
+      if (count) console.log(`[autonomy] 自動續跑 ${count} 個 paused run`);
+    }).catch((e: any) => console.warn("[autonomy] autoResumeOnBoot", e?.message));
+  }
   const wfErrorCount = reconcileWorkflowRunsOnBoot();
   if (wfErrorCount) console.log(`[workflow] 重啟：${wfErrorCount} 個 run 已標記為 error（請重新執行）`);
   const delegOrphanCount = reconcileDelegationsOnBoot();

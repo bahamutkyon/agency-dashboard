@@ -7,7 +7,7 @@ export type PendingStatus = "pending" | "approved" | "rejected" | "executed" | "
 export interface AutonomyRun {
   id: string; sessionId: string; workspaceId: string; goal: string; status: RunStatus;
   stepCount: number; maxSteps: number; startedAt: number; deadlineAt: number;
-  endedAt?: number; lastError?: string; policy: import("../autonomyPolicy.js").PolicyName; pendingInjection?: string; createdAt: number; updatedAt: number;
+  endedAt?: number; lastError?: string; policy: import("../autonomyPolicy.js").PolicyName; pendingInjection?: string; resumeCount: number; createdAt: number; updatedAt: number;
 }
 export interface PendingAction {
   id: string; runId?: string; sessionId: string; workspaceId: string; kind: ActionKind; risk: Risk;
@@ -21,7 +21,7 @@ function rowToRun(r: any): AutonomyRun {
   return {
     id: r.id, sessionId: r.session_id, workspaceId: r.workspace_id, goal: r.goal, status: r.status,
     stepCount: r.step_count, maxSteps: r.max_steps, startedAt: r.started_at, deadlineAt: r.deadline_at,
-    endedAt: r.ended_at ?? undefined, lastError: r.last_error ?? undefined, policy: (r.policy ?? "manual"), pendingInjection: r.pending_injection ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+    endedAt: r.ended_at ?? undefined, lastError: r.last_error ?? undefined, policy: (r.policy ?? "manual"), pendingInjection: r.pending_injection ?? undefined, resumeCount: r.resume_count ?? 0, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
 function rowToAction(r: any): PendingAction {
@@ -36,8 +36,8 @@ export function createRun(input: { sessionId: string; workspaceId: string; goal:
   const id = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const now = input.startedAt ?? Date.now();
   db.prepare(`
-    INSERT INTO autonomy_runs (id, session_id, workspace_id, goal, status, step_count, max_steps, started_at, deadline_at, policy, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'planning', 0, ?, ?, ?, ?, ?, ?)
+    INSERT INTO autonomy_runs (id, session_id, workspace_id, goal, status, step_count, max_steps, started_at, deadline_at, policy, resume_count, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 'planning', 0, ?, ?, ?, ?, 0, ?, ?)
   `).run(id, input.sessionId, input.workspaceId, input.goal, input.maxSteps, now, now + input.maxWallMs, input.policy ?? "manual", now, now);
   return getRun(id)!;
 }
@@ -103,4 +103,12 @@ export function setPendingInjection(runId: string, text: string): void {
 }
 export function clearPendingInjection(runId: string): void {
   db.prepare("UPDATE autonomy_runs SET pending_injection = NULL, updated_at = ? WHERE id = ?").run(Date.now(), runId);
+}
+
+export function extendDeadlineBy(runId: string, ms: number): void {
+  db.prepare("UPDATE autonomy_runs SET deadline_at = deadline_at + ?, updated_at = ? WHERE id = ?").run(ms, Date.now(), runId);
+}
+
+export function incrementResumeCount(runId: string): void {
+  db.prepare("UPDATE autonomy_runs SET resume_count = resume_count + 1, updated_at = ? WHERE id = ?").run(Date.now(), runId);
 }

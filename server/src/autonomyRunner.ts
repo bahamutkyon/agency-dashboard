@@ -5,7 +5,7 @@ import { notify } from "./notifier.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
   createPendingAction, getPendingAction, decidePendingAction, markActionExecuted,
-  supersedePendingForRun, clearPendingInjection,
+  supersedePendingForRun, clearPendingInjection, extendDeadlineBy, incrementResumeCount,
   type AutonomyRun, type PendingAction, type RunStatus,
 } from "./store/autonomy.js";
 
@@ -181,6 +181,26 @@ async function runDispatchAndNote(
   }
 }
 
+// 白名單：只認「暫時性」錯誤 → 重試/pause。刻意用窄比對而非寬鬆黑名單。
+// - 中文 marker（"逾時"/"持續忙碌"）＝我方 sendTurn 自造的兩個 reject 訊息
+//   （routes/autonomy.ts 的 "sendTurn 逾時" 與 "session 持續忙碌，放棄本回合"）；
+//   claude CLI stderr 為英文，中文 marker 不會誤撞不可控的原始 stderr。
+// - 英文 token 只認明確的 rate-limit/overloaded 訊號；**不得**用裸 "rate"/"busy"
+//   （會撞 stderr 裡的 deprecated/accurate/generated 等 → 真失敗被誤判暫時性、
+//   疊加 auto-resume 反覆復活）。真錯誤（原始 stderr）一律走 error → finalize。
+const TRANSIENT_SEND_PATTERNS = ["逾時", "持續忙碌", "rate limit", "rate_limit", "ratelimit", "429", "overloaded"];
+function isTransientSendError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return TRANSIENT_SEND_PATTERNS.some(p => lower.includes(p));
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    (t as any).unref?.();
+  });
+}
+
 async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Promise<void> {
   let prompt = firstPrompt;
   while (true) {
@@ -188,27 +208,61 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     if (!run || run.status !== "running") return;
     if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
 
+    let injectionUsed = false;
     if (run.pendingInjection) {
       prompt = `使用者插話（高優先，請先消化再繼續）：${run.pendingInjection}\n\n${prompt}`;
-      clearPendingInjection(runId);
+      injectionUsed = true;
     }
 
-    let out: string;
-    try {
-      // 首回合（startRun planPrompt）已送過完整 PROTOCOL；
-      // resume 後第一步（protocolSentForRun 無此 runId）重送全文，加入 set；
-      // 其餘步驟只帶一行提醒。
-      let protocolPart: string;
-      if (!protocolSentForRun.has(runId)) {
-        protocolPart = PROTOCOL;
-        protocolSentForRun.add(runId);
-      } else {
-        protocolPart = PROTOCOL_REMINDER;
+    // 首回合（startRun planPrompt）已送過完整 PROTOCOL；
+    // resume 後第一步（protocolSentForRun 無此 runId）重送全文，加入 set；
+    // 其餘步驟只帶一行提醒。
+    let protocolPart: string;
+    if (!protocolSentForRun.has(runId)) {
+      protocolPart = PROTOCOL;
+      protocolSentForRun.add(runId);
+    } else {
+      protocolPart = PROTOCOL_REMINDER;
+    }
+    const fullPrompt = `${protocolPart}\n\n${prompt}`;
+
+    let out!: string;
+    {
+      // F1: sendTurn retry with exponential backoff for transient errors
+      const MAX_SEND_RETRIES = 3;
+      let sendSuccess = false;
+      let lastError = "";
+      for (let attempt = 1; attempt <= MAX_SEND_RETRIES; attempt++) {
+        try {
+          out = await deps.sendTurn(run.sessionId, fullPrompt);
+          sendSuccess = true;
+          break;
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : String(e);
+          if (isTransientSendError(lastError) && attempt < MAX_SEND_RETRIES) {
+            console.warn(`[autonomy] sendTurn transient error (attempt ${attempt}/${MAX_SEND_RETRIES}): ${lastError}`);
+            await sleepMs(100 * Math.pow(2, attempt - 1));
+            // Re-read run in case it was stopped during backoff
+            const stillRunning = getRun(runId);
+            if (!stillRunning || stillRunning.status !== "running") return;
+            continue;
+          }
+          if (isTransientSendError(lastError)) {
+            // Exhausted retries on transient error → pause
+            console.warn(`[autonomy] sendTurn exhausted retries, pausing run ${runId}`);
+            updateRunStatus(runId, "paused", lastError);
+            activeDeps.delete(runId);
+            emitRun(deps, runId);
+            return;
+          }
+          // Real error → finalize
+          finalize(deps, runId, "error", lastError);
+          return;
+        }
       }
-      out = await deps.sendTurn(run.sessionId, `${protocolPart}\n\n${prompt}`);
-    } catch (e) {
-      finalize(deps, runId, "error", e instanceof Error ? e.message : String(e));
-      return;
+      if (!sendSuccess) return;
+      // F11: clear injection ONLY after successful sendTurn
+      if (injectionUsed) clearPendingInjection(runId);
     }
     // K1：sendTurn 期間可能被 stop/pause，重讀確認仍可推進
     run = getRun(runId);
@@ -330,8 +384,36 @@ export function pauseRunningRunsOnBoot(listActiveRunsFn: () => AutonomyRun[]): n
 
 export async function resumeRun(runId: string, deps: AutonomyDeps): Promise<void> {
   const run = getRun(runId);
-  if (!run || run.status !== "paused") return;
+  if (!run || (run.status !== "paused" && run.status !== "error")) return;
+  const MAX_RESUME = parseInt(process.env.AUTONOMY_MAX_RESUME ?? "5");
+  if (run.resumeCount >= MAX_RESUME) {
+    console.warn(`[autonomy] resumeRun ${runId} hit resume_count cap (${run.resumeCount}), staying paused`);
+    return;
+  }
+  incrementResumeCount(runId);
   activeDeps.set(runId, deps);
   updateRunStatus(runId, "running"); emitRun(deps, runId);
   await loop(runId, deps, "（已從中斷處恢復）請接續朝目標執行下一步。");
+}
+
+export async function autoResumeOnBoot(
+  listPausedFn: () => AutonomyRun[],
+  makeDepsForRun: (run: AutonomyRun) => AutonomyDeps,
+  now = Date.now(),
+): Promise<number> {
+  if (process.env.AUTONOMY_AUTO_RESUME !== "true") return 0;
+  const maxResume = parseInt(process.env.AUTONOMY_MAX_RESUME ?? "5");
+  const paused = listPausedFn().filter(r => r.status === "paused" && r.resumeCount < maxResume);
+  let count = 0;
+  for (const run of paused) {
+    const downtime = now - run.updatedAt;
+    if (downtime > 0) extendDeadlineBy(run.id, downtime);
+    // fire-and-forget（對齊 routes/autonomy.ts resume route 慣例）：各 paused run 並發恢復、
+    // 各自跑到終態。**不** await 整個 loop——否則多個 paused run 會序列跑到完（run2 得等
+    // run1 整個結束才恢復），失去並發自走。每 run 獨立 catch：單一 resume 拋錯不影響其餘。
+    void resumeRun(run.id, makeDepsForRun(run)).catch((e: any) =>
+      console.warn(`[autonomy] autoResumeOnBoot resume ${run.id} 失敗:`, e?.message || e));
+    count++;
+  }
+  return count;
 }
