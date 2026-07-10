@@ -12,7 +12,7 @@ import { buildCapabilityBlockFor } from "./learningInjector.js";
 import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
-import { noteRateLimited, withBackgroundSlot } from "./backgroundLimiter.js";
+import { noteRateLimited, withBackgroundSlot, unmarkShadow } from "./backgroundLimiter.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
@@ -148,6 +148,11 @@ export function recordToolActivity(
   return null;
 }
 
+function getBusyWatchdogMs(): number {
+  const raw = Number(process.env.AUTONOMY_BUSY_WATCHDOG_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 45 * 60 * 1000;
+}
+
 export class AgentManager {
   private sessions = new Map<string, AgentSession>();
   // Track when each session was closed (epoch ms). Used for idle eviction.
@@ -155,6 +160,8 @@ export class AgentManager {
   /** Session-level note dedup: noteIds already injected for each sessionId.
    *  Prevents the same note from being re-injected in every turn of the same session. */
   private injectedNotesBySession = new Map<string, Set<string>>();
+  // F4: track when background sessions started being busy (for watchdog)
+  private busySince = new Map<string, number>();
   private io?: any;
 
   /**
@@ -197,6 +204,20 @@ export class AgentManager {
         }
       }
     }
+    // F4: Busy watchdog — kill background sessions stuck busy > threshold
+    const watchdogMs = getBusyWatchdogMs();
+    for (const [id, session] of this.sessions) {
+      if (session.status === "busy" && (session as any)._isBackground) {
+        const bs = this.busySince.get(id);
+        if (bs && now - bs > watchdogMs) {
+          console.warn(`[agentManager] busy watchdog: killing background session ${id.slice(0, 8)} (busy ${Math.round((now - bs) / 60000)}min)`);
+          this.busySince.delete(id);
+          unmarkShadow(id); // watchdog 殺掉逾時仍 busy 的 shadow 子程序 → 一併解除標記，否則永不回收=只增不減
+          session.stop();
+          this.sessionClosedAt.set(id, now);
+        }
+      }
+    }
   }
 
   /**
@@ -207,6 +228,7 @@ export class AgentManager {
    * @param source 僅供 log 區分來源（如 "TTL-killed" / "dispatch-reclaimed"）
    */
   private reclaimClaudeSubprocess(id: string, session: AgentSession, now: number, source: string) {
+    unmarkShadow(id); // F4: 僅對確實 mark 過的 shadow session 生效（未 mark 為 no-op）
     session.stop(); // 殺子程序，session.status 設為 "closed"
     this.sessionClosedAt.set(id, now); // 讓既有的記憶體清除路徑接手
     console.log(`[agentManager] ${source} idle claude subprocess for session ${id.slice(0, 8)}`);
@@ -391,6 +413,10 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       messages: [],
     });
     this.sessions.set(session.id, session);
+    // F4: mark background sessions for busy watchdog
+    if (!enableAutoFork) {
+      (session as any)._isBackground = true;
+    }
     this.attachPersistence(session);
     return session;
   }
@@ -524,6 +550,16 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       if (evt.type === "status" && (evt.payload === "closed" || evt.payload === "error")) {
         if (!this.sessionClosedAt.has(s.id)) {
           this.sessionClosedAt.set(s.id, Date.now());
+        }
+      }
+      // F4: track busySince for busy watchdog
+      if (evt.type === "status") {
+        if (evt.payload === "busy") {
+          if (!this.busySince.has(s.id)) {
+            this.busySince.set(s.id, Date.now());
+          }
+        } else {
+          this.busySince.delete(s.id);
         }
       }
       if (evt.type === "delta") {

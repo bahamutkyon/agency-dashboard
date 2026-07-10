@@ -1,6 +1,6 @@
 import { agentManager } from "./agentManager.js";
 import { turnMatches } from "./agentSession.js";
-import { withBackgroundSlot } from "./backgroundLimiter.js";
+import { withBackgroundSlot, markShadow } from "./backgroundLimiter.js";
 import type { DispatchItem } from "./dispatchParser.js";
 import {
   ledgerBegin, ledgerFinish, defaultLedgerDeps,
@@ -55,13 +55,16 @@ export interface DispatchSessionDeps {
   send: (sessionId: string, text: string) => { turnId?: number };
   /** 拿到 result 後回收子程序（預設綁 agentManager.reclaimSubprocess）。 */
   reclaim: (sessionId: string) => void;
+  /** F3: 強制終止子程序（execute 逾時時呼叫）。 */
+  kill?: (sessionId: string) => void;
 }
 
-/** 預設依賴：真開受管子 session、真送、真回收。 */
+/** 預設依賴：真開受管子 session、真送、真回收、真終止。 */
 const defaultDispatchSessionDeps: DispatchSessionDeps = {
   start: (agentId, title, workspaceId) => agentManager.start(agentId, title, undefined, workspaceId, false),
   send: (sessionId, text) => ({ turnId: agentManager.send(sessionId, text).turnId }),
   reclaim: (sessionId) => { agentManager.reclaimSubprocess(sessionId); },
+  kill: (sessionId) => { agentManager.get(sessionId)?.stop(); },
 };
 
 /** 保序、限制同時併發數的 map。fn 自行處理錯誤（回傳值代表結果）。 */
@@ -116,9 +119,14 @@ export async function runOneConsult(
       if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
       else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
       else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) finish((collected || streamed) ? "ok" : "error"); }
+      else if (evt.type === "status" && (evt.payload === "error" || evt.payload === "closed")) { finish("error"); }
     };
     // 逾時：若已串流到部分內容，仍回 timeout 狀態但帶回那段內容（不再是空白）。
-    const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
+    const timer = setTimeout(() => {
+      // consult 逾時不殺子程序（交 idle TTL 收）→ 是真正的 shadow，標記待回收時解除。
+      markShadow(session.id);
+      finish("timeout");
+    }, perItemTimeoutMs);
     session.on("event", onEvent);
     myTurnId = deps.send(session.id, buildDispatchBrief(item)).turnId;
   }), { label: `consult:${item.agentId}` });
@@ -199,7 +207,12 @@ export async function runOneExecuteAsConsult(
       settled = true;
       clearTimeout(timer);
       session.removeListener("event", onEvent);
-      resolve({ agentId: item.agentId, task: item.task, output: (collected || streamed).trim(), status, subSessionId: session.id });
+      const raw = (collected || streamed).trim();
+      // F3: 逾時時加上中止說明，讓 PM 知道任務未完成且不應重派
+      const output = status === "timeout"
+        ? (raw ? `${raw}\n\n【已中止，未完成】子代理已停止，本任務未完成，請勿重派相同任務。` : "【已中止，未完成】子代理已停止，本任務未完成，請勿重派相同任務。")
+        : raw;
+      resolve({ agentId: item.agentId, task: item.task, output, status, subSessionId: session.id });
       // 同 runOneConsult：result 的 finish（非逾時）→ 延後回收子程序；逾時不回收。
       if (status !== "timeout") queueMicrotask(() => deps.reclaim(session.id));
     };
@@ -207,8 +220,14 @@ export async function runOneExecuteAsConsult(
       if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
       else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
       else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) finish((collected || streamed) ? "ok" : "error"); }
+      else if (evt.type === "status" && (evt.payload === "error" || evt.payload === "closed")) { finish("error"); }
     };
-    const timer = setTimeout(() => finish("timeout"), perItemTimeoutMs);
+    const timer = setTimeout(() => {
+      // F3: execute 逾時直接殺子程序（語意誠實、避免重複副作用）。
+      // 殺掉＝不是 shadow（shadow 專指「未殺、仍存活」），故不 markShadow。
+      deps.kill?.(session.id);
+      finish("timeout");
+    }, perItemTimeoutMs);
     session.on("event", onEvent);
     myTurnId = deps.send(session.id, buildExecutePrompt(buildDispatchBrief(item))).turnId;
   }), { label: `execute-sync:${item.agentId}` });

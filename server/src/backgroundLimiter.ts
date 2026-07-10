@@ -31,6 +31,25 @@ const waiters: Array<() => void> = [];
 /** 退避到期時間戳（ms epoch）；0 = 無退避。 */
 let backoffUntil = 0;
 
+/**
+ * 已還槽但子程序仍存活的 session（shadow）——用 Set 記 sessionId 嚴格配對計數。
+ *
+ * 為何是 Set 而非裸計數器：decrement 掛在共用回收路徑（reclaimClaudeSubprocess 同時
+ * 服務 TTL 回收與 dispatch reclaim，絕大多數 session 從未 mark 過），若無條件 -1 會把
+ * 真實 shadow 抵銷 clamp 到 0 → shadowRunning 永遠低估、observability 失效。用 Set 保證
+ * 只有「確實 mark 過的 shadow session」被回收時才 -1，且同一 id 重複 mark/unmark 冪等。
+ */
+const shadowSessions = new Set<string>();
+
+/** 標記一個 session 為 shadow（已還槽但子程序仍存活，如 consult 逾時後不殺、交 TTL 收）。 */
+export function markShadow(id: string): void {
+  if (id && !shadowSessions.has(id)) shadowSessions.add(id);
+}
+/** 解除 shadow 標記（該 session 的子程序終於被回收/殺掉）。未標記過的 id 為 no-op。 */
+export function unmarkShadow(id: string): void {
+  if (id) shadowSessions.delete(id);
+}
+
 /** 讀取當前併發上限——每次呼叫時讀 env，讓測試可動態覆蓋。 */
 function currentLimit(): number {
   const raw = Number(process.env.AGENCY_BG_CONCURRENCY);
@@ -110,14 +129,15 @@ export function noteRateLimited(retryAfterMs?: number): void {
   if (until > backoffUntil) backoffUntil = until;
 }
 
-/** 觀測用：目前執行中/排隊中/退避到期時間戳/上限。 */
+/** 觀測用：目前執行中/排隊中/退避到期時間戳/上限/shadow計數。 */
 export function backgroundLimiterStats(): {
   running: number;
   queued: number;
   backoffUntil: number;
   limit: number;
+  shadowRunning: number;
 } {
-  return { running, queued: waiters.length, backoffUntil, limit: currentLimit() };
+  return { running, queued: waiters.length, backoffUntil, limit: currentLimit(), shadowRunning: shadowSessions.size };
 }
 
 /** 測試用：把限流器狀態歸零（正式程式碼不該呼叫）。 */
@@ -125,4 +145,5 @@ export function __resetBackgroundLimiterForTest(): void {
   running = 0;
   waiters.length = 0;
   backoffUntil = 0;
+  shadowSessions.clear();
 }
