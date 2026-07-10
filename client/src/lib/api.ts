@@ -538,7 +538,63 @@ export const api = {
 
   /** 查詢研究 run 狀態（可用於 fallback polling；一般靠 socket）。 */
   getResearchRun: (id: string) => fetch(`/api/research/${id}`).then(j<ResearchRunInfo>),
+
+  // === 常駐看守 (Watchtower) ===
+  watchtowerTasks: (workspace: string) =>
+    fetch(`/api/watchtower/tasks?workspace=${encodeURIComponent(workspace)}`).then(j<{ tasks: WatchtowerTask[] }>),
+  createWatchtowerTask: (workspace: string, body: { name: string; cron: string; quietHours?: string; dailyQuota?: number; enabled?: boolean }) =>
+    fetch(`/api/watchtower/tasks?workspace=${encodeURIComponent(workspace)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(j<{ task: WatchtowerTask }>),
+  updateWatchtowerTask: (id: string, workspace: string, patch: Partial<{ name: string; cron: string; quietHours: string; dailyQuota: number; enabled: boolean }>) =>
+    fetch(`/api/watchtower/tasks/${id}?workspace=${encodeURIComponent(workspace)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(j<{ task: WatchtowerTask }>),
+  deleteWatchtowerTask: (id: string, workspace: string) =>
+    fetch(`/api/watchtower/tasks/${id}?workspace=${encodeURIComponent(workspace)}`, {
+      method: "DELETE",
+    }).then(j<{ ok: boolean }>),
+  watchtowerLogs: (taskId: string, workspace: string, limit = 50) =>
+    fetch(`/api/watchtower/logs?taskId=${encodeURIComponent(taskId)}&workspace=${encodeURIComponent(workspace)}&limit=${limit}`).then(j<{ logs: WatchtowerLog[] }>),
+  watchtowerRunNow: (id: string, workspace: string, force = false) =>
+    fetch(`/api/watchtower/tasks/${id}/run-now?workspace=${encodeURIComponent(workspace)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force }),
+    }).then(j<{ decision: string; reason?: string }>),
 };
+
+// === 常駐看守型別 ===
+export type WatchtowerDecision = "act" | "skip" | "quiet" | "quota" | "overlap" | "error";
+
+export interface WatchtowerTask {
+  id: string;
+  workspaceId: string;
+  name: string;
+  cron: string;
+  enabled: number; // 1=啟用, 0=停用
+  quietHours: string;
+  dailyQuota: number;
+  lastFiredAt: number | null;
+  lastConclusion: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WatchtowerLog {
+  id: string;
+  taskId: string;
+  workspaceId: string;
+  firedAt: number;
+  decision: WatchtowerDecision;
+  reason: string;
+  runId: string | null;
+  createdAt: number;
+}
 
 export interface ActivityRow {
   id: string;

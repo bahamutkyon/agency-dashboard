@@ -38,6 +38,7 @@ const baseProps = {
   onOpenDelegations: noop,
   onOpenGoals: noop,
   onOpenOutcomes: noop,
+  onOpenWatchtower: noop,
 };
 
 beforeEach(() => {

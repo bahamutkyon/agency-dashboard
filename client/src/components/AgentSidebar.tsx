@@ -27,6 +27,7 @@ interface Props {
   onOpenDelegations: () => void;
   onOpenGoals: () => void;
   onOpenOutcomes: () => void;
+  onOpenWatchtower: () => void;
   providersAvail?: { claude: boolean; codex: boolean; gemini: boolean };
 }
 
@@ -129,7 +130,7 @@ function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
   onPick, onAskOrchestrator, onOpenCockpit, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
-  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals, onOpenOutcomes,
+  onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals, onOpenOutcomes, onOpenWatchtower,
   providersAvail,
 }: Props) {
   const [query, setQuery] = useState("");
@@ -248,6 +249,7 @@ function AgentSidebarInner({
               <button data-tour="workflow-btn" onClick={onOpenWorkflows} className={BTN} title="多位 agent 順序接力跑完一個流程"><span>🔗</span><span>自動接力</span></button>
               <button onClick={onOpenSchedules} className={BTN} title="設定週期任務"><span>⏰</span><span>排程</span></button>
               <button onClick={onOpenTemplates} className={BTN} title="常用 prompt 模板"><span>📋</span><span>模板</span></button>
+              <button onClick={onOpenWatchtower} className={BTN} title="常駐看守任務管理"><span>🛰️</span><span>看守</span></button>
             </div>
           )}
         </div>
