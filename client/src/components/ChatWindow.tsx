@@ -6,6 +6,7 @@ import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
 import { ProjectMemoryModal } from "./ProjectMemoryModal";
 import { ActionApprovalCard } from "./ActionApprovalCard";
+import { AutorunApprovalCard } from "./AutorunApprovalCard";
 import { AutonomyPanel } from "./AutonomyPanel";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
@@ -170,7 +171,7 @@ export function ChatWindow({
     useMemoDetection(messages, sessionId, onboardingTargetWorkspaceId, onMemoApplied);
   const { detectedWorkflow, applyingWf, appliedWf, applyWorkflow } =
     useWorkflowDetection(messages, sessionId);
-  const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, inject: autonomyInject, approveAction, rejectAction } =
+  const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, inject: autonomyInject, approveAction, rejectAction, autorunPending, confirmAutorun, dismissAutorun } =
     useAutonomy(sessionId);
 
   const send = () => {
@@ -451,6 +452,16 @@ export function ChatWindow({
           onInject={autonomyInject}
         />
       </div>
+      {autorunPending && (
+        <div className="px-4 py-2 border-b border-sky-700/30">
+          <AutorunApprovalCard
+            goal={autorunPending}
+            busy={autonomyBusy}
+            onConfirm={confirmAutorun}
+            onDismiss={dismissAutorun}
+          />
+        </div>
+      )}
       {autonomyPending.length > 0 && (
         <div className="px-4 py-2 border-b border-zinc-700/30">
           {autonomyPending.map((p) => (

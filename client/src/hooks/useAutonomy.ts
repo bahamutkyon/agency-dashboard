@@ -6,6 +6,8 @@ export function useAutonomy(sessionId: string) {
   const [run, setRun] = useState<AutonomyRun | null>(null);
   const [pending, setPending] = useState<PendingAction[]>([]);
   const [busy, setBusy] = useState(false);
+  /** G1：待確認的 AUTORUN 目標句（null 表示無）。 */
+  const [autorunPending, setAutorunPending] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const [{ run: r }, { pending: p }] = await Promise.all([
@@ -22,14 +24,19 @@ export function useAutonomy(sessionId: string) {
 
   useEffect(() => {
     const sock = getSocket();
-    const handler = () => {
+    const handler = (evt?: { sessionId?: string; kind?: string; goal?: string }) => {
+      // G1：autorun:pending 只處理本 session 的事件，彈確認卡
+      if (evt?.kind === "autorun:pending" && evt.sessionId === sessionId && evt.goal) {
+        setAutorunPending(evt.goal);
+        return;
+      }
       void refresh();
     };
     sock.on("autonomy:event", handler);
     return () => {
       sock.off("autonomy:event", handler);
     };
-  }, [refresh]);
+  }, [refresh, sessionId]);
 
   const start = async (goal: string, opts?: { policy?: string; maxSteps?: number; maxWallMs?: number }) => {
     setBusy(true);
@@ -135,6 +142,19 @@ export function useAutonomy(sessionId: string) {
     }
   };
 
+  /** G1：使用者按確認 → 起 run（打既有 autonomyStart 端點）並清除確認狀態 */
+  const confirmAutorun = async () => {
+    if (!autorunPending) return;
+    const goal = autorunPending;
+    setAutorunPending(null);
+    await start(goal);
+  };
+
+  /** G1：使用者按取消 → 清除確認狀態，不起 run */
+  const dismissAutorun = () => {
+    setAutorunPending(null);
+  };
+
   return {
     run,
     pending,
@@ -147,5 +167,9 @@ export function useAutonomy(sessionId: string) {
     inject,
     approveAction,
     rejectAction,
+    /** G1：待確認自走目標句（null 時不顯示確認卡）*/
+    autorunPending,
+    confirmAutorun,
+    dismissAutorun,
   };
 }

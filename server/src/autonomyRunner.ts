@@ -8,6 +8,7 @@ import {
   supersedePendingForRun, clearPendingInjection, extendDeadlineBy, incrementResumeCount,
   type AutonomyRun, type PendingAction, type RunStatus,
 } from "./store/autonomy.js";
+import { listGoals } from "./store/goals.js";
 
 export const DEFAULT_MAX_STEPS = 20;
 export const DEFAULT_MAX_WALL_MS = 30 * 60 * 1000;
@@ -224,7 +225,18 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     } else {
       protocolPart = PROTOCOL_REMINDER;
     }
-    const fullPrompt = `${protocolPart}\n\n${prompt}`;
+
+    // D1：每回合附最新 active goal 快照（便宜、純字串）。
+    // 每步迴圈都即時查詢，確保 goal 現值變更後下一步能反映，而非沿用開場舊快照。
+    // 無目標時零注入，不在 prompt 裡留空白佔位。
+    const activeGoals = listGoals(run.workspaceId, "active").slice(0, 5);
+    const goalSnapshotPart = activeGoals.length > 0
+      ? `\n\n# 當前目標（即時快照，共 ${activeGoals.length} 筆）\n${activeGoals.map((g, i) =>
+          `${i + 1}. ${g.title}${g.currentValue ? `（現值：${g.currentValue}${g.targetValue ? ` / 目標：${g.targetValue}` : ""}）` : ""}`
+        ).join("\n")}`
+      : "";
+
+    const fullPrompt = `${protocolPart}\n\n${prompt}${goalSnapshotPart}`;
 
     let out!: string;
     {

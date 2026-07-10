@@ -28,6 +28,27 @@ import { detectFollowups, createOutcomeCheck, hasOpenDuplicate } from "./store/o
 import fs from "node:fs";
 import path from "node:path";
 
+/**
+ * G1 — 從 PM 訊息偵測 AUTORUN 標記並 emit 確認事件給前端。
+ * 格式：=== AUTORUN: <目標句> ===
+ * Gate（仿 detectAndEnqueueDispatch）：只認 agents-orchestrator 的輸出；
+ * 子 agent 常處理不可信外部內容（網頁/檔案），照抄標記不得觸發起 run。
+ * 偵測到後 emit autonomy:event(kind:"autorun:pending", goal) 讓前端彈確認卡；
+ * 使用者按確認才打 startRun 端點——不自動起 run（符合「不批 0 花費」原則）。
+ */
+export function detectAndEnqueueAutorun(
+  sess: { id: string; agentId: string; workspaceId: string },
+  content: string,
+  io?: { emit: (event: string, payload: any) => void },
+): void {
+  if (sess.agentId !== "agents-orchestrator") return;  // orchestrator-only gate
+  const m = /===\s*AUTORUN:\s*(.+?)\s*===/s.exec(content);
+  if (!m) return;
+  const goal = m[1].trim();
+  if (!goal) return;  // 防空目標
+  io?.emit("autonomy:event", { sessionId: sess.id, kind: "autorun:pending", goal });
+}
+
 /** 從 PM 訊息偵測 DISPATCH 並入待批佇列（手動派工，runId 空）。
  *  去重：同 session 已有相同 summary 的 pending dispatch 則跳過。
  *  有自主 run 進行中時跳過（交給 autonomyRunner，避免雙重入列）。 */
@@ -593,6 +614,12 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         if (wsForDispatch) {
           try { detectAndEnqueueDispatch({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content), this.io); }
           catch (e: any) { console.warn("[agentManager] detectAndEnqueueDispatch", e?.message); }
+        }
+        // G1：偵測 PM 輸出的 AUTORUN 標記 → emit 確認事件給前端彈一鍵起自走確認卡。
+        // Gate 在 detectAndEnqueueAutorun 內部（只認 orchestrator）。
+        if (wsForDispatch) {
+          try { detectAndEnqueueAutorun({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content), this.io); }
+          catch (e: any) { console.warn("[agentManager] detectAndEnqueueAutorun", e?.message); }
         }
         // 目標帳本：偵測 PM 輸出的 GOAL_UPDATE 標記 → 直接更新目標現值（低風險自動化）。
         // 邊界（安全）：只認 orchestrator 的輸出——goals block 只注入 PM，子 agent 沒有

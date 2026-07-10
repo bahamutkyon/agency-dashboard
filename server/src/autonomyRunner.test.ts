@@ -368,6 +368,69 @@ describe("autonomyRunner 狀態機", () => {
     expect(dispatchCalls).toHaveLength(0);
   });
 
+  // ─── D1 每步 goal 快照 ────────────────────────────────────────────────────
+  it("D1：有 active goal → loop 每回合 prompt 含最新目標快照", async () => {
+    // 建立一個目標後啟動 run，驗證 sendTurn 收到的 prompt 含 goal 快照字串
+    const { createGoal } = await import("./store/goals.js");
+    const ws = `d1_ws_${Date.now().toString(36)}`;
+    const goal = createGoal({ workspaceId: ws, title: "衝破百萬營收", metric: "營收", targetValue: "1000000" });
+
+    const { deps, sent } = makeDeps([
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===",
+    ]);
+    const runId = await startRun(`d1_sess_${Date.now().toString(36)}`, ws, "完成目標", { policy: "balanced" }, deps);
+    // balanced 下 plan 自動核可，直接跑到 done
+    expect(getRun(runId)?.status).toBe("done");
+    // loop() 送出的 prompt（sent[1]以後）應含目標快照
+    const loopPrompts = sent.slice(1); // sent[0] 是 startRun 的 planPrompt，不在 loop()
+    expect(loopPrompts.length).toBeGreaterThan(0);
+    expect(loopPrompts.every(p => p.includes("衝破百萬營收"))).toBe(true);
+  });
+
+  it("D1：無 active goal → loop prompt 不注入目標快照區塊", async () => {
+    const ws = `d1_nows_${Date.now().toString(36)}`;
+    // 不建 goal，直接跑
+    const { deps, sent } = makeDeps([
+      "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
+      "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===",
+    ]);
+    await startRun(`d1_nosess_${Date.now().toString(36)}`, ws, "任務", { policy: "balanced" }, deps);
+    const loopPrompts = sent.slice(1);
+    expect(loopPrompts.length).toBeGreaterThan(0);
+    // 沒 goal → 不應含目標快照標題
+    expect(loopPrompts.every(p => !p.includes("# 當前目標"))).toBe(true);
+  });
+
+  it("D1：goal 現值更新後下一回合 prompt 反映新值", async () => {
+    const { createGoal, updateGoal } = await import("./store/goals.js");
+    const ws = `d1_upd_${Date.now().toString(36)}`;
+    const goal = createGoal({ workspaceId: ws, title: "月活成長", metric: "MAU", currentValue: "5000", targetValue: "10000" });
+
+    const received: string[] = [];
+    let step = 0;
+    const deps: AutonomyDeps = {
+      sendTurn: async (_sid, prompt) => {
+        received.push(prompt);
+        step++;
+        if (step === 1) return "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===";
+        if (step === 2) {
+          // 在第二步之前更新 goal 現值
+          updateGoal(goal.id, { currentValue: "8000" }, ws);
+          return "=== ACTION ===\nkind: next_step\nsummary: 中間步驟\n=== END ACTION ===";
+        }
+        return "=== ACTION ===\nkind: goal_done\nsummary: 達標\n=== END ACTION ===";
+      },
+      runDispatch: async () => "派工結果",
+      now: () => 1000,
+      emit: () => {},
+    };
+    await startRun(`d1_upd_sess_${Date.now().toString(36)}`, ws, "任務", { policy: "balanced" }, deps);
+    // step3（received[3]）應含更新後的現值 8000
+    const lastPrompt = received[received.length - 1];
+    expect(lastPrompt).toContain("8000");
+  });
+
   it("dispatch detail 格式錯誤（無有效派工項）→ 明確錯誤訊息回饋給模型、runDispatch 不被呼叫", async () => {
     const dispatchCalls: any[] = [];
     const receivedPrompts: string[] = [];
