@@ -136,6 +136,7 @@ export function deleteSession(id: string): void {
   db.prepare("BEGIN").run();
   try {
     db.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
+    db.prepare("DELETE FROM session_prompts WHERE session_id = ?").run(id);
     db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
     db.prepare("COMMIT").run();
   } catch (e) {

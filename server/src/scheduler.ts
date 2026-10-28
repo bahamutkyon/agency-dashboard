@@ -10,6 +10,7 @@ import {
 } from "./store.js";
 import { agentManager } from "./agentManager.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
+import { createActivityDeadline } from "./activityDeadline.js";
 
 /**
  * Cron-based scheduler for autonomous agent runs.
@@ -121,6 +122,9 @@ class Scheduler {
         standing || undefined,
         s.workspaceId,
         false, // no auto-fork in unattended scheduled runs
+        "claude",
+        undefined,
+        { unattended: true }, // 無人值守：帶「不要做到一半就回報收尾」的收尾規則
       );
 
       // 背景總量限流：排程 fire 是無人值守的背景工作，過去直接開 session 送出、
@@ -134,22 +138,26 @@ class Scheduler {
         const finish = () => {
           if (settled) return;
           settled = true;
-          clearTimeout(timer);
+          slotDeadline.clear();
           sess.removeListener("event", onEvent);
           releaseSlot();
         };
         // Attach a one-shot completion listener and remove it after the first
         // result event, preventing leaks when the session is later reused.
-        const onEvent = (evt: { type: string }) => {
+        const onEvent = (evt: { type: string; payload?: unknown }) => {
           if (evt.type === "result") {
             console.log(`[scheduler] DONE "${s.name}" (session ${session.id.slice(0, 8)})`);
             this.listeners.forEach((cb) => cb(s));
             finish();
+          } else if (evt.type === "status" && (evt.payload === "closed" || evt.payload === "error")) {
+            finish(); // 子程序已結束（crash / 被停止）→ 槽立即歸還
+          } else {
+            slotDeadline.touch();
           }
         };
-        // 硬逾時保底（30 分鐘）：即使 result 永不來，槽也一定歸還。
-        const timer = setTimeout(finish, 30 * 60 * 1000);
-        timer.unref?.();
+        // 槽的保底歸還：看活動（連續 15 分鐘沒動靜，或滿 120 分鐘）。舊版固定 30 分鐘——
+        // 排程任務還在跑就先還槽，背景併發上限形同虛設；新模型的長任務越來越常超過 30 分鐘。
+        const slotDeadline = createActivityDeadline({ idleMs: 15 * 60 * 1000, hardMs: 120 * 60 * 1000, onExpire: finish });
         sess.on("event", onEvent);
         agentManager.send(session.id, s.prompt);
       }), { label: `schedule:${s.name}` });

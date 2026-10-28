@@ -51,9 +51,9 @@ export function buildSkillPrimingBlock(agentId: string): string {
   const entry = map.agents[agentId];
   if (!entry || !entry.skills || entry.skills.length === 0) return "";
   const lines = entry.skills.map((s) => `- **${s.id}** — ${s.why}`).join("\n");
-  return `\n\n# 你應該特別善用的 Skills(從全域 21 個 skill 中精選)
-以下這幾個 skill 跟你的職責 / 領域**特別契合**,遇到對應情境時請主動啟用。
-全部 21 個 skill 你仍然都可用,只是這幾個是你的「主要工具」。
+  return `\n\n# 跟你特別契合的 Skills
+以下這幾個 skill 跟你的職責 / 領域特別契合，遇到對應情境時可以優先考慮。
+其他 skill 你仍然都可以用，這幾個只是你的「主要工具」。
 
 ${lines}
 `;

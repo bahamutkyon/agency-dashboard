@@ -2,11 +2,11 @@
  * Agent memory distiller.
  *
  * 從某個 session 的對話內容(以及該 (workspace, agent) 既有的 memory)
- * 蒸餾出新版同事記憶。Output ≤ 4KB,寫回 agent_memory。
+ * 蒸餾出新版同事記憶（目標 ≤ 3000 字，存檔上限見 store/workspaces.ts AGENT_MEMORY_MAX），寫回 agent_memory。
  *
  * 設計原則:
  *   - 手動觸發(POST /api/agent-memory/distill)或 idle TTL 回收時自動觸發
- *   - 用 Haiku(便宜快),不是 Opus
+ *   - 用 fast 層（Haiku 家族別名，便宜快），不是 Opus
  *   - 結果**取代**舊 memory,不是 append(避免無限累積)
  *   - 蒸餾失敗不噴錯給使用者,只 log
  *
@@ -17,6 +17,16 @@
 import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, getAgentMemory, setAgentMemory } from "./store.js";
 import { loadAgents } from "./agentLoader.js";
+import { modelFor } from "./models.js";
+import { clipKeepTail } from "./textClip.js";
+import { AGENT_MEMORY_MAX } from "./store/workspaces.js";
+
+/** 送進蒸餾的最近訊息則數。 */
+const DISTILL_RECENT_MESSAGES = 60;
+/** 單則訊息上限：舊版 1500 字會把長回覆（報價表、清單）砍到只剩開頭。 */
+const DISTILL_MSG_MAX = 4000;
+/** 整段對話上限：保留「最新」的部分（舊版 slice(0, 12000) 保留的是最舊的，長對話會丟掉最新決定）。 */
+const DISTILL_TRANSCRIPT_MAX = 40_000;
 
 export interface DistillResult {
   ok: boolean;
@@ -43,10 +53,10 @@ export async function distillAgentMemory(
   const agent = loadAgents().find((a) => a.id === agentId);
   const agentName = agent?.name || agentId;
 
-  // Take last ~30 messages, truncated, to keep prompt manageable
-  const transcript = messages.slice(-30).map((m) => {
+  // 取最近 60 則（舊 30 則；1M context 下整段再由 clipKeepTail 控在 DISTILL_TRANSCRIPT_MAX 內）
+  const transcript = messages.slice(-DISTILL_RECENT_MESSAGES).map((m) => {
     const who = m.role === "user" ? "USER" : "ASSISTANT";
-    return `### ${who}\n${m.content.slice(0, 1500)}`;
+    return `### ${who}\n${m.content.slice(0, DISTILL_MSG_MAX)}`;
   }).join("\n\n");
 
   const prompt = `你是「${agentName}」這位 agent。你正在更新「對這位使用者的個人理解(同事記憶)」。
@@ -66,7 +76,7 @@ export async function distillAgentMemory(
 # 嚴格規則
 - 用繁體中文
 - 用 markdown,結構分明(## 標題 + 條列)
-- **總字數 ≤ 1500 字**(超過 4KB 會被截斷)
+- **總字數 3000 字以內**（超過 ${AGENT_MEMORY_MAX} 字會被截斷）。寧可精煉，但長期合作的關鍵脈絡不要為了湊字數刪掉
 - **不要照抄對話**,要消化成有用的事實
 - **不要記今天天氣這種瑣事**,只記跨會議有用的長期理解
 - 若這場對話沒新資訊,**保留舊記憶不要硬改**
@@ -81,21 +91,21 @@ ${existingContent || "(尚無記憶,這是第一次蒸餾)"}
 
 ---
 
-# 本次對話內容(最近 30 則)
+# 本次對話內容(最近 ${DISTILL_RECENT_MESSAGES} 則)
 
 \`\`\`
-${transcript.slice(0, 12000)}
+${clipKeepTail(transcript, DISTILL_TRANSCRIPT_MAX)}
 \`\`\`
 
 ---
 
 請直接輸出新版同事記憶 markdown,不要解釋,不要 code fence:`;
 
-  // Use Haiku for cost — fast & cheap; this is a background distillation task。
+  // fast 層（Haiku 家族別名）— 背景蒸餾任務，便宜快；別名會隨 CLI 升級跟上最新版。
   // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false，只 log 不拋（背景任務不該崩 server）。
   const r = await runClaudeOneShot([
     "-p", "--output-format", "json",
-    "--model", "claude-haiku-4-5-20251001",
+    "--model", modelFor("fast"),
     "--no-session-persistence",
     "--disable-slash-commands",
   ], { input: prompt, timeoutMs: 180_000, source: "distill" });

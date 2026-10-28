@@ -106,12 +106,32 @@ describe("executeLearningRun", () => {
       { type: "category", id: "a" },
       { type: "category", id: "b" },
     ]);
-    const progress: number[] = [];
-    await executeLearningRun(run, async () => ({ created: 3 }), (r) => progress.push(r.done));
+    const progress: { done: number; status: string }[] = [];
+    await executeLearningRun(run, async () => ({ created: 3 }), (r) => progress.push({ done: r.done, status: r.status }));
     expect(run.status).toBe("done");
     expect(run.done).toBe(2);
     expect(run.createdProposals).toBe(6);
-    expect(progress).toEqual([1, 2]);
+    // 每個 target 一次進度＋結束時一次最終狀態（前端靠最後這次結束「執行中」）
+    expect(progress.map((p) => p.done)).toEqual([1, 2, 2]);
+    expect(progress[progress.length - 1].status).toBe("done");
+  });
+
+  it("全部 target 都失敗 → status error（不再假裝完成），且最終狀態有推出去", async () => {
+    const run = makeRun([
+      { type: "category", id: "x" },
+      { type: "category", id: "y" },
+    ]);
+    const statuses: string[] = [];
+    await executeLearningRun(
+      run,
+      async () => { throw new Error("claude 失敗（離開碼 1）：Failed to authenticate"); },
+      (r) => statuses.push(r.status),
+    );
+    expect(run.status).toBe("error");
+    expect(run.done).toBe(2);
+    expect(run.failed).toHaveLength(2);
+    expect(run.failed[0].error).toContain("Failed to authenticate");
+    expect(statuses[statuses.length - 1]).toBe("error");
   });
 
   it("單一 target 失敗 → 記入 failed、繼續跑完、status done", async () => {
@@ -194,14 +214,17 @@ describe("executeLearningRun 進度持續寫回 DB", () => {
     (run as any).id = testId;
 
     const snapshots: number[] = [];
+    const statuses: string[] = [];
     await executeLearningRun(run, async () => ({ created: 1 }), (_r) => {
       // 在 onProgress 時讀 DB 確認已寫入
-      const row = db.prepare("SELECT done FROM learning_runs WHERE id = ?").get(testId) as any;
+      const row = db.prepare("SELECT done, status FROM learning_runs WHERE id = ?").get(testId) as any;
       snapshots.push(row?.done ?? -1);
+      statuses.push(row?.status ?? "?");
     });
 
-    // DB 在每個 onProgress 後都應已更新
-    expect(snapshots).toEqual([1, 2, 3]);
+    // DB 在每個 onProgress 前都已更新；最後一次是結束時的最終狀態推送（DB 已是 done）
+    expect(snapshots).toEqual([1, 2, 3, 3]);
+    expect(statuses[statuses.length - 1]).toBe("done");
     // 最終 status=done 寫入 DB
     const final = db.prepare("SELECT status, done FROM learning_runs WHERE id = ?").get(testId) as any;
     expect(final.status).toBe("done");

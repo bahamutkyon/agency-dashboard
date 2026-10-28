@@ -13,6 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 vi.mock("./dispatchRunner.js", () => ({
   runConsult: vi.fn(async () => []),
   startExecute: vi.fn(() => []),
+  attachLateConsults: vi.fn(() => []), // 逾時遲到補報：本測試不驗補報行為，給空實作即可
 }));
 vi.mock("./agentLoader.js", () => ({
   loadAgents: () => [

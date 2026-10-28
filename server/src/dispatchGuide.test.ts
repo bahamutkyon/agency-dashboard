@@ -102,22 +102,26 @@ describe("B4：PM 對話膨脹裁剪限制", () => {
   }
   const fn = extractExecuteDispatch();
 
-  it("consult feedback 總上限 10,000（原 25,000）", () => {
-    expect(fn).toContain("labelled.slice(0, 10000)");
+  // 2026-10 調整：B4 的「有總量上限」精神保留，但改成每位公平分配＋保頭尾（結論通常在最後），
+  // 額度依 1M context 世代放寬（10K/3K → 30K/8K；EXEC_REPORT 6K → 16K）。數值本身由
+  // sessions.feedbackBudget.test.ts 以 export 的常數驗證，這裡只守「沒有退回裸 slice」。
+  it("consult feedback 仍有總量上限，且不再整包裸 slice（第 4 位之後的同事不會整段消失）", () => {
+    expect(fn).toContain("consultBudgetPerAgent(consulted.length)");
+    expect(fn).not.toContain("labelled.slice(0, 10000)");
     expect(fn).not.toContain("labelled.slice(0, 25000)");
   });
 
-  it("consult 每位 agent 回覆先各自截 3,000 字＋導流提示", () => {
-    expect(fn).toContain("raw.length > 3000");
-    expect(fn).toContain("raw.slice(0, 3000)");
+  it("consult 每位 agent 回覆保頭尾截斷＋導流提示（不再只留開頭）", () => {
+    expect(fn).toContain("clipMiddle(raw, perAgent");
+    expect(fn).not.toContain("raw.slice(0, 3000)");
   });
 
-  it("EXEC_REPORT 改用 trimReportKeepSelfCheck（保留【完成自驗】，預設上限 6,000）", () => {
+  it("EXEC_REPORT 用 trimReportKeepSelfCheck（保留【完成自驗】）並帶明確額度常數", () => {
     // R4：不再裸 slice，改抽 helper——長文保留頭部＋尾端【完成自驗】證據段。
-    expect(fn).toContain("trimReportKeepSelfCheck(d.output)");
+    expect(fn).toContain("trimReportKeepSelfCheck(d.output, REPORT_LIMIT, REPORT_SELF_CHECK_MAX)");
     expect(fn).not.toContain("d.output.slice(0, 12000)");
-    // 預設上限 6000 定義在 helper 簽名。
-    expect(src).toContain("trimReportKeepSelfCheck(text: string, limit = 6000)");
+    // helper 預設參數保留舊行為（6000/2000），正式呼叫端一律傳常數。
+    expect(src).toContain("trimReportKeepSelfCheck(text: string, limit = 6000, selfCheckMax = 2000)");
   });
 
   it("截斷處導流到子對話的提示存在", () => {

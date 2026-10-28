@@ -6,6 +6,7 @@
 import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, upsertSession } from "./store.js";
 import { loadAgents } from "./agentLoader.js";
+import { modelFor } from "./models.js";
 
 // sessions we've already attempted (avoid retrying on every result)
 const attempted = new Set<string>();
@@ -62,7 +63,7 @@ TAGS: tag1 / tag2 / tag3
 
   // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false（背景任務，靜默略過只 log 一行，絕不拋）。
   runClaudeOneShot([
-    "-p", "--output-format", "json", "--model", "claude-haiku-4-5-20251001",
+    "-p", "--output-format", "json", "--model", modelFor("fast"),
     "--no-session-persistence",
     "--disable-slash-commands",
   ], { input: prompt, timeoutMs: 180_000, source: "titler" }).then((r) => {

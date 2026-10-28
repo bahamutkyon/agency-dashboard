@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "../lib/socket";
 import { api, type SessionRecord } from "../lib/api";
+import { modelLabel } from "../lib/modelLabel";
 import { getActiveWorkspace } from "../lib/workspace";
 import { MarkdownView } from "./MarkdownView";
 import { AgentMemoryModal } from "./AgentMemoryModal";
@@ -88,8 +89,10 @@ export function ChatWindow({
   const { projects, create: createProject, refresh: refreshProjects } = useProjects(workspaceId);
 
   // 對話核心狀態與 socket 串流抽到 useChatSession。
-  const { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef } =
+  const { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef, model, setModel } =
     useChatSession(sessionId, agentName, onStatusChange);
+  // 本 session 帶的 --effort（null＝模型預設），從 session 紀錄 hydrate。
+  const [effort, setEffort] = useState<string | null>(null);
   // 範本 / 筆記 / 標籤 / 摘要 各自的 hook。
   const { showPicker, setShowPicker, pickerFilter, setPickerFilter, visibleTemplates, insertTemplate } =
     useTemplates(agentId, setInput, inputRef);
@@ -106,6 +109,8 @@ export function ChatWindow({
       setTags(rec.tags || []);
       if (rec.status) setStatus(rec.status);
       setSessionProjectId(rec.projectId ?? null);
+      setModel(rec.liveModel ?? null);
+      setEffort(rec.effort ?? null);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId]);
@@ -366,6 +371,14 @@ export function ChatWindow({
               }`}
             />
             <span className="text-zinc-400">{status}</span>
+            {model && (
+              <span
+                className="ml-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono"
+                title={`實際模型：${model}${effort ? `（effort ${effort}）` : "（effort：模型預設）"}`}
+              >
+                {modelLabel(model)}{effort ? ` · ${effort}` : ""}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -444,7 +457,7 @@ export function ChatWindow({
         <AutonomyPanel
           run={autonomyRun}
           busy={autonomyBusy}
-          onStart={(goal) => autonomyStart(goal, { policy: "balanced", maxSteps: 12, maxWallMs: 15 * 60 * 1000 })}
+          onStart={(goal) => autonomyStart(goal, { policy: "balanced", maxSteps: 12, maxWallMs: 60 * 60 * 1000 })}
           onApprovePlan={autonomyApprovePlan}
           onStop={autonomyStop}
           onResume={autonomyResume}

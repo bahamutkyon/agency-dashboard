@@ -394,6 +394,16 @@ CREATE TABLE IF NOT EXISTS watchtower_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_wt_logs_task ON watchtower_logs(task_id, fired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_wt_logs_ws ON watchtower_logs(workspace_id, fired_at DESC);
+
+-- 每個 session 的 system prompt「配方」：開 session 時給的額外 prompt（工作區常駐脈絡、PM 派工手冊…）
+-- 與旗標（autoFork / unattended）。reattach（server 重啟、閒置回收後喚醒）時據此重建完整 system prompt，
+-- 否則喚醒後的 process 沒帶 --append-system-prompt-file，對話一被壓縮，記憶/學習/派工手冊就全部消失。
+CREATE TABLE IF NOT EXISTS session_prompts (
+  session_id TEXT PRIMARY KEY,
+  extra TEXT NOT NULL DEFAULT '',
+  flags TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL
+);
 `;
 
 export function applyBaseSchema(db: DatabaseSync): void {

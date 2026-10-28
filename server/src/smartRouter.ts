@@ -13,6 +13,8 @@
  * *why* a particular provider was picked.
  */
 import { spawnClaude } from "./claudeProcess.js";
+import { sanitizedChildEnv } from "./childEnv.js";
+import { modelFor } from "./models.js";
 import type { Provider } from "./store.js";
 import { isCodexAvailable } from "./codexProcess.js";
 import { isGeminiAvailable } from "./geminiProcess.js";
@@ -37,7 +39,7 @@ const cache = new Map<string, CachedDecision>();
 // patterns are plain substring matches (case-insensitive).
 
 // === HONEST ROUTING RULES ===
-// Claude (Sonnet/Opus 4.x) is competitive with or beats Codex on most coding
+// Claude (current Sonnet/Opus) is competitive with or beats Codex on most coding
 // benchmarks (SWE-bench, HumanEval). Plus its 1M context, better Chinese,
 // and more generous Max-plan quota make it the right DEFAULT for almost
 // everything. Codex is a niche backup, not "the code provider".
@@ -193,9 +195,9 @@ Respond with JSON only (no commentary):
       "--output-format", "stream-json",
       "--no-session-persistence",
       "--disable-slash-commands",
-      "--model", "haiku",
+      "--model", modelFor("fast"),
       "--verbose",
-    ]);
+    ], { env: sanitizedChildEnv() }); // 與其他子程序一致：不把 dashboard 的 ACCESS_TOKEN 繼承下去
     let out = "";
     let err = "";
     let routerSettled = false;

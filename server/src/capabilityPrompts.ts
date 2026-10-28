@@ -8,7 +8,7 @@ export function buildCategoryLearningPrompt(categoryLabel: string): string {
 
 # 任務
 盤點：一個世界頂尖的「${categoryLabel}」專家，必須內化哪些**核心能力與專業判斷**？
-寫出 5-8 條。每條是一句可直接內化、能指導實際工作的能力要點或專業心法，**不超過 200 字**，具體、可操作，不要空話套話。
+寫出 5-8 條。每條是可直接內化、能指導實際工作的能力要點或專業心法，**300 字以內**，具體、可操作（最好帶判準或數字），不要空話套話。
 
 # 輸出格式
 每條能力用下面的標記包起來（kind 固定為 domain）：
@@ -45,7 +45,7 @@ export function buildAgentLearningPrompt(
 ${bodyBlock}${catBlock}
 # 任務
 ${onTop}，作為更具體、更專精的「${agentName}」，你還需要哪些**獨有的**專業細節、手藝、判斷，才能比同領域的一般專家更強？從你的人設與領域中提煉**具體可操作**的工作心法、判斷準則、踩坑經驗。
-寫出 3-5 條。每條聚焦你這個角色**獨有**的東西，${avoid}**不超過 200 字**，具體可操作（最好帶數字門檻、判準、或一句話的決策樹）。
+寫出 3-5 條。每條聚焦你這個角色**獨有**的東西，${avoid}**300 字以內**，具體可操作（最好帶數字門檻、判準、或一句話的決策樹）。
 
 # 輸出格式
 每條用下面的標記包起來（kind 固定為 craft）：
@@ -70,10 +70,13 @@ export function buildAgentResearchPrompt(
   categoryMemory: string | undefined,
 ): string {
   // 截斷人設/手藝/類記憶：過長的 context 會稀釋結尾的輸出格式指令，
-  // 導致模型只給 REPORT、漏掉必交的 LEARN 區塊（實測過的坑）。給足夠脈絡即可。
-  const body = (agentBody || "").trim().slice(0, 1800);
-  const craft = (existingCraft || "").trim().slice(0, 1800);
-  const cat = (categoryMemory || "").trim().slice(0, 1200);
+  // 導致模型只給 REPORT、漏掉必交的 LEARN 區塊（舊模型實測過的坑）。
+  // 2026-10：額度放寬（1800/1800/1200 → 3000/3000/2000）——5.5 世代長脈絡下的指令遵循強很多，
+  // 而舊額度讓模型看不到完整的既有手藝，容易提出重複提案。輸出格式指令仍放最後；
+  // runResearchTarget 的「0 craft 但有 REPORT」警告就是稀釋的偵測器，若頻繁出現再調回。
+  const body = (agentBody || "").trim().slice(0, 3000);
+  const craft = (existingCraft || "").trim().slice(0, 3000);
+  const cat = (categoryMemory || "").trim().slice(0, 2000);
   const bodyBlock = body ? `\n# 你的角色設定（摘要）\n${body}\n` : "";
   const craftBlock = craft ? `\n# 你目前已有的手藝（避免重複，要在此之上找更新/更缺的）\n${craft}\n` : "";
   const catBlock = cat ? `\n# 類共通能力（已具備）\n${cat}\n` : "";
@@ -86,7 +89,7 @@ ${bodyBlock}${craftBlock}${catBlock}
 # 輸出格式（最重要，務必遵守）
 **你的主要交付物是 LEARN 區塊**——把你研究後發現的每一個「最新做法／你的缺口」都寫成一條 craft。
 **必須先輸出至少 3 條（最多 6 條）** \`=== LEARN ===\` 區塊；只給 REPORT 不給 LEARN 視為任務失敗。
-每條 ≤500 字、具體可操作、最好帶來源年份。格式：
+每條 600 字以內、具體可操作、最好帶來源年份。格式：
 === LEARN kind=craft ===
 最新手藝要點
 === END LEARN ===

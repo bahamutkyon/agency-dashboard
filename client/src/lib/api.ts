@@ -98,6 +98,10 @@ export interface SessionRecord {
   messages: { role: "user" | "assistant" | "system"; content: string; ts: number }[];
   tags?: string[];
   projectId?: string;
+  /** CLI 回報的實際模型（這個 session 的 process 有回應過才有）。 */
+  liveModel?: string | null;
+  /** 本 session 帶的 --effort（null＝模型預設）。 */
+  effort?: string | null;
 }
 
 export interface RoutingDecision {
@@ -513,6 +517,10 @@ export const api = {
   cockpitRefresh: () =>
     fetch("/api/cockpit/refresh", { method: "POST" }).then(j<{ ok: boolean; throttled?: boolean; briefing: BriefingRow }>),
 
+  // === Claude CLI 登入健康度 ===
+  claudeHealth: () => fetch("/api/system/claude-health").then(j<ClaudeHealth>),
+  probeClaudeHealth: () => fetch("/api/system/claude-health/probe", { method: "POST" }).then(j<ClaudeHealth>),
+
   // === Telegram 推播 ===
   notifierStatus: () => fetch("/api/system/notifier").then(j<NotifierStatus>),
   saveNotifierConfig: (patch: { botToken?: string; chatId?: string }) =>
@@ -756,6 +764,20 @@ export interface ResearchRunInfo {
   stage: string;
   total: number;
   done: number;
+}
+
+/** server claudeHealth.ts 的 ClaudeHealth（Claude CLI 登入健康度）。 */
+export interface ClaudeHealth {
+  status: "unknown" | "ok" | "auth_failed";
+  since: number | null;
+  lastOkAt: number | null;
+  lastErrorAt: number | null;
+  lastError: string | null;
+  failures: number;
+  remedy: string | null;
+  lastProbe: { at: number; ok: boolean; error: string | null } | null;
+  /** 這次 server 啟動以來同事們實際跑過的模型（CLI 回報）。 */
+  modelsSeen?: { model: string; sessions: number; lastSeenAt: number }[];
 }
 
 export interface NotifierStatus {

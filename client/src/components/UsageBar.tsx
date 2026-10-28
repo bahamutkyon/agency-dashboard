@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<string, string> = {
   research: "主題研究",
   learning: "能力學習",
   distill: "記憶蒸餾",
+  watchtower: "看守評估",
+  health: "登入檢查",
 };
 
 function fmtUSD(n: number) { return `$${n.toFixed(2)}`; }

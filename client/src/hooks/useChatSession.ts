@@ -23,6 +23,8 @@ export function useChatSession(
   const [messages, setMessages] = useState<Msg[]>([]);
   const [status, setStatus] = useState<string>("idle");
   const [autoInjectedNotes, setAutoInjectedNotes] = useState<{ title: string }[]>([]);
+  /** CLI 回報的實際模型（socket 的 model 事件；初始值由 ChatWindow 從 session 紀錄 hydrate）。 */
+  const [model, setModel] = useState<string | null>(null);
   const streamingRef = useRef<string>("");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +80,10 @@ export function useChatSession(
           if (content) setMessages((prev) => [...prev, { role: "system", content: String(content), ts: Date.now() }]);
           break;
         }
+        case "model": {
+          if (typeof evt.payload === "string") setModel(evt.payload);
+          break;
+        }
         case "notes-injected": {
           setAutoInjectedNotes(evt.payload || []);
           setTimeout(() => setAutoInjectedNotes([]), 8000);
@@ -120,5 +126,5 @@ export function useChatSession(
     }
   }, [messages]);
 
-  return { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef, streamingRef };
+  return { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef, streamingRef, model, setModel };
 }

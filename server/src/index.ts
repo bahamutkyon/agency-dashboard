@@ -11,6 +11,7 @@ import { workflowRunner, reconcileWorkflowRunsOnBoot } from "./workflowRunner.js
 import { loadRemoteConfig, buildRemoteAccessMiddleware, isIpAllowed, normalizeIp } from "./remoteAccess.js";
 import { isOriginAllowed } from "./originGuard.js";
 import { resumeUnfinishedRuns } from "./capabilityLearning.js";
+import { startClaudeHealthMonitor } from "./claudeHealth.js";
 import { learningScheduler } from "./learningScheduler.js";
 import { studyScheduler } from "./studyScheduler.js";
 import { cockpitScheduler } from "./cockpitScheduler.js";
@@ -357,6 +358,8 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
   });
   pruneActivity();
   setInterval(() => { try { pruneActivity(); } catch (e: any) { console.warn("[activity] prune", e?.message); } }, 60 * 60 * 1000).unref();
+  // Claude CLI 登入健康檢查：開機 15 秒後探測一次＋閒置時每 6 小時檢查（CLAUDE_HEALTH_PROBE=off 關閉）。
+  startClaudeHealthMonitor();
 });
 
 // 給測試用：app.test.ts import 這個 app，用 ephemeral 埠打端點（見上方 VITEST 守衛）。

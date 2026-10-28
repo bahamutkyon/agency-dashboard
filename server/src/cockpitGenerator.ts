@@ -1,6 +1,8 @@
 import { agentManager } from "./agentManager.js";
 import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
+import { createActivityDeadline } from "./activityDeadline.js";
+import { isAuthFailureText } from "./claudeHealth.js";
 import { getWorkspace, createWorkspace } from "./store.js";
 import { buildCockpitContext } from "./cockpitContext.js";
 import { parseBriefing } from "./cockpitParser.js";
@@ -42,22 +44,29 @@ async function defaultRunAgent(prompt: string): Promise<string> {
   ensureCockpitWorkspace();
   // 背景總量限流：幕僚長簡報是背景生成工作，搶到槽才送、槽持有到 done()（result/逾時）才 release。
   return withBackgroundSlot(() => new Promise<string>((resolve) => {
-    const session = agentManager.start(COCKPIT_AGENT_ID, "🧭 產生總管簡報", undefined, COCKPIT_WORKSPACE_ID, false);
+    const session = agentManager.start(COCKPIT_AGENT_ID, "🧭 產生總管簡報", undefined, COCKPIT_WORKSPACE_ID, false, "claude", undefined, { unattended: true });
     let collected = "", streamed = "", settled = false;
     let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
     const done = (v: string) => {
       if (settled) return;
       settled = true;
-      clearTimeout(t);
+      deadline.clear();
       session.removeListener("event", onEvent);
       resolve(v);
     };
     const onEvent = (evt: any) => {
+      deadline.touch(); // 幕僚長還在寫就繼續等
       if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
       else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
       else if (evt.type === "result") { if (turnMatches(myTurnId, evt.turnId)) done((collected || streamed).trim()); }
     };
-    const t = setTimeout(() => done((collected || streamed).trim()), 5 * 60 * 1000);
+    // 看活動的逾時：連續 5 分鐘沒動靜或滿 15 分鐘才收（舊版固定 5 分鐘——資料包越來越大、
+    // 新模型 adaptive thinking 想得更久，簡報寫到一半就被收走，只剩半截 JSON → parse_failed）。
+    const deadline = createActivityDeadline({
+      idleMs: 5 * 60 * 1000,
+      hardMs: 15 * 60 * 1000,
+      onExpire: () => done((collected || streamed).trim()),
+    });
     session.on("event", onEvent);
     myTurnId = agentManager.send(session.id, prompt).turnId;
   }), { label: "cockpit" });
@@ -80,6 +89,11 @@ export async function runCockpit(
   try {
     const pack = buildCockpitContext();
     const raw = await deps.runAgent(buildPrompt(pack));
+    // Claude 登入失效時，agent 的「回覆」就是那行錯誤字樣。舊版拿去解析 JSON 失敗、記成 parse_failed，
+    // 連續 7 週每天的簡報都顯示「解析失敗」，看不出是登入掉了。這裡明確記成 error 並標原因。
+    if (raw.length < 1000 && isAuthFailureText(raw)) {
+      return saveBriefing({ date, content: null, raw: `Claude Code 登入失效：${raw}`, status: "error" });
+    }
     const { status, briefing } = parseBriefing(raw, date, generatedAt);
     return saveBriefing({ date, content: briefing, raw, status });
   } catch (e: any) {

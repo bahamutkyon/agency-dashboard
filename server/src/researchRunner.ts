@@ -18,20 +18,26 @@ import { mapWithConcurrency } from "./dispatchRunner.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
 import { runClaudeOneShot } from "./claudeOneShot.js";
 import { saveResearchNote } from "./store/notes.js";
+import { modelFor, deepEffort, effortArgs, type EffortLevel } from "./models.js";
 
-/** 規劃階段用模型：拆子問題是機械任務，用 Haiku 節成本。 */
-export const PLAN_MODEL = "claude-haiku-4-5-20251001";
-/** 研究階段用模型：帶 WebSearch/WebFetch 工具查多來源，中等複雜度用 Sonnet。 */
-export const RESEARCH_STAGE_MODEL = "claude-sonnet-4-6";
-/** 綜合階段用模型：綜整品質攸關結論品質，保留 Opus 確保高品質。 */
-export const SYNTHESIS_MODEL = "claude-opus-4-7";
+// 模型一律走 models.ts 的家族別名（不再寫死版本號）——CLI 升級時自動跟上該家族最新版。
+// 用函式在「呼叫時」解析，不存成模組常數：.env.local 的 DASHBOARD_MODEL_* 覆蓋要等 remoteAccess.ts
+// 載入後才進 process.env，模組載入順序早於它的常數會讀不到。
+/** 規劃階段用模型：拆子問題是機械任務，用 fast 層（Haiku 家族）節成本。 */
+export const planModel = (): string => modelFor("fast");
+/** 研究階段用模型：帶 WebSearch/WebFetch 工具查多來源，中等複雜度用 balanced 層（Sonnet 家族）。 */
+export const researchStageModel = (): string => modelFor("balanced");
+/** 綜合階段用模型：綜整品質攸關結論品質，用 deep 層（Opus 家族）＋ deepEffort（預設 high）。 */
+export const synthesisModel = (): string => modelFor("deep");
 
 /** 並行研究子題的限流（與全域 withBackgroundSlot 疊加，以更緊者為準）。 */
 const RESEARCH_CONCURRENCY = 3;
-/** 單一子題帶 web 工具研究的硬逾時（10 分鐘）。 */
-const RESEARCH_TIMEOUT_MS = 600_000;
-/** 規劃 / 綜合（無工具）的逾時（3 分鐘）。 */
+/** 單一子題帶 web 工具研究的硬逾時（15 分鐘；新模型查證更徹底、來源讀得更多）。 */
+const RESEARCH_TIMEOUT_MS = 900_000;
+/** 規劃（無工具、短輸出）的逾時（3 分鐘）。 */
 const PLAN_SYNTH_TIMEOUT_MS = 180_000;
+/** 綜合（無工具，但輸入是全部子題發現、輸出是整份結論，effort high）的逾時（10 分鐘）。 */
+const SYNTHESIS_TIMEOUT_MS = 600_000;
 
 /** 單一子問題的研究發現。 */
 export interface ResearchFinding {
@@ -93,11 +99,12 @@ export interface ResearchDeps {
  */
 async function spawnClaudeText(
   prompt: string,
-  opts: { model?: string; tools?: string[]; timeoutMs?: number } = {},
+  opts: { model?: string; tools?: string[]; timeoutMs?: number; effort?: EffortLevel } = {},
 ): Promise<string> {
   return withBackgroundSlot(async () => {
     const args = [
-      "-p", "--output-format", "json", "--model", opts.model ?? SYNTHESIS_MODEL,
+      "-p", "--output-format", "json", "--model", opts.model ?? synthesisModel(),
+      ...effortArgs(opts.effort),
       "--no-session-persistence", "--disable-slash-commands",
     ];
     if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(" "));
@@ -216,13 +223,13 @@ function parseResearchFinding(text: string): RawFinding {
 }
 
 async function defaultPlan(question: string): Promise<string[]> {
-  const text = await spawnClaudeText(buildPlanPrompt(question), { model: PLAN_MODEL });
+  const text = await spawnClaudeText(buildPlanPrompt(question), { model: planModel() });
   return parseSubQuestions(text, question);
 }
 
 async function defaultResearch(subQuestion: string): Promise<RawFinding> {
   const text = await spawnClaudeText(buildResearchPrompt(subQuestion), {
-    model: RESEARCH_STAGE_MODEL,
+    model: researchStageModel(),
     tools: ["WebSearch", "WebFetch"],
     timeoutMs: RESEARCH_TIMEOUT_MS,
   });
@@ -230,7 +237,11 @@ async function defaultResearch(subQuestion: string): Promise<RawFinding> {
 }
 
 async function defaultSynthesize(question: string, findings: ResearchFinding[]): Promise<string> {
-  return spawnClaudeText(buildSynthesisPrompt(question, findings));
+  return spawnClaudeText(buildSynthesisPrompt(question, findings), {
+    model: synthesisModel(),
+    effort: deepEffort(),
+    timeoutMs: SYNTHESIS_TIMEOUT_MS,
+  });
 }
 
 /** 預設依賴：真 LLM spawn + saveResearchNote。測試會覆蓋其中的三階段函式。 */

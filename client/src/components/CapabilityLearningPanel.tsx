@@ -175,7 +175,7 @@ export function CapabilityLearningPanel() {
           <div className="font-medium text-zinc-300 mb-1">📋 建議流程</div>
           <div>① 勾選類別（或個別 agent）→ ② 點「開始學習」→ ③ 到「學習佇列」批准提案</div>
           <div className="mt-2 text-amber-400/80">
-            ⚠️ 能力學習使用 Claude Opus 4.7，每次執行會消耗訂閱額度。agent 數量多時耗時較長，請耐心等待。
+            ⚠️ 能力學習使用最新的 Claude Opus（effort high），每次執行會消耗訂閱額度。agent 數量多時耗時較長，請耐心等待。
           </div>
         </div>
 
@@ -358,7 +358,7 @@ export function CapabilityLearningPanel() {
         <div className="mt-8">
           <h3 className="text-base font-semibold mb-1">定期自動學習排程</h3>
           <p className="text-xs text-zinc-500 mb-3">
-            自動排程同樣會消耗 Claude 訂閱額度（Opus 4.7），請斟酌設定頻率。
+            自動排程同樣會消耗 Claude 訂閱額度（最新 Opus、effort high），請斟酌設定頻率。
           </p>
 
           {/* Create schedule form */}

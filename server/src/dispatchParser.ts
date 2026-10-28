@@ -3,7 +3,7 @@
  * workflow）。PM 只「寫計畫」不執行；前端偵測此區塊後跳批准卡，使用者按下才執行。
  *
  * 支援欄位：agentId（必）、mode（選，預設 consult）、task（必）、
- *           context（選）、deliverable（選）、accept（選，最多 3 條）。
+ *           context（選）、deliverable（選）、accept（選，最多 MAX_ACCEPT_ITEMS 條）。
  * 多行值：task/context/deliverable 支援縮排延續行；accept 取 `-` 開頭的延續行。
  * 序列化：serializeDispatchItem 產生可 round-trip 的格式。
  */
@@ -29,6 +29,12 @@ interface ParsedField {
   continuations: string[]; // raw subsequent lines that belong to this field
 }
 
+/**
+ * accept（驗收標準）最多保留幾條，多的截斷。舊值 3：專案經理寫得更完整時第 4 條起無聲消失，
+ * 收貨時也就沒得驗。派工手冊建議「通常 1-3 條、複雜任務最多 6 條」。
+ */
+export const MAX_ACCEPT_ITEMS = 6;
+
 interface ParsedCurItem {
   agentId: string;
   mode: "consult" | "execute";
@@ -47,7 +53,7 @@ function applyField(cur: ParsedCurItem, field: ParsedField): void {
       .filter((l) => l.startsWith("-"))
       .map((l) => l.slice(1).trim())
       .filter(Boolean)
-      .slice(0, 3);
+      .slice(0, MAX_ACCEPT_ITEMS);
     if (items.length > 0) cur.accept = items;
     return;
   }

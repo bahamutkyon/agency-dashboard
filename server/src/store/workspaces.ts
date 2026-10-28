@@ -2,6 +2,11 @@ import { db, DEFAULT_WORKSPACE_ID } from "../db.js";
 import { parseTags } from "./helpers.js";
 import type { Workspace, AgentMemory } from "./types.js";
 
+/** 工作區累積記憶（REMEMBER）上限；超過保留最新的部分。 */
+export const WORKSPACE_MEMORY_MAX = 30_000;
+/** 同事記憶（蒸餾）存檔上限。 */
+export const AGENT_MEMORY_MAX = 8_000;
+
 function rowToWorkspace(r: any): Workspace {
   return {
     id: r.id,
@@ -58,8 +63,11 @@ export function appendWorkspaceMemory(id: string, entry: string): void {
   const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
   const next = (w.memory || "").trim();
   const updated = next ? `${next}\n- [${ts}] ${entry.trim()}` : `- [${ts}] ${entry.trim()}`;
-  // Cap memory at ~10KB to prevent unbounded growth
-  const capped = updated.length > 10000 ? "(舊記憶已壓縮)\n" + updated.slice(-9000) : updated;
+  // 上限防止無限增長；超過時保留最新的部分。舊值 10K（標成「已壓縮」其實是直接刪掉最舊的事實），
+  // 1M context 世代放寬到 30K，並誠實標示是移除。
+  const capped = updated.length > WORKSPACE_MEMORY_MAX
+    ? "（較早的記憶已移除，以下保留最新的部分）\n" + updated.slice(-(WORKSPACE_MEMORY_MAX - 3000))
+    : updated;
   db.prepare("UPDATE workspaces SET memory = ? WHERE id = ?").run(capped, id);
 }
 
@@ -81,8 +89,9 @@ export function getAgentMemory(workspaceId: string, agentId: string): AgentMemor
 }
 
 export function setAgentMemory(workspaceId: string, agentId: string, content: string, sessionId?: string): void {
-  // Cap at 4 KB so injection cost stays reasonable
-  const capped = content.length > 4000 ? content.slice(0, 4000) + "\n\n…(已截斷)" : content;
+  // 上限讓注入成本可控。舊值 4000、蒸餾目標 1500 字：實測最大的同事記憶已到 1700+ 字（模型頂著上限寫）。
+  // 1M context 世代放寬（蒸餾目標 3000 字、存檔上限 8000）。
+  const capped = content.length > AGENT_MEMORY_MAX ? content.slice(0, AGENT_MEMORY_MAX) + "\n\n…(已截斷)" : content;
   db.prepare(`
     INSERT INTO agent_memory (workspace_id, agent_id, content, updated_at, distilled_from_session_id)
     VALUES (?, ?, ?, ?, ?)

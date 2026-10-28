@@ -47,7 +47,12 @@ export type SessionStatus = "idle" | "starting" | "busy" | "error" | "closed";
 export type SendResult = "sent" | "queued" | "rejected";
 
 export interface SessionEvent {
-  type: "delta" | "message" | "status" | "error" | "result" | "tool_call" | "tool_result";
+  type: "delta" | "message" | "status" | "error" | "result" | "tool_call" | "tool_result"
+    | "tool_image" | "rate_limit"
+    /** 節流的存活訊號（思考/工具參數串流中，沒有可顯示的字）。payload 為 undefined。 */
+    | "heartbeat"
+    /** CLI 回報的實際模型 id（第一次知道或換模型時）。payload 為 model 字串。 */
+    | "model";
   /** 這個事件屬於哪一回合（send 配的 turnId）。等待端據此只認自己的 result，
    *  修「同一 session 多寫入者回覆張冠李戴」。舊事件/未接線路徑可能為 undefined。 */
   turnId?: number;
@@ -103,6 +108,28 @@ export class AgentSession extends EventEmitter {
 
   /** 工作區工作目錄（沙箱）。spawn 時作為 child 的 cwd；未設則回退 process.cwd()。 */
   private cwd?: string;
+
+  /**
+   * Claude 的 effort 等級（low/medium/high/xhigh/max）。undefined＝不帶 --effort、用模型預設。
+   * 由 agentManager 依 agentId 設定（見 models.ts effortForAgent）；spawn/respawn 時讀取。
+   */
+  effort?: string;
+
+  /**
+   * 明確指定的模型（`--model`）。undefined＝不帶，用 Claude Code 的預設模型（使用者帳號/設定決定）。
+   * 由 agentManager 依 DASHBOARD_MODEL_PM / DASHBOARD_MODEL_AGENT 設定（見 models.ts interactiveModelFor）。
+   */
+  modelOverride?: string;
+
+  /**
+   * CLI 回報「實際在跑」的模型（stream-json 的 system/init 與每則 assistant 訊息的 model 欄位）。
+   * 這是唯一可靠的來源——別名解析、帳號預設、使用者全域設定都會影響最後用到哪個模型。
+   */
+  model?: string;
+
+  /** 上次發 heartbeat 的時間；思考/工具參數串流期間節流發送，讓「看活動」的逾時知道它還活著。 */
+  private lastHeartbeatAt = 0;
+  static readonly HEARTBEAT_INTERVAL_MS = 5_000;
 
   /**
    * 忙碌時進來的訊息佇列（FIFO）。舊行為是 busy 就 emit error 並「丟棄」該訊息，
@@ -289,6 +316,9 @@ export class AgentSession extends EventEmitter {
       // 所以這裡放開所有工具,讓「使用者授權 → 工具可用」這條鏈接通。
       "--permission-mode", "bypassPermissions",
     ];
+    // effort：5.5 家族在 CLI 的預設是 medium；需要更深推理的角色（如專案經理）由 agentManager 指定。
+    if (this.effort) args.push("--effort", this.effort);
+    if (this.modelOverride) args.push("--model", this.modelOverride);
     // Claude CLI 2.1+ rule: --session-id and --resume are mutually exclusive
     // (unless --fork-session is set, which we don't want — that creates a
     // diverging branch). On first turn we seed the session with our own UUID;
@@ -369,6 +399,25 @@ export class AgentSession extends EventEmitter {
     }
   }
 
+  /** 記下 CLI 回報的實際模型；第一次知道或換了模型時發 model 事件（UI 顯示、全站統計）。 */
+  private noteModel(model: unknown) {
+    if (typeof model !== "string" || !model || model === this.model) return;
+    this.model = model;
+    this.emit("event", { type: "model", payload: model });
+  }
+
+  /**
+   * 節流的存活訊號。adaptive thinking 想事情、或模型正在串流工具參數時，CLI 只送 thinking_delta /
+   * input_json_delta 這類串流事件——不會有任何文字 delta、message 或工具事件。若不把它們算成活動，
+   * 「看活動」的逾時與 busy 看門狗會把一段很長的思考誤判成卡住。
+   */
+  private heartbeat() {
+    const now = Date.now();
+    if (now - this.lastHeartbeatAt < AgentSession.HEARTBEAT_INTERVAL_MS) return;
+    this.lastHeartbeatAt = now;
+    this.emit("event", { type: "heartbeat", turnId: this.currentTurnId, payload: undefined });
+  }
+
   private routeClaudeEvent(evt: any) {
     if (evt.session_id && !this.claudeSessionId) {
       this.claudeSessionId = evt.session_id;
@@ -377,14 +426,24 @@ export class AgentSession extends EventEmitter {
       this.emit("event", { type: "rate_limit", payload: evt });
       return;
     }
-    if (evt.type === "stream_event" && evt.event?.type === "content_block_delta") {
-      const d = evt.event.delta;
-      if (d?.type === "text_delta" && d.text) {
-        this.emit("event", { type: "delta", turnId: this.currentTurnId, payload: d.text });
+    if (evt.type === "system") {
+      // init 帶本 process 用的模型；其他 system 事件（壓縮邊界、狀態）也代表 CLI 還在動。
+      if (evt.subtype === "init") this.noteModel(evt.model);
+      this.heartbeat();
+      return;
+    }
+    if (evt.type === "stream_event") {
+      const e = evt.event;
+      if (e?.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
+        this.emit("event", { type: "delta", turnId: this.currentTurnId, payload: e.delta.text });
+        return;
       }
+      if (e?.type === "message_start") this.noteModel(e.message?.model);
+      this.heartbeat(); // thinking_delta / input_json_delta / block start-stop：沒有可顯示的字，但還在工作
       return;
     }
     if (evt.type === "assistant" && Array.isArray(evt.message?.content)) {
+      this.noteModel(evt.message?.model);
       const blocks = evt.message.content;
       for (const b of blocks) {
         if (b.type === "tool_use") {

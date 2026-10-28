@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { agentManager } from "../agentManager.js";
-import { loadAgents as loadAgentsImpl } from "../agentLoader.js";
+import { loadAgents as loadAgentsImpl, AGENTS_DIR } from "../agentLoader.js";
 import { logActivity } from "../store/activity.js";
 import {
   getSession, listSessionsWithCounts, upsertSession,
@@ -12,17 +12,42 @@ import {
 import { distillAgentMemory } from "../memoryDistiller.js";
 import { isCodexAvailable } from "../codexProcess.js";
 import { isGeminiAvailable } from "../geminiProcess.js";
-import { runConsult, startExecute } from "../dispatchRunner.js";
+import { runConsult, startExecute, attachLateConsults } from "../dispatchRunner.js";
 import type { DispatchItem } from "../dispatchParser.js";
 import { createDelegation, finishDelegation } from "../store/delegations.js";
 import { ledgerBegin, ledgerFinish, type DispatchLedgerContext, type DispatchLedgerDeps } from "../dispatchLedger.js";
 import { notify } from "../notifier.js";
 import { listGoals } from "../store/goals.js";
 import { listOpen, listRecent } from "../store/outcomes.js";
+import { modelFor } from "../models.js";
+import { clipMiddle } from "../textClip.js";
 
 const DISPATCH_CONCURRENCY = 3;          // 同時併發數（非總數上限）
-const CONSULT_TIMEOUT_MS = 240_000;      // 單項諮詢逾時（實質專家回答常需 1-3 分鐘）
+// 單項諮詢的「同步等待」上限。240s 是舊值，被現實否決：實測 6/6 筆交辦全部撞滿 240s，
+// 因為同事真的會去開瀏覽器查行情、跑 checkout 算運費、寫交付檔案。8 分鐘能同步接住大多數；
+// 更長的（實測有 +495s 才收斂的）由 attachLateConsults 的遲到補報接手，不再丟答案。
+const CONSULT_TIMEOUT_MS = 480_000;
 const CONSULT_FEEDBACK_SENTINEL = "[[CONSULT_RESULTS]]"; // 前端據此摺疊餵回訊息
+// ── 餵回 PM / 一次性整理的長度額度 ──────────────────────────────────────
+// B4（2026-07）為防 PM 長對話無限膨脹設了上限，這個「有總量上限」的精神保留；但舊截法有兩個
+// 與模型無關的硬傷：①每段只留開頭——同事的結論、【完成自驗】、對話的最新進展通常在最後，
+// 最先被砍；②整包 slice(0, N)——第 4 位之後的同事整段消失。新模型（1M context、128K 輸出）
+// 回覆更完整，舊額度砍得更兇。改成「每位公平分配額度＋保頭尾」，總量仍有上限。
+/** consult 餵回 PM：全部同事合計上限（舊 10,000）。 */
+export const CONSULT_FEEDBACK_TOTAL = 30_000;
+/** consult 餵回 PM：單一同事上限（舊 3,000）；人多時改用總量平分。 */
+export const CONSULT_FEEDBACK_PER_AGENT = 8_000;
+/** 每位同事的實際額度：min(單人上限, 總量 / 人數)，最少 1,500。 */
+export function consultBudgetPerAgent(n: number): number {
+  return Math.max(1_500, Math.min(CONSULT_FEEDBACK_PER_AGENT, Math.floor(CONSULT_FEEDBACK_TOTAL / Math.max(1, n))));
+}
+/** EXEC_REPORT / LATE_CONSULT 回報上限（舊 6,000）與其中【完成自驗】段的上限（舊 2,000）。 */
+export const REPORT_LIMIT = 16_000;
+export const REPORT_SELF_CHECK_MAX = 4_000;
+/** 對話摘要：送進模型的對話紀錄上限（舊 30,000 且只留開頭——長對話的摘要看不到最新進展）。 */
+const SUMMARIZE_TRANSCRIPT_MAX = 150_000;
+/** 批次整合：所有版本合計上限（舊 25,000 整包截——後面的版本整段消失），改各版本平分。 */
+const MERGE_TOTAL_MAX = 100_000;
 // 派工開的子 session 標題前綴——從主歷史列表隱藏（仍存 DB、仍餵學習，只是不混進你的對話歷史）。
 // auto-titler 會跳過非預設標題，所以這些前綴是 durable 的。
 const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
@@ -50,7 +75,9 @@ sessionsRouter.get("/sessions", (req, res) => {
 sessionsRouter.get("/sessions/:id", (req, res) => {
   const s = getSession(req.params.id);
   if (!s) return res.status(404).json({ error: "not found" });
-  res.json({ ...s, status: agentManager.liveStatus(s.id) });
+  const live = agentManager.get(s.id);
+  // liveModel：CLI 回報的實際模型（這個 process 啟動並回應過才有）；effort：本 session 帶的 --effort。
+  res.json({ ...s, status: agentManager.liveStatus(s.id), liveModel: live?.model ?? null, effort: live?.effort ?? null });
 });
 
 sessionsRouter.post("/sessions", (req, res) => {
@@ -128,7 +155,7 @@ sessionsRouter.post("/sessions/:id/summarize", async (req, res) => {
 
 對話紀錄:
 \`\`\`
-${transcript.slice(0, 30000)}
+${clipMiddle(transcript, SUMMARIZE_TRANSCRIPT_MAX)}
 \`\`\`
 
 只輸出結論本身,不要重複轉述對話。`;
@@ -139,10 +166,10 @@ ${transcript.slice(0, 30000)}
   const r = await runClaudeOneShot([
     "-p",
     "--output-format", "json",
-    "--model", "claude-sonnet-4-6",
+    "--model", modelFor("balanced"),
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: prompt, timeoutMs: 180_000, source: "summarize" });
+  ], { input: prompt, timeoutMs: 300_000, source: "summarize" });
   if (!r.ok) {
     return res.status(500).json({ error: r.error || "claude 失敗" });
   }
@@ -260,8 +287,9 @@ sessionsRouter.post("/batch/merge", async (req, res) => {
   if (!prompt || !Array.isArray(answers) || answers.length === 0) {
     return res.status(400).json({ error: "prompt and answers[] required" });
   }
+  const perAnswer = Math.floor(MERGE_TOTAL_MAX / answers.length);
   const labelled = answers.map((a: any, i: number) =>
-    `### 版本 ${i + 1} — ${a.agentName || a.agentId}\n${a.text}`
+    `### 版本 ${i + 1} — ${a.agentName || a.agentId}\n${clipMiddle(String(a.text ?? ""), perAnswer, 0.5)}`
   ).join("\n\n");
   const mergePrompt = `以下是 ${answers.length} 位不同 agent 對同一個指令的回答。請整合出一個「**集眾家所長**」的最佳版本。
 
@@ -269,7 +297,7 @@ sessionsRouter.post("/batch/merge", async (req, res) => {
 ${prompt}
 
 ## 各 agent 的回答
-${labelled.slice(0, 25000)}
+${labelled}
 
 ## 請輸出
 
@@ -283,10 +311,10 @@ ${labelled.slice(0, 25000)}
   const { runClaudeOneShot } = await import("../claudeOneShot.js");
   const r = await runClaudeOneShot([
     "-p", "--output-format", "json",
-    "--model", "claude-sonnet-4-6",
+    "--model", modelFor("balanced"),
     "--no-session-persistence",
     "--disable-slash-commands",
-  ], { input: mergePrompt, timeoutMs: 180_000, source: "merge" });
+  ], { input: mergePrompt, timeoutMs: 300_000, source: "merge" });
   if (!r.ok) return res.status(500).json({ error: r.error || "claude 失敗" });
   try {
     const j = JSON.parse(r.stdout);
@@ -299,14 +327,15 @@ ${labelled.slice(0, 25000)}
 /**
  * EXEC_REPORT 截斷但保留【完成自驗】區塊。Exported for unit testing。
  * - 長度 ≤ limit：原樣回。
- * - 超過 limit：取頭部 (limit-2200) 字 + 中略提示 +（從**最後一個**「【完成自驗】」起最多 2000 字）。
+ * - 超過 limit：取頭部 (limit - selfCheckMax - 200) 字 + 中略提示 +（從**最後一個**「【完成自驗】」起最多 selfCheckMax 字）。
  *   找不到自驗段時，退回原本的「頭部截斷 + 導流提示」。
  * 動機：外包回報常把最關鍵的【完成自驗】證據放尾端，粗暴 slice(0,6000) 會把它砍掉，
  * 導致 PM 收貨時看不到驗收依據。
+ * 正式呼叫端傳 REPORT_LIMIT / REPORT_SELF_CHECK_MAX；預設參數（6000/2000）保留舊行為供測試與相容。
  */
-export function trimReportKeepSelfCheck(text: string, limit = 6000): string {
+export function trimReportKeepSelfCheck(text: string, limit = 6000, selfCheckMax = 2000): string {
   if (text.length <= limit) return text;
-  const headLen = Math.max(0, limit - 2200);
+  const headLen = Math.max(0, limit - (selfCheckMax + 200));
   const head = text.slice(0, headLen);
   const marker = "【完成自驗】";
   const idx = text.lastIndexOf(marker);
@@ -314,12 +343,17 @@ export function trimReportKeepSelfCheck(text: string, limit = 6000): string {
     // 無自驗段 → 頭部截斷 + 導流提示（維持舊行為語意）。
     return head + "\n…（完整回覆見該同事的子對話）";
   }
-  const selfCheck = text.slice(idx).slice(0, 2000);
+  const selfCheck = text.slice(idx).slice(0, selfCheckMax);
   return head + "\n…（中略，完整見子對話）\n" + selfCheck;
 }
 
-/** Truncate catalog description to 60 chars + ellipsis. Exported for unit testing. */
-export function truncateForCatalog(desc: string, limit = 60): string {
+/**
+ * Truncate catalog description to CATALOG_DESC_MAX chars + ellipsis. Exported for unit testing.
+ * 舊值 60：212 位同事的描述只剩第一句，專案經理很難分辨相近的專家。放寬到 100，並允許它在需要時
+ * 直接讀同事的完整人設檔（見 buildOrchestratorSeed）——新模型擅長按需查資料，不必把全部人設塞進 prompt。
+ */
+export const CATALOG_DESC_MAX = 100;
+export function truncateForCatalog(desc: string, limit = CATALOG_DESC_MAX): string {
   // 以 code point 為單位截斷（[...desc]），避免 String.slice 把 emoji 等
   // astral 字元切成 lone surrogate——那會讓整包 prompt 變非法 UTF-8 被 API 拒收。
   const chars = [...desc];
@@ -361,6 +395,7 @@ export function buildOrchestratorSeed(wsId: string): { systemExtra: string; stan
   const extra = `\n\n# 你目前可動用的團隊（${allAgents.length} 位）\n
 請以「專案經理」身份協助使用者：(1) 釐清需求 (2) 推薦最合適的 agent 組合 (3) 建議如何派工。
 回覆時請用 Markdown，並在推薦 agent 時用反引號包住其 \`agent-id\`，方便使用者複製對應名稱去儀表板開啟對話。
+清單裡的描述是摘要；幾位人選相近、需要看專長細節才能決定時，可以直接讀 \`${AGENTS_DIR.replace(/\\/g, "/")}/<agent-id>.md\`（同事的完整人設）。
 ${dispatchGuide}
 可用團隊清單：
 ${catalog}
@@ -428,6 +463,13 @@ export function startOrchestratorSession(wsId: string, title: string, projectId?
   return session.id;
 }
 
+// 專案經理的額外 prompt（派工手冊＋團隊名單＋目標帳本）在 reattach 時重新產生——
+// 喚醒舊對話也拿得到最新的同事名單與目標（見 agentManager.registerSeedBuilder）。
+agentManager.registerSeedBuilder?.("agents-orchestrator", (wsId) => {
+  const { systemExtra, standing } = buildOrchestratorSeed(wsId);
+  return standing + systemExtra;
+});
+
 /** dispatchGuide 字串（從 POST /orchestrator 路由獨立出來以便 buildOrchestratorSeed 複用）。*/
 function buildDispatchGuide(): string {
   return `
@@ -477,7 +519,7 @@ function buildDispatchGuide(): string {
 - \`agentId\`：必填，必須完全來自下方團隊清單；以 \`- agentId:\` 開頭代表一個新派工項。
 - \`mode\`：\`consult\` 或 \`execute\`；省略預設 \`consult\`。
 - \`task\`：必填，可多行——延續行只要比欄位名多縮排，直到下一個欄位名或下一個 \`- agentId:\`；context/deliverable 多行規則相同。
-- \`context\`、\`deliverable\`、\`accept\`：選填但**強烈建議**（execute 幾乎必寫 accept）。accept 寫成 1-3 條 \`-\` 子項，是你之後收貨逐條驗收的依據。
+- \`context\`、\`deliverable\`、\`accept\`：選填但**強烈建議**（execute 幾乎必寫 accept）。accept 寫成 \`-\` 子項（通常 1-3 條，複雜任務最多 6 條），是你之後收貨逐條驗收的依據。
 - 只寫 \`agentId\`+\`task\` 的單行舊格式仍有效（向後相容），能補 context/deliverable/accept 就補。
 - 寫完標記後，用一句話告訴使用者「我要交辦 X、Y，按批准卡即可」，**不要自己代答**。
 
@@ -559,7 +601,7 @@ export async function executeDispatch(
       const item = execute.find((i) => i.agentId === d.agentId) ?? { agentId: d.agentId, mode: "execute" as const, task: "" };
       ledgerFinish(execDelegIds.get(d.subSessionId), item, { ok: d.status === "ok", output: d.output, subSessionId: d.subSessionId }, ledger);
       const label = nameOf.get(d.agentId) ?? d.agentId;
-      const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${trimReportKeepSelfCheck(d.output)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
+      const report = `[[EXEC_REPORT]]\n同事「${label}」回報外包任務${d.status === "ok" ? "完成" : "失敗/未完成"}：\n\n${trimReportKeepSelfCheck(d.output, REPORT_LIMIT, REPORT_SELF_CHECK_MAX)}\n\n你是收貨的主管，不是傳聲筒。請照這個順序處理：\n1) 對照你當初交辦時下的 accept 驗收標準，逐條檢查這份回報是否達成；特別檢視最後的【完成自驗】區塊——做了什麼、怎麼驗證、證據夠不夠、結論是「已驗證完成／部分完成／未完成」。\n2) 若證據不足、或結論是部分完成／未驗證／未完成：**不要粉飾**。優先**退回這位同事重做一次**（再開一張 DISPATCH，在 task 裡具體講清楚缺什麼、要補什麼證據）；若無法自行補救，就明確向使用者標示「只做到 X、還沒驗證 Y、風險是 ___」讓使用者決定。\n3) 驗收通過才向使用者轉達；可以精簡，但要誠實反映品質，不要把「部分完成」講成「完成」。`;
       agentManager.send(d.pmSessionId, report);
       io?.to(`session:${d.pmSessionId}`).emit("session:event", { sessionId: d.pmSessionId, type: "dispatch:done", payload: { agentId: d.agentId, status: d.status } });
     });
@@ -579,7 +621,7 @@ export async function executeDispatch(
     // 「不打 LLM」的系統說明訊息，讓使用者不再面對沉默黑洞。走 appendMessage(role:system)
     // + socket 廣播（type:"system-note"）——刻意不走 agentManager.send，才不會觸發 PM 的 LLM 回合。
     const consultNames = consult.map((i) => nameOf.get(i.agentId) ?? i.agentId).join("、");
-    const ackNote = `🤝 已交辦給 ${consultNames}，正在等回覆（單項最長 4 分鐘）…`;
+    const ackNote = `🤝 已交辦給 ${consultNames}，正在等回覆（單項最長 8 分鐘；超過會轉背景繼續跑，做完自動補報）…`;
     try {
       appendMessage(pmSessionId, { role: "system", content: ackNote, ts: Date.now() });
       io?.to(`session:${pmSessionId}`).emit("session:event", { sessionId: pmSessionId, type: "system-note", payload: { content: ackNote } });
@@ -595,16 +637,35 @@ export async function executeDispatch(
     consulted.forEach((r, i) => {
       ledgerFinish(consultDelegIds[i], consult[i], { ok: r.status === "ok", output: r.output, subSessionId: r.subSessionId }, ledger);
     });
+    // 逾時項掛遲到補報：逾時不殺子程序，同事通常會在之後幾分鐘把結論做完。
+    // 舊版沒人收，結論就爛在 DB 裡（實測 6/6 筆全滅）。這裡把回流補起來：
+    // 結論到了 → 更新台帳（failed→done）＋ 回報 PM，PM 再據此向使用者補一則更新。
+    attachLateConsults(consulted, (late) => {
+      const item = consult[late.index];
+      ledgerFinish(consultDelegIds[late.index], item, { ok: late.ok, output: late.output, subSessionId: late.subSessionId }, ledger);
+      const label = nameOf.get(late.agentId) ?? late.agentId;
+      if (!late.ok) {
+        // 補回來的不是結論（例如 Claude 額度用盡的通知）→ 誠實告知 PM 這部分落空，不要當結論轉述。
+        agentManager.send(pmSessionId, `[[LATE_CONSULT]]\n同事「${label}」先前逾時未回，後來也沒能交出結論（${late.output.slice(0, 300)}）。你稍早收到的「未完成的過程訊息」同樣不可當數據。若你先前跟使用者說過「結論到了再補」，現在請主動告知這部分沒有取得結論，並建議下一步（重問、縮小範圍或改由使用者處理）。`);
+        io?.to(`session:${pmSessionId}`).emit("session:event", { sessionId: pmSessionId, type: "dispatch:done", payload: { agentId: late.agentId, status: "late" } });
+        return;
+      }
+      const report = `[[LATE_CONSULT]]\n同事「${label}」先前逾時未回，現在把結論補交回來了。**以這份為準**——你稍早收到的那份「未完成的過程訊息」作廢，不要拿它當數據。\n\n交辦的任務：${item.task.slice(0, 200)}\n\n${trimReportKeepSelfCheck(late.output, REPORT_LIMIT, REPORT_SELF_CHECK_MAX)}\n\n請照主管收貨的標準處理：\n1) 對照你當初下的 accept／問題焦點，檢查這份補報有沒有真的回答到問題。\n2) 若你先前已經用「未取得回覆／逾時」向使用者交代過這位同事，現在**主動補一則更新**告訴使用者結論來了，並整合進先前的答覆。\n3) 若補報仍不足，就明確標示哪裡沒答到，不要用空話填補。`;
+      agentManager.send(pmSessionId, report);
+      io?.to(`session:${pmSessionId}`).emit("session:event", { sessionId: pmSessionId, type: "dispatch:done", payload: { agentId: late.agentId, status: "late" } });
+    });
+    const perAgent = consultBudgetPerAgent(consulted.length);
     const labelled = consulted
       .map((r) => {
         const raw = r.output || "（未取得回覆）";
-        const out = raw.length > 3000 ? raw.slice(0, 3000) + "\n…（完整回覆見該同事的子對話）" : raw;
+        // 保頭尾（結論通常在最後）；額度由人數平分，總量 ≤ CONSULT_FEEDBACK_TOTAL。
+        const out = [...raw].length > perAgent ? clipMiddle(raw, perAgent, 0.4) + "\n…（完整回覆見該同事的子對話）" : raw;
         return `### ${nameOf.get(r.agentId) ?? r.agentId}（${r.status}）\n${out}`;
       })
       .join("\n\n");
     // B5：部分核可時，在回饋開頭附一句「哪些被拿掉」，PM 才知道全貌。
     const notePrefix = opts?.approvalNote ? `${opts.approvalNote}\n\n` : "";
-    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n${notePrefix}以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 逾時／錯誤的同事就說明未能取得。\n4) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled.slice(0, 10000)}`;
+    const feedback = `${CONSULT_FEEDBACK_SENTINEL}\n${notePrefix}以下是你委派同事的回覆。你是主管，不是照單整合的貼上機——先判斷品質，再整合：\n1) 對照你當初交辦時下的 accept／問題焦點，逐位檢查：這份回覆有沒有**真的回答到問題**？是泛泛而談、還是離題、還是漏了關鍵面向？\n2) 若某位回覆不足、離題或明顯漏答：不要硬把它塞進整合。可以**補問一次**（再開一張 DISPATCH 把問題問得更精準），或在整合時**明確標示「這部分尚未得到有效回答」**，不要用空話填補。\n3) 標著（timeout）的同事：他**還在背景把結論做完，稍後會自動補報**。他這段內容是「未完成的過程訊息」，**絕不可當結論採用或拿去填答**——請如實告訴使用者「這部分還在跑，結論到了我再補」，不要編一個看起來完整的答案。\n4) 標著（error）的同事就說明未能取得。\n5) 通過檢查的內容，**整合成一段給使用者的回覆**（衝突處註明採用誰、為什麼）。\n\n${labelled}`;
     agentManager.send(pmSessionId, feedback);
   } else if (execute.length > 0) {
     // 只有 execute：請 PM 先回一句「已交辦」。B5：部分核可時附上被拿掉的清單。

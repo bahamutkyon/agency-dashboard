@@ -9,9 +9,13 @@ import {
   type AutonomyRun, type PendingAction, type RunStatus,
 } from "./store/autonomy.js";
 import { listGoals } from "./store/goals.js";
+import { clipMiddle } from "./textClip.js";
 
 export const DEFAULT_MAX_STEPS = 20;
-export const DEFAULT_MAX_WALL_MS = 30 * 60 * 1000;
+/** 自主 run 的牆鐘預算（舊 30 分鐘）。外包改成看活動等待後，單項就可能超過 15 分鐘，30 分鐘不夠走完幾步。 */
+export const DEFAULT_MAX_WALL_MS = 60 * 60 * 1000;
+/** 派工結果餵回 PM 的上限（舊 4,000 且只留開頭；runDispatchByMode 已按人數公平分配，這裡只是保險）。 */
+const DISPATCH_NOTE_MAX = 30_000;
 
 export interface AutonomyDeps {
   sendTurn: (sessionId: string, prompt: string) => Promise<string>;
@@ -51,8 +55,8 @@ detail: <細節，可多行>
   - agentId: <另一個 agent>
     mode: consult
     task: <任務>
-  ⚠️ 自主模式下派工**同步等待結果**（consult 逾時 5 分鐘、execute 逾時 10 分鐘），
-     請將大任務切小，或在計畫中標記「留給使用者互動模式處理」，避免在無人值守迴圈中發超長任務。`;
+  ⚠️ 自主模式下派工**同步等待結果**（consult 最多等 8 分鐘；execute 只要同事持續有進展就會等，連續 15 分鐘沒動靜或滿 45 分鐘才中止），
+     整個 run 也有牆鐘預算。請將大任務切小，或在計畫中標記「留給使用者互動模式處理」，避免在無人值守迴圈中發超長任務。`;
 
 /** 首回合之後的每步改貼這一行提醒，不重貼完整 PROTOCOL（省 token）。 */
 export const PROTOCOL_REMINDER = "（提醒：照自主模式協議回覆，最末尾輸出一個 ACTION 區塊）";
@@ -175,7 +179,7 @@ async function runDispatchAndNote(
     // 傳入 ledger 脈絡（run 的 sessionId 當 pmSessionId、runId）→ 每項派工進台帳＋推播。
     const out = await deps.runDispatch(items, run.workspaceId, { pmSessionId: run.sessionId, runId: run.id });
     markActionExecuted(actionId, out);
-    return { ok: true, note: `派工結果：\n${out.slice(0, 4000)}\n請據此用 next_step 繼續。` };
+    return { ok: true, note: `派工結果：\n${clipMiddle(out, DISPATCH_NOTE_MAX, 0.5)}\n請據此用 next_step 繼續。` };
   } catch (e) {
     markActionExecuted(actionId, e instanceof Error ? e.message : String(e), false);
     return { ok: false, note: "" };

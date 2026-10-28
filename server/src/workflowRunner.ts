@@ -20,6 +20,7 @@ import { EventEmitter } from "node:events";
 import { agentManager } from "./agentManager.js";
 import { turnMatches } from "./agentSession.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
+import { createActivityDeadline, type ActivityDeadline } from "./activityDeadline.js";
 import {
   getWorkflow, createRun, updateRun, getWorkspace, getRun,
   listWorkflowRunsByStatus,
@@ -38,7 +39,12 @@ interface RunOptions {
 
 const DEFAULT_MAX_CONCURRENCY = 2;
 const DEFAULT_RETRIES = 2;
-const DEFAULT_TIMEOUT_MS = 300_000; // 5 分鐘；可由 step.timeoutMs 覆寫
+// per-step 逾時：
+// - step.timeoutMs 有設 → 照舊是固定牆鐘（使用者明確指定的上限，尊重它）。
+// - 沒設 → 看活動：連續 DEFAULT_TIMEOUT_MS（10 分鐘）沒有任何事件才算逾時，絕對上限 DEFAULT_STEP_MAX_MS。
+//   舊版預設固定 5 分鐘——新模型做研究/撰寫類步驟常超過，而 step timeout 又不重試，整條 workflow 直接失敗。
+const DEFAULT_TIMEOUT_MS = 600_000;
+const DEFAULT_STEP_MAX_MS = 45 * 60 * 1000;
 
 /**
  * 判斷該錯誤是否值得重試。
@@ -358,7 +364,8 @@ class WorkflowRunner extends EventEmitter {
       // execute with retries
       const maxRetries = step.retries !== undefined ? step.retries : DEFAULT_RETRIES;
       let lastErr: Error | null = null;
-      // per-step timeout：step.timeoutMs 覆寫，否則用預設 5 分鐘。
+      // per-step timeout：step.timeoutMs 有設 → 固定牆鐘；沒設 → 看活動（見 DEFAULT_TIMEOUT_MS 註解）。
+      const explicitTimeout = step.timeoutMs !== undefined;
       const stepTimeoutMs = step.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -371,6 +378,8 @@ class WorkflowRunner extends EventEmitter {
           wf.workspaceId,
           false,
           stepProvider,
+          undefined,
+          { unattended: true }, // workflow 步驟沒有人即時回覆
         );
         sessionIds[idx] = session.id;
         updateRun(runId, { currentStep: idx, sessionIds, stepOutputs: outputs });
@@ -381,6 +390,8 @@ class WorkflowRunner extends EventEmitter {
         let onEvent: ((evt: any) => void) | null = null;
         let onAbort: (() => void) | null = null;
         let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+        // 物件包一層：deadline 在 Promise executor（閉包）裡才建立，直接用 let 會被 TS 窄化成 null。
+        const activity: { deadline: ActivityDeadline | null } = { deadline: null };
 
         try {
           // 背景總量限流：workflow step 雖已有 per-run maxConcurrency（預設 2），但仍是
@@ -397,6 +408,7 @@ class WorkflowRunner extends EventEmitter {
               let myTurnId: number | undefined; // 本回合 turnId：只認自己那回合的 result
               onAbort = () => { reject(new Error("cancelled")); };
               onEvent = (evt: any) => {
+                activity.deadline?.touch(); // 還在吐字/用工具就不算逾時（僅「看活動」模式）
                 if (evt.type === "delta") { if (turnMatches(myTurnId, evt.turnId)) buffer += evt.payload; }
                 else if (evt.type === "message") { if (turnMatches(myTurnId, evt.turnId)) assistantText = evt.payload.content; }
                 else if (evt.type === "result") {
@@ -410,10 +422,16 @@ class WorkflowRunner extends EventEmitter {
               myTurnId = agentManager.send(session.id, promptText).turnId;
             }),
             new Promise<string>((_, reject) => {
-              timeoutHandle = setTimeout(
-                () => reject(new Error("step timeout")),
-                stepTimeoutMs * Math.pow(1.5, attempt),
-              );
+              const scaled = stepTimeoutMs * Math.pow(1.5, attempt);
+              if (explicitTimeout) {
+                timeoutHandle = setTimeout(() => reject(new Error("step timeout")), scaled);
+              } else {
+                activity.deadline = createActivityDeadline({
+                  idleMs: scaled,
+                  hardMs: DEFAULT_STEP_MAX_MS,
+                  onExpire: () => reject(new Error("step timeout")),
+                });
+              }
             }),
             ]);
           }, { label: `workflow:${step.id}` });
@@ -437,6 +455,8 @@ class WorkflowRunner extends EventEmitter {
         } finally {
           // 清除逾時計時器，避免 handle 殘留。
           if (timeoutHandle !== null) { clearTimeout(timeoutHandle); timeoutHandle = null; }
+          activity.deadline?.clear();
+          activity.deadline = null;
           // Always remove listeners to prevent leaks on timeout / error paths.
           if (onEvent) session.removeListener("event", onEvent);
           if (onAbort) signal.removeEventListener("abort", onAbort);

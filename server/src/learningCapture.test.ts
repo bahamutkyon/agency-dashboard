@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveScope, parseLearnMarkers, similarity, isDuplicate } from "./learningCapture.js";
+import { deriveScope, parseLearnMarkers, similarity, isDuplicate, MAX_CONTENT_LEN } from "./learningCapture.js";
 
 describe("deriveScope", () => {
   it("fact/calibration → workspace", () => {
@@ -34,10 +34,17 @@ describe("parseLearnMarkers", () => {
     expect(parseLearnMarkers(text)[0].kind).toBe("fact");
   });
 
-  it("略過空內容與超過 200 字的內容", () => {
-    const long = "x".repeat(201);
+  it("略過空內容與超過上限（MAX_CONTENT_LEN）的內容", () => {
+    const long = "x".repeat(MAX_CONTENT_LEN + 1);
     const text = `=== LEARN kind=fact ===\n${long}\n=== END LEARN ===`;
     expect(parseLearnMarkers(text)).toHaveLength(0);
+  });
+
+  it("舊上限 200 字會丟掉的具體條目（實測最長 374 字）現在保留", () => {
+    const rich = "具體判準：".padEnd(374, "x");
+    const text = `=== LEARN kind=craft ===\n${rich}\n=== END LEARN ===`;
+    expect(parseLearnMarkers(text)).toHaveLength(1);
+    expect(MAX_CONTENT_LEN).toBeGreaterThanOrEqual(374);
   });
 
   it("最多回傳 5 條", () => {

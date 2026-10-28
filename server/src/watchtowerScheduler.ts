@@ -31,9 +31,9 @@ import { makeDeps as makeAutonomyDeps } from "./routes/autonomy.js";
 import { startOrchestratorSession } from "./routes/sessions.js";
 import { notify } from "./notifier.js";
 import { agentManager } from "./agentManager.js";
+import { modelFor } from "./models.js";
 
-// ─── Haiku 模型 ID ──────────────────────────────────────────────────────────
-const HAIKU_MODEL = "claude-haiku-4-5";
+// 評估回合用 fast 層（Haiku 家族別名，CLI 升級自動跟上最新版；舊版寫死 claude-haiku-4-5）。
 
 // ─── Quiet hours 解析 ────────────────────────────────────────────────────────
 
@@ -214,13 +214,13 @@ ${ctxText}
       [
         "-p",
         "--output-format", "json",
-        "--model", HAIKU_MODEL,
+        "--model", modelFor("fast"),
         "--no-session-persistence",
         "--disable-slash-commands",
       ],
       {
         input: evalPrompt,
-        timeoutMs: 60_000, // 評估回合 1 分鐘夠了
+        timeoutMs: 120_000, // 評估回合通常數十秒；留 2 分鐘餘裕（新模型有 adaptive thinking）
         source: "watchtower",
       },
     );

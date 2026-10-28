@@ -3,9 +3,9 @@
  * 兩層：類層（category）產出 domain 提案、個人層（agent）產出 craft 提案，
  * 全部寫進既有的 learning_proposals 表，走 Phase 1 的批准 UI。
  */
-import { spawnClaude } from "./claudeProcess.js";
 import { withBackgroundSlot } from "./backgroundLimiter.js";
-import { recordOneShotUsage } from "./claudeOneShot.js";
+import { runClaudeOneShot, parseResultJson } from "./claudeOneShot.js";
+import { modelFor, deepEffort, effortArgs } from "./models.js";
 import { parseLearnMarkers } from "./learningCapture.js";
 import { createProposal, getCategoryMemory, getCraftMemoryFor } from "./learningStore.js";
 import { db, DEFAULT_WORKSPACE_ID } from "./db.js";
@@ -19,8 +19,17 @@ import { saveCapabilityReport } from "./studyStore.js";
 /** 類層提案的 agent_id 前綴 — 避免與真實 agentId 撞名。 */
 export const CATEGORY_PREFIX = "__category__:";
 
-/** 能力學習用的模型：盤點專業必備知識是高品質反思任務，用最強的 Opus 4.7。 */
-const LEARNING_MODEL = "claude-opus-4-7";
+/** 類層／個人層能力學習條目的解析上限（prompt 要求 300 字內）。 */
+export const LEARNING_ITEM_MAX = 800;
+/** 自主進修（帶 web 研究）條目的解析上限（prompt 要求 600 字內）。 */
+export const RESEARCH_ITEM_MAX = 1000;
+
+// 能力學習用的模型：盤點專業必備知識是高品質反思任務 → deep 層（Opus 家族最新版，不寫死版本號）
+// ＋ deepEffort（預設 high；5.5 家族 CLI 預設只有 medium）。在呼叫時解析，見 models.ts。
+/** 無工具的能力反思（類層/個人層）逾時：15 分鐘。舊版完全沒逾時——CLI 卡住就永久佔住背景槽。 */
+const LEARNING_TIMEOUT_MS = 900_000;
+/** 帶 WebSearch/WebFetch 的自主進修逾時：20 分鐘（舊 10 分鐘；effort high 的新模型查證更徹底）。 */
+const RESEARCH_TIMEOUT_MS = 1_200_000;
 
 export interface LearnTarget {
   type: "category" | "agent";
@@ -37,8 +46,9 @@ export function parseCategoryAgentId(agentId: string): string | null {
  * （createProposal 內建去重，重複的不計入）。
  */
 export function ingestLearningOutput(text: string, target: LearnTarget): number {
-  // 能力學習條目較詳細（含具體判準/數字），放寬至 500 字
-  const drafts = parseLearnMarkers(text, 8, 500);
+  // 能力學習條目較詳細（含具體判準/數字）。prompt 要求 300 字內，解析上限留頭寸到 800——
+  // 超過上限的條目會被整條丟掉，上限只該擋失控長文，不該卡住寫得具體的好條目。
+  const drafts = parseLearnMarkers(text, 8, LEARNING_ITEM_MAX);
   let created = 0;
   // kind / scope 由 target 類型決定，不採信 Claude 回應裡的 kind 標記
   // （類層一律 domain、個人層一律 craft），避免模型亂標。
@@ -70,9 +80,10 @@ export function ingestLearningOutput(text: string, target: LearnTarget): number 
  * 並把 REPORT 區塊（含來源 URL）寫進能力報告表。回傳建立的提案數。
  */
 export function ingestResearchOutput(text: string, agentId: string, runId: string | null): number {
-  // research prompt 最多 6 條（對應 buildAgentResearchPrompt 的 3-6 上限）；
-  // maxLen 600（研究手藝比對話 LEARN 詳細，實測常落在 ~460，留頭寸避免被丟）
-  const drafts = parseLearnMarkers(text, 6, 600);
+  // research prompt 最多 6 條（對應 buildAgentResearchPrompt 的 3-6 上限）。
+  // 舊上限 600：實測已核准的研究條目平均 523、最長 584 字，貼著上限——寫得更完整的條目會被整條丟掉。
+  // prompt 要求 600 字內，解析上限放到 1000。
+  const drafts = parseLearnMarkers(text, 6, RESEARCH_ITEM_MAX);
   let created = 0;
   for (const d of drafts) {
     const p = createProposal({
@@ -92,54 +103,37 @@ interface ClaudeRunOptions { tools?: string[]; timeoutMs?: number; }
 /**
  * 共用底層：一次性非互動呼叫 Claude，支援可選工具清單與逾時保護。
  * runClaudeOnce / runClaudeWithTools 均委派至此，避免重複實作。
+ *
+ * 改走 runClaudeOneShot（舊版自己 spawnClaude）：
+ *  - 子程序 env 經 sanitizedChildEnv 淨化（不把 dashboard 的遠端存取 ACCESS_TOKEN 繼承下去）；
+ *  - 失敗訊息帶真正原因——舊版只記「claude exit 1」，登入過期整整 7 週，每週學習都記成
+ *    done＋failed「claude exit 1」，沒人看得出是登入掉了；
+ *  - 同時餵 claudeHealth 判讀登入狀態，並記用量（source "learning"）。
  */
 function runClaudeOnceBase(prompt: string, opts: ClaudeRunOptions = {}): Promise<string> {
   // 背景總量限流：能力學習/研究是無人值守的批量背景工作（一輪可能跑很多 target），
-  // 過去直接 spawnClaude 打 API、無總量控制。搶到槽才 spawn，槽持有到 child close
-  // /逾時/錯誤（Promise settle）才 release。fn 的錯照常往外拋（withBackgroundSlot 保證 release）。
-  return withBackgroundSlot(() => new Promise<string>((resolve, reject) => {
+  // 搶到槽才 spawn，槽持有到呼叫結束才 release。錯誤照常往外拋（withBackgroundSlot 保證 release）。
+  return withBackgroundSlot(async () => {
     const args = [
-      "-p", "--output-format", "json", "--model", LEARNING_MODEL,
+      "-p", "--output-format", "json", "--model", modelFor("deep"),
+      ...effortArgs(deepEffort()),
       "--no-session-persistence", "--disable-slash-commands",
     ];
     if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(" "));
-    let settled = false;
-    const done = (err: Error | null, val?: string) => {
-      if (settled) return;
-      settled = true;
-      err ? reject(err) : resolve(val!);
-    };
-    const child = spawnClaude(args);
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (opts.timeoutMs) {
-      timer = setTimeout(() => { try { child.kill(); } catch {} done(new Error("研究逾時")); }, opts.timeoutMs);
-      timer.unref?.();
-    }
-    let out = "";
-    child.stdout!.setEncoding("utf8");
-    child.stdout!.on("data", (d) => {
-      out += String(d);
-      if (out.length > 5_000_000) { if (timer) clearTimeout(timer); child.kill(); done(new Error("輸出超過上限")); }
+    const r = await runClaudeOneShot(args, {
+      input: prompt,
+      timeoutMs: opts.timeoutMs ?? LEARNING_TIMEOUT_MS,
+      source: "learning",
     });
-    child.stderr!.on("data", () => {});
-    child.stdin!.write(Buffer.from(prompt, "utf8")); child.stdin!.end();
-    child.on("error", (e) => { if (timer) clearTimeout(timer); done(e); });
-    child.on("close", (code) => {
-      if (timer) clearTimeout(timer);
-      if (code !== 0) { done(new Error(`claude exit ${code}`)); return; }
-      try {
-        const j = JSON.parse(out);
-        // Fail-safe 成本歸因記錄（能力學習用 Opus，成本高，必須可見）。
-        recordOneShotUsage(j, "learning");
-        done(null, String(j.result || ""));
-      }
-      catch (e: any) { done(new Error(`解析回應失敗: ${e.message}`)); }
-    });
-  }), { label: "learning" });
+    if (!r.ok) throw new Error(r.error || "claude 失敗");
+    const j = parseResultJson(r.stdout);
+    if (!j) throw new Error("解析回應失敗：輸出不是 JSON 物件");
+    return String(j.result || "");
+  }, { label: "learning" });
 }
 
 /** 一次性非互動呼叫 Claude，回傳 result 文字。失敗則 throw。 */
-function runClaudeOnce(prompt: string): Promise<string> { return runClaudeOnceBase(prompt); }
+function runClaudeOnce(prompt: string): Promise<string> { return runClaudeOnceBase(prompt, { timeoutMs: LEARNING_TIMEOUT_MS }); }
 
 /**
  * 帶工具（WebSearch/WebFetch）與逾時的一次性 Claude 呼叫，回傳 result 文字。
@@ -161,7 +155,7 @@ export async function runResearchTarget(target: LearnTarget, runId: string | nul
   const craftText = [bundle.legacyGlobal, bundle.global].filter((s) => s && s.trim()).join("\n");
   const catMem = getCategoryMemory(agent.category);
   const prompt = buildAgentResearchPrompt(agent.name, agent.description, def?.body, craftText, catMem);
-  const text = await runClaudeWithTools(prompt, ["WebSearch", "WebFetch"], 600_000);
+  const text = await runClaudeWithTools(prompt, ["WebSearch", "WebFetch"], RESEARCH_TIMEOUT_MS);
   const created = ingestResearchOutput(text, target.id, runId);
   if (created === 0 && !parseCapabilityReport(text)) throw new Error("研究未產出任何 LEARN 或 REPORT");
   // 有報告但 0 手藝 = 模型只給 REPORT 漏了 LEARN（prompt 稀釋的徵兆），留痕以便調校
@@ -290,8 +284,13 @@ export async function executeLearningRun(
       onProgress(run);
     }
     run.current = null;
-    run.status = "done";
+    // 全部 target 都失敗＝這一輪實際上什麼都沒做成（例如 Claude 登入失效時每個 target 都失敗），
+    // 誠實記成 error。舊版一律記 done，登入過期 7 週期間每週學習都顯示「完成」。
+    run.status = run.total > 0 && run.failed.length >= run.total ? "error" : "done";
     persistRun(run);
+    // 把最終狀態推給前端。舊版只在每個 target 完成時推進度，最後的 done 從沒推出去，
+    // 能力學習面板跑完後會一直停在「N / N ⏳ 執行中」。
+    onProgress(run);
   } finally {
     // run 結束（成功或拋錯）後延遲清理，避免 runs Map 無限增長。
     // DB 紀錄保留；in-memory 30 分鐘後清除。
@@ -363,7 +362,7 @@ export async function runLearningTarget(target: LearnTarget): Promise<{ created:
   }
   const text = await runClaudeOnce(prompt);
   const created = ingestLearningOutput(text, target);
-  if (created === 0 && !parseLearnMarkers(text, 8, 500).length) {
+  if (created === 0 && !parseLearnMarkers(text, 8, LEARNING_ITEM_MAX).length) {
     throw new Error("回應未包含任何學習標記");
   }
   return { created };

@@ -134,15 +134,15 @@ describe("runTopicResearch 三階段 orchestration", () => {
 });
 
 describe("researchRunner 模型分級", () => {
-  it("應 export 三個階段的模型常數，並驗證各自的值", async () => {
-    const { PLAN_MODEL, RESEARCH_STAGE_MODEL, SYNTHESIS_MODEL } = await import(
+  it("三個階段各用對應的家族別名（不寫死版本號，CLI 升級自動跟上最新版）", async () => {
+    const { planModel, researchStageModel, synthesisModel } = await import(
       "./researchRunner.js"
     );
-    // 規劃：機械任務用 Haiku
-    expect(PLAN_MODEL).toBe("claude-haiku-4-5-20251001");
-    // 研究：帶 web 工具查證用 Sonnet
-    expect(RESEARCH_STAGE_MODEL).toBe("claude-sonnet-4-6");
-    // 綜合：高品質綜整保留 Opus
-    expect(SYNTHESIS_MODEL).toBe("claude-opus-4-7");
+    // 規劃：機械任務用 Haiku 家族
+    expect(planModel()).toBe("haiku");
+    // 研究：帶 web 工具查證用 Sonnet 家族
+    expect(researchStageModel()).toBe("sonnet");
+    // 綜合：高品質綜整用 Opus 家族
+    expect(synthesisModel()).toBe("opus");
   });
 });

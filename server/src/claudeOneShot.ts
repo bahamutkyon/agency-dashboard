@@ -14,6 +14,7 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { spawnClaude } from "./claudeProcess.js";
 import { sanitizedChildEnv } from "./childEnv.js";
+import { noteClaudeResult, noteClaudeFailureText } from "./claudeHealth.js";
 
 export type SpawnClaudeFn = (args: string[], options?: Partial<SpawnOptions>) => ChildProcess;
 
@@ -64,6 +65,29 @@ export interface RunClaudeOneShotResult {
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 const MAX_STDOUT_BYTES = 5_000_000;
+
+/** 把 `-p --output-format json` 的 stdout 解析成物件；不是單一 JSON 物件（如 stream-json）回 null。 */
+export function parseResultJson(stdout: string): any | null {
+  const t = stdout.trim();
+  if (!t.startsWith("{")) return null;
+  try {
+    const v = JSON.parse(t);
+    return v && typeof v === "object" && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 非零離開碼時組一個「看得懂原因」的錯誤字串。
+ * 起因：CLI 失敗時真正原因常在 stdout 的 JSON result（例如「Failed to authenticate…」），
+ * 舊版只取 stderr，各處只看到「claude exit 1」，登入過期整整 7 週沒人看得出來。
+ */
+export function describeOneShotFailure(code: number | null, stderr: string, parsed: any | null): string {
+  const resultText = parsed && parsed.is_error && typeof parsed.result === "string" ? parsed.result.trim() : "";
+  const detail = resultText || stderr.trim();
+  return detail ? `claude 失敗（離開碼 ${code}）：${detail.slice(0, 500)}` : `claude 離開碼 ${code}`;
+}
 
 /**
  * 一次性跑 claude，回傳 { ok, stdout, error }。永不 throw、永不讓 error 事件外洩。
@@ -131,14 +155,18 @@ export function runClaudeOneShot(
     }
 
     child.on("close", (code) => {
+      const parsed = parseResultJson(out);
+      // 登入健康度判讀（fail-safe）：成功 → ok；明確的登入錯誤 → auth_failed；其他錯誤不動狀態。
+      try {
+        if (parsed) noteClaudeResult(parsed);
+        else if (code !== 0) noteClaudeFailureText(`${err}\n${out}`);
+      } catch {}
       if (code === 0) {
         // Fail-safe 成本歸因記錄：解析 JSON 失敗或 recorder 未登記不影響回傳。
-        if (opts.source) {
-          try { recordOneShotUsage(JSON.parse(out), opts.source); } catch {}
-        }
+        if (opts.source && parsed) recordOneShotUsage(parsed, opts.source);
         finish({ ok: true, stdout: out });
       } else {
-        finish({ ok: false, stdout: out, error: err.trim() || `claude 離開碼 ${code}` });
+        finish({ ok: false, stdout: out, error: describeOneShotFailure(code, err, parsed) });
       }
     });
   });

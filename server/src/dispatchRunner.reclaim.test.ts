@@ -114,12 +114,13 @@ describe("runOneExecuteAsConsult — result 後回收子程序", () => {
     const p = runOneExecuteAsConsult(item, "ws1", 10_000, deps);
     await tick();
 
-    session.emit("event", { type: "message", turnId: 1, payload: { content: "已完成並自驗" } });
+    // 完整的外包回報以【完成自驗】收尾（沒有它會被當成進度回報而自動續跑，見 dispatchRunner.continue.test）
+    session.emit("event", { type: "message", turnId: 1, payload: { content: "已完成\n【完成自驗】結論：已驗證完成" } });
     session.emit("event", { type: "result", turnId: 1, payload: {} });
 
     const res = await p;
     expect(res.status).toBe("ok");
-    expect(res.output).toBe("已完成並自驗");
+    expect(res.output).toBe("已完成\n【完成自驗】結論：已驗證完成");
 
     await tick();
     expect(deps.reclaim).toHaveBeenCalledWith("sub-exec-sync");
@@ -168,7 +169,7 @@ describe("execute 非同步路徑（makeExecuteDeps）— result 後回收，且
 
     await tick(); // 進入背景槽、send 已呼叫、槽監聽器掛上；attachDone 監聽器同步已掛
 
-    session.emit("event", { type: "message", payload: { content: "外包執行完成報告" } });
+    session.emit("event", { type: "message", payload: { content: "外包執行完成報告\n【完成自驗】結論：已驗證完成" } });
     session.emit("event", { type: "result", payload: {} });
 
     await tick(); // 讓 queueMicrotask 的 reclaim 執行
@@ -177,7 +178,7 @@ describe("execute 非同步路徑（makeExecuteDeps）— result 後回收，且
     expect(outputs[0]).toMatchObject({
       subSessionId: "sub-async",
       agentId: "agent-c",
-      output: "外包執行完成報告",
+      output: "外包執行完成報告\n【完成自驗】結論：已驗證完成",
       status: "ok",
       pmSessionId: "pm1",
     });

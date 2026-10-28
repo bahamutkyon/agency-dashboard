@@ -27,6 +27,13 @@ describe("runCockpit（注入假 agent）", () => {
     expect(getLatestBriefing()?.raw).toContain("壞掉");
   });
 
+  it("agent 回的是登入錯誤字樣 → 存 status=error（不是 parse_failed），raw 標明登入失效", async () => {
+    const fakeRun = async () => "Failed to authenticate: OAuth session expired and could not be refreshed";
+    const r = await runCockpit("manual", { runAgent: fakeRun });
+    expect(r.status).toBe("error");
+    expect(getLatestBriefing()?.raw).toContain("登入失效");
+  });
+
   it("runAgent 拋錯 → 存 status=error、不 throw", async () => {
     const fakeRun = async () => { throw new Error("boom"); };
     const r = await runCockpit("manual", { runAgent: fakeRun });

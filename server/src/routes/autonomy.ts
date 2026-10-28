@@ -12,6 +12,7 @@ import { getRun, getActiveRunForSession, listPending, setPendingInjection } from
 import { isPolicyName } from "../autonomyPolicy.js";
 import { parseDispatchMarker } from "../dispatchParser.js";
 import { approvePendingAction, rejectPendingAction, computePartialApprovalNote } from "./approvalService.js";
+import { createActivityDeadline } from "../activityDeadline.js";
 
 export const autonomyRouter = Router();
 
@@ -19,9 +20,16 @@ export const autonomyRouter = Router();
 export { computePartialApprovalNote };
 
 const DISPATCH_CONCURRENCY = 3;
-const CONSULT_TIMEOUT_MS = 5 * 60 * 1000;
-const EXECUTE_CONSULT_TIMEOUT_MS = 10 * 60 * 1000; // execute 項同步等待上限：10 分鐘（自主迴圈不 fire-and-forget）
-const SEND_TURN_TIMEOUT_MS = 6 * 60 * 1000;
+// 自主迴圈的等待上限（2026-10 依新模型調整）：
+// - consult：同步等 8 分鐘（與互動模式一致；舊 5 分鐘）。
+// - execute：15 分鐘是「連續沒動靜」的上限——子代理一直有進展就繼續等，絕對上限見
+//   dispatchRunner 的 EXECUTE_SYNC_HARD_MAX_MS（舊版固定 10 分鐘硬砍）。
+// - PM 回合：連續 10 分鐘沒有任何事件才算逾時，單回合絕對上限 30 分鐘（舊版固定 6 分鐘；
+//   effort high 的 PM 規劃/驗收常超過，逾時又被當暫時性錯誤重送，等於整回合白做）。
+const CONSULT_TIMEOUT_MS = 8 * 60 * 1000;
+const EXECUTE_CONSULT_TIMEOUT_MS = 15 * 60 * 1000;
+const SEND_TURN_IDLE_MS = 10 * 60 * 1000;
+const SEND_TURN_MAX_MS = 30 * 60 * 1000;
 const BUSY_POLL_MS = 1500;
 const BUSY_MAX_WAIT_MS = 90 * 1000;
 
@@ -34,10 +42,11 @@ export function makeDeps(io: any): AutonomyDeps {
       // 本回合的 turnId（send 後才知道）。等待端只認自己 turnId 的 result，避免
       // 同一 session 有第二個寫入者（如外包 EXEC_REPORT 經佇列排入）時回覆張冠李戴。
       let myTurnId: number | undefined;
-      const cleanup = () => { clearTimeout(timer); s.removeListener("event", onEvent); };
+      const cleanup = () => { deadline.clear(); s.removeListener("event", onEvent); };
       const finish = () => { if (settled) return; settled = true; cleanup(); resolve((collected || streamed).trim()); };
       const fail = (e: Error) => { if (settled) return; settled = true; cleanup(); reject(e); };
       const onEvent = (evt: any) => {
+        deadline.touch(); // PM 還在吐字/用工具就繼續等
         // delta/message 也只收自己回合的（有 turnId 才過濾；無則相容全收）。
         if (evt.type === "delta" && typeof evt.payload === "string") { if (turnMatches(myTurnId, evt.turnId)) streamed += evt.payload; }
         else if (evt.type === "message" && evt.payload?.content) { if (turnMatches(myTurnId, evt.turnId)) collected = String(evt.payload.content); }
@@ -48,7 +57,14 @@ export function makeDeps(io: any): AutonomyDeps {
           fail(new Error(typeof evt.payload === "string" ? evt.payload : "agent 錯誤"));
         }
       };
-      const timer = setTimeout(() => fail(new Error("sendTurn 逾時")), SEND_TURN_TIMEOUT_MS);
+      // 「sendTurn 逾時」字樣是 autonomyRunner 判定暫時性錯誤的標記，勿改。
+      // idle 從送出那刻才開始計（等 session 閒下來的那段不算）；絕對上限從現在起算。
+      const deadline = createActivityDeadline({
+        idleMs: SEND_TURN_IDLE_MS,
+        hardMs: SEND_TURN_MAX_MS,
+        idleStartsOnFirstTouch: true,
+        onExpire: () => fail(new Error("sendTurn 逾時")),
+      });
       // busy-aware：等到 session idle 才掛 listener + 送，避免誤殺 run、誤收他人回合事件
       const trySend = (waited: number) => {
         if (settled) return;
@@ -57,6 +73,7 @@ export function makeDeps(io: any): AutonomyDeps {
           setTimeout(() => trySend(waited + BUSY_POLL_MS), BUSY_POLL_MS);
           return;
         }
+        deadline.touch();
         s.on("event", onEvent);
         // send 為同步；回傳後立即得到本回合 turnId，此時 result 尚未（非同步）到達。
         myTurnId = agentManager.send(sessionId, prompt).turnId;
@@ -64,7 +81,7 @@ export function makeDeps(io: any): AutonomyDeps {
       trySend(0);
     }),
     runDispatch: async (items: DispatchItem[], workspaceId: string, ledger?: { pmSessionId: string; runId: string }) => {
-      // 依 mode 分流：consult 項 5 分鐘同步諮詢；execute 項 10 分鐘同步等待＋「完成自驗」prompt。
+      // 依 mode 分流：consult 項 8 分鐘同步諮詢；execute 項看活動同步等待（15 分鐘沒動靜才算卡住）＋「完成自驗」prompt。
       // 兩者均同步等待，確保迴圈拿到真實結果、不引入非同步回報插回迴圈的 race。
       // ledger 脈絡（自主迴圈傳入）→ 每項派工進台帳＋（execute）推播，在途面板/手機通知不再失聲。
       return runDispatchByMode(items, workspaceId, {

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { usageTracker } from "../usageTracker.js";
 import { listInstalledMCPServers, BASELINE_MCPS } from "../mcpDetector.js";
 import { buildCapabilitiesSummary } from "../capabilitiesDetector.js";
-import { securityStats } from "../agentManager.js";
+import { securityStats, agentManager } from "../agentManager.js";
 import { publicStatus as remotePublicStatus } from "../remoteAccess.js";
 import { routePrompt } from "../smartRouter.js";
 import { isCodexAvailable } from "../codexProcess.js";
@@ -11,6 +11,7 @@ import { gateMode, listGuardDecisions } from "../guard.js";
 import { backgroundLimiterStats } from "../backgroundLimiter.js";
 import { isNotifierConfigured, getNotifierLastResult, notify, discoverChatId, getNotifierStatus, writeNotifierConfig } from "../notifier.js";
 import { suspendTelegramPoller } from "../telegramPoller.js";
+import { getClaudeHealth, probeClaudeAuth } from "../claudeHealth.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -26,6 +27,18 @@ export function buildMiscRouter(remoteCfg: ReturnType<typeof import("../remoteAc
   // 背景限流觀測端點 — 回傳 backgroundLimiter 的即時狀態（running/queued/backoffUntil/limit）。
   // 前端 DelegationsPanel 定期輪詢此端點顯示「背景槽 N/M 使用中 · 排隊 K」等資訊。
   router.get("/system/limiter", (_req, res) => res.json(backgroundLimiterStats()));
+
+  // Claude CLI 登入健康度：前端橫幅輪詢（status: unknown/ok/auth_failed＋修復步驟）。
+  // modelsSeen：這次啟動以來同事們實際跑在哪些模型（CLI 回報），用來確認新模型真的有套用。
+  router.get("/system/claude-health", (_req, res) => res.json({ ...getClaudeHealth(), modelsSeen: agentManager.modelsSeen() }));
+  // 「重新檢查」：主動跑一次極小探測（同時只跑一個，連點不會開一堆子程序）。
+  router.post("/system/claude-health/probe", async (_req, res) => {
+    try {
+      res.json(await probeClaudeAuth());
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || String(e) });
+    }
+  });
 
   // Telegram 推播狀態 — 擴充回傳：source/botTokenMasked/chatId/envLocked（絕不回完整 token）。
   router.get("/system/notifier", (_req, res) => {

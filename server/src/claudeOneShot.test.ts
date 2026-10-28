@@ -175,3 +175,69 @@ describe("source 用量記錄（成本歸因）", () => {
     expect(recorder).not.toHaveBeenCalled();
   });
 });
+
+describe("失敗原因與登入健康度（2026-10：登入過期 7 週只看到「claude exit 1」的教訓）", () => {
+  it("parseResultJson：單一 JSON 物件才解析，其餘回 null", async () => {
+    const { parseResultJson } = await import("./claudeOneShot.js");
+    expect(parseResultJson('{"type":"result","result":"x"}')).toMatchObject({ result: "x" });
+    expect(parseResultJson("  \n{\"a\":1}\n")).toEqual({ a: 1 });
+    expect(parseResultJson("[1,2]")).toBeNull();
+    expect(parseResultJson("not json")).toBeNull();
+    expect(parseResultJson('{"broken":')).toBeNull();
+  });
+
+  it("describeOneShotFailure：優先用 JSON result 的錯誤原文，其次 stderr，都沒有才只給離開碼", async () => {
+    const { describeOneShotFailure } = await import("./claudeOneShot.js");
+    expect(describeOneShotFailure(1, "", { is_error: true, result: "Failed to authenticate: OAuth session expired" }))
+      .toBe("claude 失敗（離開碼 1）：Failed to authenticate: OAuth session expired");
+    expect(describeOneShotFailure(2, "some stderr\n", null)).toBe("claude 失敗（離開碼 2）：some stderr");
+    expect(describeOneShotFailure(1, "", { is_error: false, result: "normal" })).toBe("claude 離開碼 1");
+  });
+
+  it("非零離開碼＋JSON 登入錯誤 → error 帶原因，且健康度轉 auth_failed", async () => {
+    const health = await import("./claudeHealth.js");
+    health._resetClaudeHealthForTest();
+    health._setClaudeHealthDepsForTest({ notify: () => {} });
+    try {
+      const child = makeFakeChild();
+      const spawn = vi.fn(() => {
+        setImmediate(() => {
+          child.stdout.emit("data", JSON.stringify({
+            type: "result", is_error: true,
+            result: "Failed to authenticate: OAuth session expired and could not be refreshed",
+            usage: { output_tokens: 0 },
+          }));
+          child.emit("close", 1);
+        });
+        return child as any;
+      });
+      const result = await runClaudeOneShot(["-p"], { spawn, input: "hi" });
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("Failed to authenticate");
+      expect(health.getClaudeHealth().status).toBe("auth_failed");
+    } finally {
+      health._resetClaudeHealthForTest();
+    }
+  });
+
+  it("成功呼叫 → 健康度轉 ok", async () => {
+    const health = await import("./claudeHealth.js");
+    health._resetClaudeHealthForTest();
+    health._setClaudeHealthDepsForTest({ notify: () => {} });
+    try {
+      const child = makeFakeChild();
+      const spawn = vi.fn(() => {
+        setImmediate(() => {
+          child.stdout.emit("data", JSON.stringify({ type: "result", is_error: false, result: "OK", usage: { output_tokens: 2 } }));
+          child.emit("close", 0);
+        });
+        return child as any;
+      });
+      const result = await runClaudeOneShot(["-p"], { spawn, input: "hi" });
+      expect(result.ok).toBe(true);
+      expect(health.getClaudeHealth().status).toBe("ok");
+    } finally {
+      health._resetClaudeHealthForTest();
+    }
+  });
+});

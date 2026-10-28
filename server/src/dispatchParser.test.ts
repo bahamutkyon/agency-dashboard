@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDispatchMarker, validateDispatchPlan, serializeDispatchItem } from "./dispatchParser.js";
+import { parseDispatchMarker, validateDispatchPlan, serializeDispatchItem, MAX_ACCEPT_ITEMS } from "./dispatchParser.js";
 import type { DispatchItem } from "./dispatchParser.js";
 
 describe("parseDispatchMarker", () => {
@@ -71,22 +71,21 @@ describe("新功能：context/deliverable/accept 全欄位解析", () => {
     expect(item.accept).toEqual(["必須列出高風險條款", "必須說明建議修改方向"]);
   });
 
-  it("accept 最多取 3 條，多餘截斷", () => {
+  it("accept 最多取 MAX_ACCEPT_ITEMS 條，多餘截斷（舊上限 3 會讓第 4 條起無聲消失）", () => {
+    const n = MAX_ACCEPT_ITEMS + 2;
     const txt = [
       "=== DISPATCH ===",
       "- agentId: agent-x",
       "  task: 做事",
       "  accept:",
-      "    - 條件1",
-      "    - 條件2",
-      "    - 條件3",
-      "    - 條件4",
-      "    - 條件5",
+      ...Array.from({ length: n }, (_, i) => `    - 條件${i + 1}`),
       "=== END DISPATCH ===",
     ].join("\n");
     const p = parseDispatchMarker(txt)!;
-    expect(p.items[0].accept).toHaveLength(3);
-    expect(p.items[0].accept).toEqual(["條件1", "條件2", "條件3"]);
+    expect(MAX_ACCEPT_ITEMS).toBeGreaterThanOrEqual(5);
+    expect(p.items[0].accept).toHaveLength(MAX_ACCEPT_ITEMS);
+    expect(p.items[0].accept![0]).toBe("條件1");
+    expect(p.items[0].accept![MAX_ACCEPT_ITEMS - 1]).toBe(`條件${MAX_ACCEPT_ITEMS}`);
   });
 
   it("無選填欄位時，parsed item 不含 context/deliverable/accept 鍵（向後相容）", () => {

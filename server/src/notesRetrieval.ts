@@ -71,13 +71,15 @@ export function findRelevantNotes(workspaceId: string, query: string, topK: numb
   return filtered.slice(0, topK).map((s) => s.note);
 }
 
-const NOTE_BODY_LIMIT = 1500;
-const CONTEXT_TOTAL_LIMIT = 4000;
+/** 單篇筆記注入上限（舊 1,500）。研究成果庫的筆記多半是整份研究結論，1,500 字常只剩開頭摘要。 */
+export const NOTE_BODY_LIMIT = 4000;
+/** 單次注入總量上限（舊 4,000）。同一 session 每篇只注入一次，1M context 下 12,000 字很便宜。 */
+export const CONTEXT_TOTAL_LIMIT = 12000;
 const TRUNCATE_SUFFIX = "…（已截斷，完整內容在研究成果庫）";
 
 /**
  * 建 context 字串並回報「實際納入」的 note 清單。
- * 因總量上限（4000 字）可能把後段 note 整塊丟掉，呼叫端需要知道哪些真的進去了，
+ * 因總量上限（CONTEXT_TOTAL_LIMIT）可能把後段 note 整塊丟掉，呼叫端需要知道哪些真的進去了，
  * 才能只把納入的標記為已注入（避免被丟掉的 note 永遠不再重試注入）。
  */
 export function buildNotesContext(notes: Note[]): { text: string; included: Note[] } {

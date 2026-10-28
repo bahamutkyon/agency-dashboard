@@ -104,7 +104,7 @@ function callHaiku(prompt) {
     const claudePath = process.platform === "win32" ? "claude" : "claude";
     const child = spawn(claudePath, [
       "-p", "--output-format", "json",
-      "--model", "claude-haiku-4-5-20251001",
+      "--model", "haiku", // 家族別名：CLI 升級自動跟上最新 Haiku（舊版寫死 claude-haiku-4-5-20251001）
       "--no-session-persistence",
       "--disable-slash-commands",
     ], { shell: process.platform === "win32" });

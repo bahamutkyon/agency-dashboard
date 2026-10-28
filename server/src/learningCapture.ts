@@ -13,7 +13,11 @@ export interface LearnDraft {
 }
 
 const VALID_KINDS: LearnKind[] = ["fact", "craft", "domain", "calibration"];
-const MAX_CONTENT_LEN = 200;
+/**
+ * 對話內 LEARN/REMEMBER 單條上限（超過整條略過）。舊值 200：實測 161 條裡 15 條（9%）因超過而
+ * 無聲消失（最長 374 字）。prompt 建議 300 字內，這裡留兩倍頭寸，只擋失控的長文。
+ */
+export const MAX_CONTENT_LEN = 600;
 const MAX_DRAFTS = 5;
 
 /** kind → scope：fact/calibration 鎖工作區；craft/domain 跟 agent 全域。 */
@@ -26,8 +30,8 @@ export function deriveScope(kind: LearnKind): LearnScope {
  *  - === LEARN kind=craft === ... === END LEARN ===
  *  - === REMEMBER === ... === END REMEMBER ===（視為 kind=fact）
  * 略過空內容與超過 maxLen 字的內容；單次最多回傳 maxDrafts 條（LEARN + REMEMBER 合計）。
- * 預設 maxDrafts=5、maxLen=200（Phase 1 對話內 LEARN 標記用）；
- * 能力學習場景傳 maxDrafts=8、maxLen=500（產出條目較長、較詳細）。
+ * 預設 maxDrafts=5、maxLen=MAX_CONTENT_LEN（對話內 LEARN 標記用）；
+ * 能力學習場景由呼叫端傳較大的 maxDrafts / maxLen（產出條目較長、較詳細）。
  * LEARN 先解析、REMEMBER 後解析，超出上限時後者先被裁掉。
  */
 export function parseLearnMarkers(

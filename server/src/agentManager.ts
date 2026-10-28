@@ -12,7 +12,11 @@ import { buildCapabilityBlockFor } from "./learningInjector.js";
 import { readAgentDefinition, categoryFor } from "./agentLoader.js";
 import { buildMCPConfigForWorkspace } from "./mcpDetector.js";
 import { usageTracker } from "./usageTracker.js";
+import { noteClaudeResult } from "./claudeHealth.js";
+import { effortForAgent, interactiveModelFor } from "./models.js";
+import { saveSessionPrompt, getSessionPrompt } from "./store/sessionPrompts.js";
 import { noteRateLimited, withBackgroundSlot, unmarkShadow } from "./backgroundLimiter.js";
+import { positiveMsFromEnv } from "./activityDeadline.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
@@ -141,6 +145,78 @@ agent-id 是 dashboard 的識別碼。命名規則:部門 prefix + 角色,例如
 - 使用者會看到提示並選擇接受或忽略,你只是「建議」
 `;
 
+/** agentManager.start 的額外選項。 */
+export interface StartOpts {
+  /**
+   * 這個 session 沒有人即時回覆（派工子代理、排程、workflow 步驟、每日簡報）。會在 system prompt 最後
+   * 加上無人值守收尾規則（UNATTENDED_TURN_POLICY）。由自主迴圈驅動的 PM（每回合都要用 ACTION 收尾）不要開。
+   */
+  unattended?: boolean;
+}
+
+// 對話中的學習標記能力。舊版要求「一行（< 200 字）」且解析端把超過 200 字的條目整條丟掉——
+// 實測 161 條裡有 15 條（9%）因此無聲消失（最長 374 字）。新模型寫得更具體，放寬到 300 字建議、
+// 600 字才丟（learningCapture.MAX_CONTENT_LEN）。
+const LEARNING_CAPABILITY = `
+
+# 學習能力（輸出學習標記）
+
+如果在對話中你發現了**跨對話有長期價值**的東西，可在回答**最末尾**輸出學習標記，系統會收進「學習審核佇列」等使用者批准：
+
+\`\`\`
+=== LEARN kind=<下方四選一> ===
+一到兩句、具體可執行的描述（建議 300 字內；可帶數字門檻或判準）
+=== END LEARN ===
+\`\`\`
+
+kind 四選一（直接影響該條會落到哪個範圍）：
+- \`fact\` — 關於使用者的事實（他是誰、專案背景、品牌規則）→ **限本工作區**
+- \`craft\` — 你的工作手藝改進（下次該怎麼做更好）→ **預設限本工作區**（會綁定當下對話的工作區）
+- \`domain\` — 你專業領域的**通用**新知識／演算法／趨勢（與任何客戶/專案無關）→ **跨工作區共享**
+- \`calibration\` — 使用者對你的回饋（讚 / 改 / 否定）轉成的行為準則 → **限本工作區**
+
+含**具體客戶名、品牌名、專案名、產品名**的條目不要標 \`domain\`——它會跨工作區共享，汙染其他客戶的對話；這類條目用 \`fact\` 或 \`craft\`，系統會自動鎖到當下工作區。
+
+規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
+`;
+
+/**
+ * 工作環境說明（所有 Claude session）。dashboard 用 `--agent` 啟動同事，依 Claude Code 文件，
+ * 這會讓同事的人設「整個取代」Claude Code 預設 system prompt——預設 prompt 裡關於自動壓縮、
+ * 長任務不必提早收尾的說明也一併沒了。官方建議在會壓縮脈絡的 harness 裡明講，否則模型接近上限時
+ * 可能自行提早收尾。對話開始日期也放這裡（Claude Code 會沿用對話第一次記錄的 system prompt，
+ * 所以寫「開始於」而不是「今天是」）。
+ */
+export function workingEnvironmentBlock(now: Date): string {
+  const date = now.toLocaleDateString("zh-TW", {
+    timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short",
+  });
+  return `
+
+# 工作環境
+- 這段對話開始於 ${date}（台北時間）。
+- 你在 Claude Code 裡執行：對話接近脈絡上限時會自動壓縮，你可以接著做，不需要為了省 token 提早收尾或省略該做的步驟。
+`;
+}
+
+/**
+ * 無人值守收尾規則——改寫自 Anthropic「Prompting Claude Opus 5.5」的 Unattended agentic runs 範例。
+ * Opus 5.5 在長任務中會主動回報進度，有些回報以文字結束回合；沒有人即時回覆的 session 會因此停在半途
+ * （例如「資料齊了，接下來寫報告」就結束）。官方建議在 system prompt 最後點名這幾種不要的收尾，
+ * 並保留「沒有使用者就無法往下」與「有風險/不可逆動作仍須確認」這兩種該停的情況。
+ */
+export const UNATTENDED_TURN_POLICY = `
+
+# 收尾方式（使用者的長期指示）
+這段工作沒有人即時在線上回覆你。你的訊息只要不含工具呼叫，這個回合就結束，工作也就停在那裡，直到有人叫你繼續。使用者看過你在他要的工作還沒做完時用這四種方式收尾，他都不要：
+一、寫一大段已完成事項的總結，最後宣布下一步要做什麼，卻沒有工具呼叫，於是下一步從沒開始。
+二、提議「如果你希望，我可以繼續……」，然後停下來等一個使用者不會給的回答。
+三、列出一串要使用者決定的事，但照你自己的判斷，沒有一項會卡住其餘的工作。
+四、覺得回合已經很長、或某個里程碑完成了，就認為這是回報的好時機而停下來。
+進度說明歡迎，對未決事項的建議也歡迎，但請把它們和下一個工具呼叫放在同一則訊息裡，並繼續做所有不需要等使用者回答的部分。發現自己在邀請使用者改方向、或提議先等等時，刪掉那段，直接做下一件事。
+使用者要的停下來只有兩種：沒有他就完全無法往下做，或擋住你的東西是刻意不讓你碰的。工作全部完成時，照任務要求的格式交出最終結果。這不影響有風險或不可逆的動作仍須確認的規則。
+`;
+
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes — evict closed/error sessions from memory
 /** 閒置 Claude 子程序 TTL：超過後殺掉子程序，但保留 DB 紀錄與 claudeSessionId，
  *  下次 send() 可透過 --resume 無感恢復。可用 IDLE_SESSION_TTL_MS env 覆蓋（ms）。 */
@@ -169,9 +245,17 @@ export function recordToolActivity(
   return null;
 }
 
-function getBusyWatchdogMs(): number {
-  const raw = Number(process.env.AUTONOMY_BUSY_WATCHDOG_MS);
-  return Number.isFinite(raw) && raw > 0 ? raw : 45 * 60 * 1000;
+/**
+ * 背景 session 的 busy 看門狗門檻（舊版：busy 超過 45 分鐘一律殺，不管它是不是還在做事）。
+ * 改成看活動：busy 且連續 AUTONOMY_BUSY_IDLE_MS（預設 25 分鐘）沒有任何事件才判定卡住；
+ * AUTONOMY_BUSY_WATCHDOG_MS（預設 150 分鐘）是絕對上限。兩者都刻意大於派工層的逾時
+ *（外包 idle 15／上限 120 分鐘），讓派工層先處理（回報 PM＋中止），看門狗只當最後保險。
+ */
+export function getBusyWatchdogLimits(env: Record<string, string | undefined> = process.env): { idleMs: number; hardMs: number } {
+  return {
+    idleMs: positiveMsFromEnv(env.AUTONOMY_BUSY_IDLE_MS, 25 * 60 * 1000),
+    hardMs: positiveMsFromEnv(env.AUTONOMY_BUSY_WATCHDOG_MS, 150 * 60 * 1000),
+  };
 }
 
 export class AgentManager {
@@ -183,6 +267,12 @@ export class AgentManager {
   private injectedNotesBySession = new Map<string, Set<string>>();
   // F4: track when background sessions started being busy (for watchdog)
   private busySince = new Map<string, number>();
+  /** 每個 session 最後一次發出任何事件的時間——busy 看門狗據此分辨「還在做事」與「卡住」。 */
+  private lastEventAt = new Map<string, number>();
+  /** reattach 時重新產生額外 prompt 的函式（agentId → builder），見 registerSeedBuilder。 */
+  private seedBuilders = new Map<string, (workspaceId: string) => string>();
+  /** 模型 → { 回報過的 session 數, 最後時間 }（modelsSeen 用）。 */
+  private modelStats = new Map<string, { sessions: number; lastSeenAt: number }>();
   private io?: any;
 
   /**
@@ -212,6 +302,7 @@ export class AgentManager {
           this.sessions.delete(id);
           this.sessionClosedAt.delete(id);
           this.injectedNotesBySession.delete(id);
+          this.lastEventAt.delete(id);
           console.log(`[agentManager] evicted closed session ${id.slice(0, 8)} from memory`);
         }
       } else if (session.status === "idle" && session.provider === "claude") {
@@ -225,13 +316,19 @@ export class AgentManager {
         }
       }
     }
-    // F4: Busy watchdog — kill background sessions stuck busy > threshold
-    const watchdogMs = getBusyWatchdogMs();
+    // F4: Busy watchdog — kill background sessions that are stuck (busy with no activity) or busy past the hard cap
+    const { idleMs: busyIdleMs, hardMs: busyHardMs } = getBusyWatchdogLimits();
     for (const [id, session] of this.sessions) {
       if (session.status === "busy" && (session as any)._isBackground) {
         const bs = this.busySince.get(id);
-        if (bs && now - bs > watchdogMs) {
-          console.warn(`[agentManager] busy watchdog: killing background session ${id.slice(0, 8)} (busy ${Math.round((now - bs) / 60000)}min)`);
+        if (!bs) continue;
+        const quietMs = now - Math.max(this.lastEventAt.get(id) ?? 0, bs);
+        const busyMs = now - bs;
+        if (quietMs > busyIdleMs || busyMs > busyHardMs) {
+          const why = quietMs > busyIdleMs
+            ? `連續 ${Math.round(quietMs / 60000)} 分鐘沒有任何活動`
+            : `busy ${Math.round(busyMs / 60000)} 分鐘，超過上限`;
+          console.warn(`[agentManager] busy watchdog: killing background session ${id.slice(0, 8)}（${why}）`);
           this.busySince.delete(id);
           unmarkShadow(id); // watchdog 殺掉逾時仍 busy 的 shadow 子程序 → 一併解除標記，否則永不回收=只增不減
           session.stop();
@@ -307,8 +404,66 @@ export class AgentManager {
     enableAutoFork: boolean = true,
     provider: Provider = "claude",
     projectId?: string,
+    opts: StartOpts = {},
   ): AgentSession {
     const wsId = workspaceId || DEFAULT_WORKSPACE_ID;
+    const unattended = !!opts.unattended;
+    const combined = this.composeSystemPrompt({
+      agentId, wsId, extra: extraSystemPrompt || "", enableAutoFork, provider, projectId, unattended,
+    });
+
+    const ws = getWorkspace(wsId);
+    const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort) : null;
+    if (mcpConfig) {
+      const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
+      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=${names.join(",")}`);
+      recordMcp(true, names);
+    } else {
+      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=(none)`);
+      recordMcp(false, []);
+    }
+    // 沙箱：把 agent 的 cwd 指向工作區目錄（不存在則建立）。
+    const cwd = resolveCwd(ws);
+    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider, cwd);
+    this.applyModelSettings(session, agentId, provider);
+    // Stash workspace id on session so attachPersistence can append memory
+    (session as any).workspaceId = wsId;
+    const now = Date.now();
+    upsertSession({
+      id: session.id,
+      workspaceId: wsId,
+      agentId,
+      title: title || `${agentId} 對話`,
+      provider,
+      projectId,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    });
+    // 存 system prompt 配方，reattach 時才能重建（見 store/sessionPrompts.ts）。
+    try {
+      saveSessionPrompt(session.id, { extra: extraSystemPrompt || "", flags: { autoFork: enableAutoFork, unattended } });
+    } catch (e: any) {
+      console.warn(`[agentManager] saveSessionPrompt 失敗 ${session.id.slice(0, 8)}:`, e?.message || e);
+    }
+    this.sessions.set(session.id, session);
+    // F4: mark background sessions for busy watchdog
+    if (!enableAutoFork) {
+      (session as any)._isBackground = true;
+    }
+    this.attachPersistence(session);
+    return session;
+  }
+
+  /**
+   * 組出 session 的完整附加 system prompt（工作區記憶、同事記憶、手藝/類能力、專案記憶、專屬瀏覽器、
+   * FORK、LEARN、工作環境、無人值守收尾規則）。start 與 reattach 共用——reattach 會帶入最新記憶。
+   */
+  private composeSystemPrompt(p: {
+    agentId: string; wsId: string; extra: string; enableAutoFork: boolean;
+    provider: Provider; projectId?: string; unattended: boolean;
+  }): string {
+    const { agentId, wsId, extra, enableAutoFork, provider, projectId, unattended } = p;
 
     // Inject workspace memory if any. This lets agents accumulate knowledge
     // across sessions in the same workspace.
@@ -363,39 +518,21 @@ export class AgentManager {
     // v2：手藝記憶與類能力記憶現在是 workspace-aware。
     // - global / legacy-global 條目：跨工作區可見（legacy 是遷移前的全域記憶，待使用者重審）
     // - workspace 條目：只對該工作區的 agent 可見
-    // 注意:craftBlock 與下方的 memoryBlock/agentMemoryBlock 都只在 start()
-    // (新開對話)注入。reattach() 喚醒既有對話時不會重建 system prompt,
-    // 因此批准後的學習成果只對「之後新開的對話」生效,進行中的舊對話需新開才看得到。
+    // start() 與 reattach() 都會重建這些區塊；Claude Code 會沿用對話第一個請求記錄下來的
+    // system prompt，新內容在對話被壓縮後（或新對話）生效。
     const craftBlock = buildCapabilityBlockFor(
       getCategoryMemoryFor(categoryFor(agentId), wsId),
       getCraftMemoryFor(agentId, wsId),
     );
 
-    const learningCapability = `
+    let combined = extra + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + projectMemoryBlock
+      + chromeBrowserBlock + (enableAutoFork ? FORK_CAPABILITY : "") + LEARNING_CAPABILITY;
 
-# 學習能力（輸出學習標記）
-
-如果在對話中你發現了**跨對話有長期價值**的東西，可在回答**最末尾**輸出學習標記，系統會收進「學習審核佇列」等使用者批准：
-
-\`\`\`
-=== LEARN kind=<下方四選一> ===
-一行描述（< 200 字）
-=== END LEARN ===
-\`\`\`
-
-kind 四選一（直接影響該條會落到哪個範圍）：
-- \`fact\` — 關於使用者的事實（他是誰、專案背景、品牌規則）→ **限本工作區**
-- \`craft\` — 你的工作手藝改進（下次該怎麼做更好）→ **預設限本工作區**（會綁定當下對話的工作區）
-- \`domain\` — 你專業領域的**通用**新知識／演算法／趨勢（與任何客戶/專案無關）→ **跨工作區共享**
-- \`calibration\` — 使用者對你的回饋（讚 / 改 / 否定）轉成的行為準則 → **限本工作區**
-
-**重要**：含**具體客戶名、品牌名、專案名、產品名**的條目絕對不可標 \`domain\`（會跨工作區汙染其他客戶的對話）。
-這類條目請用 \`fact\` 或 \`craft\`，系統會自動鎖到當下工作區。
-
-規則：每次回答最多 3 條；只記跨對話有用的；不記當下瑣事。
-`;
-
-    let combined = (extraSystemPrompt || "") + skillPrimingBlock + craftBlock + memoryBlock + agentMemoryBlock + projectMemoryBlock + chromeBrowserBlock + (enableAutoFork ? FORK_CAPABILITY : "") + learningCapability;
+    if (provider === "claude") {
+      combined += workingEnvironmentBlock(new Date());
+      // 無人值守收尾規則依官方建議放在 system prompt 最後，且只給沒有人即時回覆的背景 session。
+      if (unattended) combined += UNATTENDED_TURN_POLICY;
+    }
 
     // Codex doesn't have native --agent loading like Claude does. Inject
     // the agent's persona definition into the system prompt manually.
@@ -405,41 +542,22 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         combined = `# 你的角色:${def.name}\n\n${def.body}\n\n${combined}`;
       }
     }
+    return combined;
+  }
 
-    const ws = getWorkspace(wsId);
-    const mcpConfig = provider === "claude" ? buildMCPConfigForWorkspace(ws?.enabledMcps || [], ws?.chromeCdpPort) : null;
-    if (mcpConfig) {
-      const names = Object.keys(JSON.parse(mcpConfig).mcpServers || {});
-      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=${names.join(",")}`);
-      recordMcp(true, names);
-    } else {
-      console.log(`[agentManager] start session=${agentId} provider=${provider} mcp=(none)`);
-      recordMcp(false, []);
-    }
-    // 沙箱：把 agent 的 cwd 指向工作區目錄（不存在則建立）。
-    const cwd = resolveCwd(ws);
-    const session = new AgentSession(agentId, undefined, combined || undefined, mcpConfig || undefined, provider, cwd);
-    // Stash workspace id on session so attachPersistence can append memory
-    (session as any).workspaceId = wsId;
-    const now = Date.now();
-    upsertSession({
-      id: session.id,
-      workspaceId: wsId,
-      agentId,
-      title: title || `${agentId} 對話`,
-      provider,
-      projectId,
-      createdAt: now,
-      updatedAt: now,
-      messages: [],
-    });
-    this.sessions.set(session.id, session);
-    // F4: mark background sessions for busy watchdog
-    if (!enableAutoFork) {
-      (session as any)._isBackground = true;
-    }
-    this.attachPersistence(session);
-    return session;
+  /** 互動模型與 effort：專案經理預設 high、其他用模型預設；DASHBOARD_MODEL_PM/AGENT 可指定模型。 */
+  private applyModelSettings(session: AgentSession, agentId: string, provider: Provider): void {
+    if (provider !== "claude") return;
+    session.effort = effortForAgent(agentId);
+    session.modelOverride = interactiveModelFor(agentId);
+  }
+
+  /**
+   * 註冊「某 agent 的額外 prompt 要在 reattach 時重新產生」的函式（例如專案經理的派工手冊＋
+   * 團隊名單＋目標帳本，重新產生才拿得到最新的同事與目標）。由 routes/sessions 註冊，避免循環依賴。
+   */
+  registerSeedBuilder(agentId: string, build: (workspaceId: string) => string): void {
+    this.seedBuilders.set(agentId, build);
   }
 
   reattach(sessionId: string): AgentSession | undefined {
@@ -456,15 +574,52 @@ kind 四選一（直接影響該條會落到哪個範圍）：
       console.log(`[agentManager] reattach session=${rec.agentId} provider=${rec.provider} mcp=${names.join(",")}`);
       recordMcp(true, names);
     }
+    // 重建 system prompt：舊版這裡傳 undefined，喚醒的 process 不帶任何 dashboard 指示，
+    // 對話一壓縮，記憶/學習/派工手冊全部消失。沒有配方的舊 session 退回只帶基本區塊（仍比空的好）。
+    let combined: string | undefined;
+    try {
+      const recipe = getSessionPrompt(rec.id);
+      const builder = this.seedBuilders.get(rec.agentId);
+      let extra = recipe?.extra ?? "";
+      if (builder) {
+        try { extra = builder(rec.workspaceId); } catch (e: any) {
+          console.warn(`[agentManager] seed builder 失敗 ${rec.agentId}:`, e?.message || e);
+        }
+      }
+      combined = this.composeSystemPrompt({
+        agentId: rec.agentId,
+        wsId: rec.workspaceId,
+        extra,
+        enableAutoFork: recipe?.flags.autoFork ?? false,
+        provider: rec.provider,
+        projectId: rec.projectId,
+        unattended: !!recipe?.flags.unattended,
+      }) || undefined;
+    } catch (e: any) {
+      console.warn(`[agentManager] reattach 重建 system prompt 失敗 ${rec.id.slice(0, 8)}:`, e?.message || e);
+    }
     // 沙箱：resume 既有對話時同樣把 cwd 指回工作區目錄。
     const cwd = resolveCwd(ws);
-    const session = new AgentSession(rec.agentId, rec.id, undefined, mcpConfig || undefined, rec.provider, cwd);
+    const session = new AgentSession(rec.agentId, rec.id, combined, mcpConfig || undefined, rec.provider, cwd);
+    this.applyModelSettings(session, rec.agentId, rec.provider);
     if (rec.claudeSessionId) (session as any).claudeSessionId = rec.claudeSessionId;
     if (rec.codexThreadId) (session as any).codexThreadId = rec.codexThreadId;
     (session as any).workspaceId = rec.workspaceId;
     this.sessions.set(session.id, session);
     this.attachPersistence(session);
     return session;
+  }
+
+  /** CLI 回報的實際模型（未知回 undefined）。 */
+  liveModel(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.model;
+  }
+
+  /** 這次 server 啟動以來，各模型被回報的次數與最後時間——一眼看出同事們實際跑在哪個模型。 */
+  modelsSeen(): { model: string; sessions: number; lastSeenAt: number }[] {
+    return [...this.modelStats.entries()]
+      .map(([model, v]) => ({ model, sessions: v.sessions, lastSeenAt: v.lastSeenAt }))
+      .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
   }
 
   get(sessionId: string): AgentSession | undefined {
@@ -556,6 +711,7 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     this.sessions.delete(sessionId);
     this.sessionClosedAt.delete(sessionId);
     this.injectedNotesBySession.delete(sessionId);
+    this.lastEventAt.delete(sessionId);
   }
 
   remove(sessionId: string) {
@@ -567,6 +723,14 @@ kind 四選一（直接影響該條會落到哪個範圍）：
     let buffer = "";
     let assistantPersisted = false;
     s.on("event", (evt) => {
+      this.lastEventAt.set(s.id, Date.now()); // busy 看門狗：任何事件都代表「還在動」
+      if (evt.type === "model" && typeof evt.payload === "string") {
+        const st = this.modelStats.get(evt.payload) ?? { sessions: 0, lastSeenAt: 0 };
+        st.sessions++;
+        st.lastSeenAt = Date.now();
+        this.modelStats.set(evt.payload, st);
+        console.log(`[agentManager] session ${s.id.slice(0, 8)} (${s.agentId}) model=${evt.payload}${s.effort ? ` effort=${s.effort}` : ""}`);
+      }
       // Track when session reaches a terminal state for idle eviction.
       if (evt.type === "status" && (evt.payload === "closed" || evt.payload === "error")) {
         if (!this.sessionClosedAt.has(s.id)) {
@@ -665,6 +829,8 @@ kind 四選一（直接影響該條會落到哪個範圍）：
         }
         buffer = "";
         assistantPersisted = false;
+        // 登入健康度判讀：明確的登入錯誤 → 全站橫幅 + Telegram；成功 → 恢復（見 claudeHealth.ts）。
+        try { noteClaudeResult(evt.payload); } catch {}
         usageTracker.recordTurn(evt.payload);
         // background auto-titler: kicks in once after first turn
         setTimeout(() => maybeAutoTitle(s.id), 500);

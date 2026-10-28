@@ -9,13 +9,66 @@
 > 還沒發布的修改寫在這。下次 `npm run release` 時會自動搬到新版號區塊下。
 
 ### 新增
--
+- **🔑 Claude 登入健康監測** — 所有 claude 呼叫（互動 session、一次性呼叫、能力學習、排程）
+  的結果集中由 `claudeHealth.ts` 判讀；登入失效時頂部紅色橫幅附修復步驟（`/login` 或
+  `claude setup-token` → `.env.local` 的 `CLAUDE_CODE_OAUTH_TOKEN`）、推一次 Telegram，
+  恢復時再推一次。開機 15 秒後與閒置時每 6 小時主動探測；`GET /api/system/claude-health`、
+  `POST /api/system/claude-health/probe`。（起因：登入過期約 7 週，各子系統把失敗記成
+  parse_failed / done / 0 token 成功回合，沒有一處說出是登入掉了。）
+- **🧠 `models.ts` 模型分級** — fast / balanced / deep 三層，一律用家族別名
+  （haiku / sonnet / opus），CLI 升級自動跟上最新版；`DASHBOARD_MODEL_*` 可覆蓋。
+  Fable 刻意不當任何預設（-p 模式走 usage credits 會不經詢問直接扣）。
+- **🎚️ effort 設定** — 研究綜整、能力學習、專案經理預設 `--effort high`
+  （5.5 家族 CLI 預設只有 medium）；`DASHBOARD_EFFORT_DEEP / PM / AGENT` 可調。
+- **`activityDeadline.ts`** — 「看活動」的逾時：還在吐字/用工具就不逾時，連續沒動靜才判定卡住，
+  另有絕對上限。
+- **無人值守收尾規則** — 派工子代理、排程、workflow 步驟、每日簡報的 system prompt 最後加上
+  改寫自 Anthropic「Prompting Claude Opus 5.5」的 unattended 範例：不要以「宣布下一步的總結」
+  「提議要不要繼續」等方式在工作沒做完時收尾（Opus 5.5 會在長任務中以文字回報進度而結束回合）。
+  自主迴圈驅動的 PM 不加（它每回合都要用 ACTION 收尾）。
+- **外包自動續跑** — 回合結束但回報沒有【完成自驗】→ 視為進度回報，在同一個子 session 送續跑訊息，
+  最多 2 次（官方建議的做法）；仍未附自驗則交付並標註「請視為未驗證」。續跑期間保留背景槽與子程序。
+- **實際模型可見** — 從 CLI 的 system/init、message_start、assistant 訊息取得「實際在跑」的模型，
+  對話視窗右上角顯示（例如 `Opus 5.5 · high`）；`/api/system/claude-health` 附 `modelsSeen`；
+  server log 印每個 session 的模型與 effort。`DASHBOARD_MODEL_PM / AGENT` 可指定互動模型。
+- **思考期間的 heartbeat** — adaptive thinking 想事情時 CLI 只送 thinking_delta，沒有任何文字；
+  現在節流發 heartbeat，「看活動」的逾時與看門狗不會把長思考誤判成卡住。
+- **工作環境說明** — `--agent` 會讓人設取代整個 Claude Code 預設 system prompt（包括自動壓縮、
+  不必提早收尾的說明）；所有 Claude session 補上這段與對話開始日期。
 
 ### 修改
--
+- **背景任務不再寫死舊模型版本** — 自動命名、記憶蒸餾、研究三階段、能力學習、看守評估、
+  對話摘要/批次整合、智慧分流、skill map 腳本原本釘在 claude-haiku-4-5 / claude-sonnet-4-6 /
+  claude-opus-4-7，改走 models.ts。
+- **外包執行改看活動** — 舊版固定 30 分鐘硬砍（實測 8 筆有 3 筆在收尾時被砍）；現在連續
+  15 分鐘沒動靜才中止，絕對上限 120 分鐘。中止時回報完整過程並停止子代理；還在排背景槽時
+  不算卡住、被放棄的不會事後才開工。busy 看門狗同步改成看活動（25 分鐘無事件 / 150 分鐘上限）。
+- **自主模式等待上限** — consult 5→8 分鐘；execute 改看活動（15 分鐘沒動靜 / 45 分鐘上限）；
+  PM 回合 6 分鐘固定 → 10 分鐘沒動靜 / 30 分鐘上限；run 預設牆鐘 30→60 分鐘（聊天內一鍵自走 15→60）。
+- **workflow 步驟 / 排程 / 每日簡報 / consult 遲到補報** 逾時改看活動（workflow 有設 timeoutMs 的步驟維持固定牆鐘）。
+- **截斷改保頭尾、額度依 1M context 放寬** — 對話摘要只留開頭 3 萬字 → 保頭尾 15 萬字；記憶蒸餾
+  改保留最新部分；consult 回饋 10K/3K → 每位公平分配 30K/8K 且保頭尾；EXEC_REPORT 6K → 16K
+  （自驗段 2K → 4K）；批次整合改各版本平分；自主迴圈派工結果 4K → 公平分配 24K；筆記注入
+  1.5K/4K → 4K/12K；進修 prompt 脈絡 1800/1800/1200 → 3000/3000/2000。
 
 ### 修復
--
+- **喚醒舊對話後 dashboard 指示消失** — reattach（server 重啟、閒置回收後喚醒）原本不帶
+  `--append-system-prompt-file`：Claude Code 沿用記錄的 prompt 直到對話被壓縮，壓縮後工作區記憶、
+  同事記憶、學習成果、專案經理的派工手冊就全部消失。新增 `session_prompts` 存配方，reattach 依此重建
+  （專案經理的團隊名單與目標帳本重新產生）。
+- **學習條目被無聲丟掉** — 對話內 LEARN 上限 200 字（實測 161 條有 15 條被丟，最長 374 字）→ 600；
+  能力學習 500 → 800、自主進修 600 → 1000（實測平均 523、最長 584 貼著上限），prompt 的字數建議同步放寬。
+- **同事記憶 / 工作區記憶上限** — 蒸餾目標 1500 → 3000 字（實測已頂到 1700+）、存檔 4K → 8K；
+  工作區記憶 10K → 30K，超過時誠實標示「較早的記憶已移除」（原本寫「已壓縮」其實是直接刪掉）。
+- **專案經理的團隊名單** — 描述 60 → 100 字，並告訴它需要時可讀同事的完整人設檔；驗收標準上限 3 → 6 條
+  （第 4 條起原本無聲消失）。
+- **能力學習全部失敗仍記「完成」** — 全部 target 失敗改記 error；失敗原因帶 CLI 真正錯誤原文
+  （舊版只有「claude exit 1」）；改走 runClaudeOneShot（env 淨化、健康度判讀），補上逾時。
+- **能力學習面板跑完一直顯示「執行中」** — 最終狀態從沒推給前端，現在結束時會推一次。
+- **每日簡報把登入錯誤記成「解析失敗」** — 改記 error 並標明登入失效。
+- **外包「結果」其實是額度用盡通知卻記成完成** — 額度通知 / is_error 結果改記失敗；
+  consult 同理；遲到補報收到額度通知時改告訴 PM「這部分沒取得結論」。
+- **smartRouter 子程序** 補上 env 淨化（與其他子程序一致，不繼承 ACCESS_TOKEN）。
 
 ---
 

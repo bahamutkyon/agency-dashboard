@@ -6,6 +6,7 @@ import { CapabilitiesBadge } from "./components/CapabilitiesBadge";
 import { RemoteAccessBadge } from "./components/RemoteAccessBadge";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { CommandPalette } from "./components/CommandPalette";
+import { ClaudeHealthBanner } from "./components/ClaudeHealthBanner";
 import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
@@ -523,6 +524,8 @@ ${message}
           </button>
         </div>
       )}
+      {/* Claude CLI 登入失效 banner（server claudeHealth 集中判讀） */}
+      <ClaudeHealthBanner />
       {/* Agent list load error banner */}
       {agentsLoadError && agents.length === 0 && (
         <div className="flex items-center justify-between px-4 py-2 bg-amber-900/80 border-b border-amber-700 text-amber-100 text-sm z-50 flex-shrink-0">

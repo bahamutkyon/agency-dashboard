@@ -10,7 +10,8 @@ export interface AgentMeta {
   category: string;
 }
 
-const AGENTS_DIR = path.join(os.homedir(), ".claude", "agents");
+/** Claude Code 讀 `--agent <id>` 定義檔的位置（同事的完整人設）。 */
+export const AGENTS_DIR = path.join(os.homedir(), ".claude", "agents");
 
 // Default repo location (relative to dashboard project root). User can override
 // with AGENT_REPO_PATH env var.
