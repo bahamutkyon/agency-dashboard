@@ -29,7 +29,9 @@ export interface SessionSummary extends Omit<SessionRecord, "messages"> {
   lastSnippet: string | null;
   lastRole: Message["role"] | null;
   /** 對話狀態（manual 標記或閒置回收時自動摘要）；見 store/sessionState.ts */
-  state: "open" | "waiting_user" | "done" | null;
+  state: "open" | "waiting_user" | "done" | "parked" | null;
+  /** 最後一則專案經理回覆裡的 A/B/C 選項（沒有則 null） */
+  lastOptions: { key: string; label: string }[] | null;
   /** 一句話「停在哪、下一步等誰」（自動摘要） */
   stoppedAt: string | null;
   /** 開新話題時帶入重點的上一場 session id */

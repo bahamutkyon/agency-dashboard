@@ -1,6 +1,7 @@
 import { db, DEFAULT_WORKSPACE_ID } from "../db.js";
 import { parseTags } from "./helpers.js";
 import type { Message, Provider, SessionRecord, SessionSummary } from "./types.js";
+import { parseChoiceOptions } from "../choiceOptions.js";
 
 function rowToSession(r: any, messages: Message[]): SessionRecord {
   return {
@@ -66,6 +67,8 @@ export function listSessionsWithCounts(workspaceId?: string): SessionSummary[] {
       messageCount: Number(r.message_count) || 0,
       // 列表只需預覽：截 200 字（舊版回整則，歷史 API 一次 100KB+）
       lastSnippet: r.last_content != null ? String(r.last_content).slice(0, 200) : null,
+      // 最後一則是專案經理的 A/B/C 選項 → 前端變成一鍵回覆按鈕（用截斷前的全文解析）
+      lastOptions: r.last_role === "assistant" && r.last_content ? parseChoiceOptions(String(r.last_content)) : null,
       lastRole: (r.last_role as Message["role"]) || null,
       state: r.state ?? null,
       stoppedAt: r.stopped_at ?? null,

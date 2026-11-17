@@ -11,6 +11,7 @@ export function sessionBadge(s: Partial<Pick<SessionRecord, "status" | "state" |
   if ((s.runningDelegations ?? 0) > 0) return { icon: "🟡", label: "同事執行中", className: "bg-amber-500/15 text-amber-300" };
   if ((s.pendingCount ?? 0) > 0) return { icon: "🔴", label: `等你批准 ${s.pendingCount} 件`, className: "bg-rose-500/15 text-rose-300" };
   if (s.state === "done") return { icon: "⚪", label: "已結束", className: "bg-zinc-700/40 text-zinc-400" };
+  if (s.state === "parked") return { icon: "💤", label: "擱置中", className: "bg-zinc-700/40 text-zinc-400" };
   if (s.state === "waiting_user") return { icon: "🟠", label: "等你回覆", className: "bg-orange-500/15 text-orange-300" };
   return null;
 }

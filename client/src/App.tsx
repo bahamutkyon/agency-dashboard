@@ -79,6 +79,9 @@ const OutcomesPanel = lazy(() =>
 const WatchtowerPanel = lazy(() =>
   import("./components/WatchtowerPanel").then((m) => ({ default: m.WatchtowerPanel }))
 );
+const TidyPanel = lazy(() =>
+  import("./components/TidyPanel").then((m) => ({ default: m.TidyPanel }))
+);
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LazyFallback = <div className="p-6 text-zinc-500">載入中…</div>;
@@ -103,6 +106,7 @@ type View =
   | { kind: "goals" }
   | { kind: "outcomes" }
   | { kind: "watchtower" }
+  | { kind: "tidy" }
   | { kind: "meeting-room"; agentId: string };
 
 interface Tab {
@@ -342,6 +346,7 @@ export default function App() {
   const openGoals = useCallback(() => setView({ kind: "goals" }), []);
   const openOutcomes = useCallback(() => setView({ kind: "outcomes" }), []);
   const openWatchtower = useCallback(() => setView({ kind: "watchtower" }), []);
+  const openTidy = useCallback(() => setView({ kind: "tidy" }), []);
 
   const openOnboarding = useCallback((sessionId: string, draftWorkspaceId?: string) => {
     setTabs((prev) => [...prev, {
@@ -410,11 +415,21 @@ ${message}
     : undefined, [latestPm]);
 
   // 標記完成／重新開啟：從「繼續」與「接續上次」移除，歷史裡仍在、可重新開啟
-  const setPmState = useCallback(async (sessionId: string, state: "done" | null) => {
+  const setPmState = useCallback(async (sessionId: string, state: "done" | "parked" | null) => {
     try {
       await api.setSessionState(sessionId, state);
       setWsSessions((prev) => prev.map((x) => (x.id === sessionId ? { ...x, state } : x)));
     } catch { alert("更新狀態失敗，請稍後再試"); }
+  }, []);
+
+  // 本工作區未結束（沒完成、沒擱置）的專案經理對話數：「接續上次」的「整理」入口用
+  const openPmCount = useMemo(() => pickResumable(wsSessions, Number.MAX_SAFE_INTEGER).length, [wsSessions]);
+
+  // 在「接續上次」卡片上直接回覆：送進那場對話（伺服器會喚醒），畫面上先把舊狀態清掉
+  const replyToSession = useCallback((x: SessionRecord, text: string) => {
+    getSocket().emit("session:send", { sessionId: x.id, text });
+    setWsSessions((prev) => prev.map((s) => (s.id === x.id
+      ? { ...s, state: null, stoppedAt: null, lastRole: "user", lastSnippet: text, lastOptions: null, updatedAt: Date.now() } : s)));
   }, []);
 
   // 對話標頭改名
@@ -570,7 +585,7 @@ ${message}
     if (window.innerWidth < 768) toggleSidebar();
   }, [openWatchtower, toggleSidebar]);
 
-  const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => {
+  const onOpenView = useCallback((v: "history" | "templates" | "schedules" | "notes" | "batch" | "settings" | "tidy") => {
     setView({ kind: v });
   }, []);
 
@@ -748,7 +763,11 @@ ${message}
             <Suspense fallback={LazyFallback}>
               <CockpitPanel key={`ck-${reloadKey}`} onDiscuss={onCockpitDiscuss}
                 resumable={resumable} onResume={(x) => openHistorySession(x.id, x.agentId, x.title)} onNewTopic={askOrchestrator}
-                onMarkDone={(x) => setPmState(x.id, "done")} />
+                onMarkDone={(x) => setPmState(x.id, "done")}
+                onPark={(x) => setPmState(x.id, "parked")}
+                onReply={replyToSession}
+                openCount={openPmCount}
+                onOpenTidy={openTidy} />
             </Suspense>
           )}
           {isView("schedules") && (
@@ -849,6 +868,13 @@ ${message}
           {isView("outcomes") && (
             <Suspense fallback={LazyFallback}>
               <OutcomesPanel key={`outcomes-${reloadKey}`} />
+            </Suspense>
+          )}
+          {isView("tidy") && (
+            <Suspense fallback={LazyFallback}>
+              <TidyPanel key={`td-${reloadKey}`}
+                onOpen={(x) => openHistorySession(x.id, x.agentId, x.title)}
+                onOpenLearning={openLearning} />
             </Suspense>
           )}
           {isView("watchtower") && (

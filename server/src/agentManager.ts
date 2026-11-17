@@ -20,6 +20,7 @@ import { positiveMsFromEnv } from "./activityDeadline.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { maybeDigestOnReclaim } from "./sessionDigest.js";
+import { clearStateOnUserActivity } from "./store/sessionState.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
@@ -703,6 +704,7 @@ export class AgentManager {
     // Persist the original (clean) user message — don't bloat history with
     // auto-injected note context.
     appendMessage(sessionId, { role: "user", content: text, ts: Date.now() });
+    clearStateOnUserActivity(sessionId); // 回話了：「等你回覆／擱置」等舊狀態失效
     return { ok: true, injectedNotes, turnId };
   }
 

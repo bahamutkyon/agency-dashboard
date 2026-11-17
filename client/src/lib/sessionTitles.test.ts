@@ -35,4 +35,7 @@ describe("sessionTitles", () => {
     ];
     expect(pickResumable(list, 3).map((x) => x.id)).toEqual(["new", "old"]);
   });
+  it("擱置中的不列入可繼續", () => {
+    expect(pickResumable([s({ id: "p", state: "parked" })], 3)).toEqual([]);
+  });
 });

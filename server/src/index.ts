@@ -38,7 +38,7 @@ import { cockpitRouter } from "./routes/cockpit.js";
 import { researchRouter } from "./routes/research.js";
 import { guardRouter } from "./routes/guard.js";
 import { pauseRunningRunsOnBoot, autoResumeOnBoot } from "./autonomyRunner.js";
-import { listActiveRuns } from "./store/autonomy.js";
+import { listActiveRuns, expireStalePendingActions } from "./store/autonomy.js";
 import { makeDeps as makeAutonomyDeps } from "./routes/autonomy.js";
 import { logActivity, pruneActivity } from "./store/activity.js";
 import { reconcileDelegationsOnBoot } from "./store/delegations.js";
@@ -356,6 +356,10 @@ if (!process.env.VITEST) server.listen(PORT, REMOTE_CFG.bindHost, () => {
     const r = getRun(runId);
     if (r) io.emit("workflow:update", r);
   });
+  // 超過 14 天沒批准的動作自動過期（不執行），免得那場對話一直掛著「等你批准」
+  const expireStale = () => { try { const n = expireStalePendingActions(14); if (n) console.log(`[autonomy] ${n} 筆超過 14 天未批准的動作已過期`); } catch (e: any) { console.warn("[autonomy] expire", e?.message); } };
+  expireStale();
+  setInterval(expireStale, 6 * 60 * 60 * 1000).unref();
   pruneActivity();
   setInterval(() => { try { pruneActivity(); } catch (e: any) { console.warn("[activity] prune", e?.message); } }, 60 * 60 * 1000).unref();
   // Claude CLI 登入健康檢查：開機 15 秒後探測一次＋閒置時每 6 小時檢查（CLAUDE_HEALTH_PROBE=off 關閉）。

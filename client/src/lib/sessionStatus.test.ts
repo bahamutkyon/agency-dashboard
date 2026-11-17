@@ -20,4 +20,7 @@ describe("sessionBadge（優先序：執行中 > 等你批准 > 已結束 > 等�
     expect(sessionBadge({ state: "open" })).toBeNull();
     expect(sessionBadge({})).toBeNull();
   });
+  it("擱置中", () => {
+    expect(sessionBadge({ state: "parked" })?.label).toBe("擱置中");
+  });
 });

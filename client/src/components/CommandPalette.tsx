@@ -16,7 +16,7 @@ interface Props {
   onClose: () => void;
   onPickAgent: (a: AgentMeta) => void;
   onPickSession: (sessionId: string, agentId: string, title: string) => void;
-  onOpenView: (view: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => void;
+  onOpenView: (view: "history" | "templates" | "schedules" | "notes" | "batch" | "settings" | "tidy") => void;
   onAskOrchestrator: () => void;
   /** 有上一場專案經理對話時才有 */
   onResumePm?: () => void;
@@ -70,6 +70,7 @@ export function CommandPalette({ agents, open, onClose, onPickAgent, onPickSessi
       { id: "p:templates", group: "panel", label: "📋 Prompt 模板庫", run: () => onOpenView("templates") },
       { id: "p:schedules", group: "panel", label: "⏰ 排程管理", run: () => onOpenView("schedules") },
       { id: "p:history", group: "panel", label: "📚 歷史對話", run: () => onOpenView("history") },
+      { id: "p:tidy", group: "panel", label: "🧹 整理掛單（完成／擱著）", run: () => onOpenView("tidy") },
       { id: "p:settings", group: "panel", label: "⚙️ 設定", run: () => onOpenView("settings") },
     ];
 

@@ -147,8 +147,8 @@ sessionsRouter.patch("/sessions/:id", (req, res) => {
   // state：手動標記完成（"done"）或重新開啟（null）。自動摘要不會覆蓋手動標記。
   if (req.body && "state" in req.body) {
     const st = req.body.state;
-    if (st !== null && st !== "done" && st !== "open" && st !== "waiting_user") {
-      return res.status(400).json({ error: "state 只能是 done / open / waiting_user / null" });
+    if (st !== null && st !== "done" && st !== "open" && st !== "waiting_user" && st !== "parked") {
+      return res.status(400).json({ error: "state 只能是 done / parked / open / waiting_user / null" });
     }
     setManualState(req.params.id, st);
     // 只改狀態就到此為止：不更新 updatedAt（標記完成/重新開啟不是對話活動，不該改變「最近一場」排序）

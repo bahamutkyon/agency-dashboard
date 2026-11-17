@@ -6,7 +6,8 @@
  */
 import { db } from "../db.js";
 
-export type SessionStateValue = "open" | "waiting_user" | "done";
+/** parked＝使用者先擱著（還沒想開始），不佔「接續上次」，可一鍵拉回 */
+export type SessionStateValue = "open" | "waiting_user" | "done" | "parked";
 
 export interface SessionStateRow {
   state: SessionStateValue | null;
@@ -51,4 +52,9 @@ export function setAutoDigest(id: string, stoppedAt: string, state: SessionState
 
 export function setHandoffFrom(id: string, fromId: string | null): void {
   db.prepare("UPDATE sessions SET handoff_from = ? WHERE id = ?").run(fromId, id);
+}
+
+/** 使用者在這場講話了：舊的狀態（等你回覆／擱置／完成）與「停在哪」都過時了，清掉等下次閒置重新整理。 */
+export function clearStateOnUserActivity(id: string): void {
+  db.prepare("UPDATE sessions SET state = NULL, state_source = NULL, state_at = NULL, stopped_at = NULL WHERE id = ? AND (state IS NOT NULL OR stopped_at IS NOT NULL)").run(id);
 }

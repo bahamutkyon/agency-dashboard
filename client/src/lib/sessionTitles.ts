@@ -24,11 +24,11 @@ export function agentLabel(agentId: string, catalogName?: string): string {
   return agentId === ORCHESTRATOR_ID ? PM_TITLE : (catalogName || agentId);
 }
 
-/** 可「繼續」的專案經理對話：互動式、有訊息、沒被標記完成，新到舊。 */
+/** 可「繼續」的專案經理對話：互動式、有訊息、沒被標記完成或擱置，新到舊。 */
 export function pickResumable(sessions: SessionRecord[], limit: number): SessionRecord[] {
   return sessions
     .filter((x) => x.agentId === ORCHESTRATOR_ID && (x.messageCount ?? x.messages?.length ?? 0) > 0
-      && !isAutomatedTitle(x.title) && x.state !== "done")
+      && !isAutomatedTitle(x.title) && x.state !== "done" && x.state !== "parked")
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, limit);
 }
@@ -36,4 +36,9 @@ export function pickResumable(sessions: SessionRecord[], limit: number): Session
 /** 標題給人看：預設標題的專案經理對話顯示「（未命名對話）」。 */
 export function sessionHeading(x: Pick<SessionRecord, "title" | "agentId">): string {
   return x.agentId === ORCHESTRATOR_ID && x.title === PM_TITLE ? "（未命名對話）" : x.title;
+}
+
+/** 本工作區所有互動式專案經理對話（整理畫面用，不限數量、含完成與擱置）。 */
+export function interactivePm(sessions: SessionRecord[]): SessionRecord[] {
+  return sessions.filter((x) => x.agentId === ORCHESTRATOR_ID && (x.messageCount ?? x.messages?.length ?? 0) > 0 && !isAutomatedTitle(x.title));
 }

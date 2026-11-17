@@ -107,7 +107,9 @@ export interface SessionRecord {
   lastSnippet?: string | null;
   lastRole?: "user" | "assistant" | "system" | null;
   /** 對話狀態：手動標記或閒置時自動判斷（見 server store/sessionState.ts） */
-  state?: "open" | "waiting_user" | "done" | null;
+  state?: "open" | "waiting_user" | "done" | "parked" | null;
+  /** 最後一則專案經理回覆裡的 A/B/C 選項（前端變一鍵回覆按鈕） */
+  lastOptions?: { key: string; label: string }[] | null;
   /** 一句話「停在哪、下一步等誰」（閒置時自動整理） */
   stoppedAt?: string | null;
   handoffFrom?: string | null;
@@ -239,8 +241,8 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...(title ? { title } : {}), ...(handoffFrom ? { handoffFrom } : {}) }),
     }).then(j<{ id: string }>),
-  /** 手動標記對話狀態：done＝標記完成，null＝重新開啟 */
-  setSessionState: (id: string, state: "done" | null) =>
+  /** 手動標記對話狀態：done＝完成、parked＝先擱著、null＝重新開啟 */
+  setSessionState: (id: string, state: "done" | "parked" | null) =>
     fetch(`/api/sessions/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state }),

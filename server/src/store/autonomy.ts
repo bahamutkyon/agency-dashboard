@@ -2,7 +2,7 @@ import { db } from "../db.js";
 import type { ActionKind, Risk } from "../actionProtocol.js";
 
 export type RunStatus = "planning" | "awaiting_plan_approval" | "running" | "paused_for_action" | "paused_for_input" | "paused" | "done" | "stopped" | "budget_exhausted" | "error";
-export type PendingStatus = "pending" | "approved" | "rejected" | "executed" | "failed" | "superseded";
+export type PendingStatus = "pending" | "approved" | "rejected" | "executed" | "failed" | "superseded" | "expired";
 
 export interface AutonomyRun {
   id: string; sessionId: string; workspaceId: string; goal: string; status: RunStatus;
@@ -111,4 +111,14 @@ export function extendDeadlineBy(runId: string, ms: number): void {
 
 export function incrementResumeCount(runId: string): void {
   db.prepare("UPDATE autonomy_runs SET resume_count = resume_count + 1, updated_at = ? WHERE id = ?").run(Date.now(), runId);
+}
+
+/**
+ * 超過 days 天沒批准的動作標成 expired（不執行）。舊的待批准會讓那場對話一直掛著「🔴 等你批准」，
+ * 例如 6/11 一筆測試用的 hello.txt 計畫掛了五個月。回傳過期筆數。
+ */
+export function expireStalePendingActions(days = 14, now = Date.now()): number {
+  const r = db.prepare("UPDATE pending_actions SET status = 'expired', decided_at = ? WHERE status = 'pending' AND created_at < ?")
+    .run(now, now - days * 86_400_000);
+  return Number(r.changes) || 0;
 }
