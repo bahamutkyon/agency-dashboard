@@ -52,6 +52,8 @@ const MERGE_TOTAL_MAX = 100_000;
 // auto-titler 會跳過非預設標題，所以這些前綴是 durable 的。
 const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
 
+import { ORCHESTRATOR_TITLE } from "../sessionTitles.js";
+
 export const sessionsRouter = Router();
 
 /** Helper: extract workspace id from request query or header */
@@ -370,7 +372,9 @@ sessionsRouter.post("/orchestrator", (req, res) => {
   const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
   // 使用共用 seeding 函式（與 watchtower 升級路徑同一套 dispatchGuide + catalog + goals）
   const { systemExtra, standing } = buildOrchestratorSeed(wsId);
-  const session = agentManager.start("agents-orchestrator", "👨‍💼 專案經理", standing + systemExtra, wsId, false, "claude", orchProjectId || undefined);
+  // 選填 title：總管簡報「展開討論」帶項目標題，之後同項目可接回同一場而非每天多一場
+  const rawTitle = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 60) : "";
+  const session = agentManager.start("agents-orchestrator", rawTitle || ORCHESTRATOR_TITLE, standing + systemExtra, wsId, false, "claude", orchProjectId || undefined);
   res.json({ id: session.id });
 });
 
@@ -475,19 +479,22 @@ function buildDispatchGuide(): string {
   return `
 你不是傳聲筒，你是**主管**：交辦前問清楚、交辦時下清楚的契約、收貨時逐條驗收，不合格就退回重做。
 
-## 第 0 步：交辦前先釐清（不清楚就不要急著派工）
+## 第 0 步：交辦前先「追問到底」（grill me：一次一題，問到你們想法一致才派工）
 
-先自問這三件事是否清楚：
-1. **目標與驗收**：要達成什麼結果？怎樣算做好、有沒有可檢查的驗收點？
-2. **受眾與範圍**：給誰用、在哪用？要做到哪、不用做哪？
-3. **期限或預算**：急不急？有沒有成本／字數／篇幅上限？
+先自問這幾件事是否清楚：**目標與驗收**（怎樣算做好）、**受眾與範圍**（給誰、做到哪、不做哪）、**期限或預算**、**已經有的素材／限制／先前決定**。任一項模糊，就進入追問：
 
-任一項模糊，先問使用者 1-3 個結構化釐清問題，每題格式：
-- **問題**：<具體、封閉、好回答>
-- **為什麼需要知道**：<答案怎麼影響交辦方向>
-- **我的預設假設**：<若不回，我先假設 ___ 往下走>
+1. **一次只問一題**，問完就停，等使用者回答後再問下一題。不要一口氣丟一串問題。
+2. 每題格式：
+   - **問題 N**：<具體、好回答；能給選項就給 A/B/C>
+   - **我的建議**：<你會怎麼選、為什麼——使用者只回「好」就能往下走>
+   - **影響**：<這題的答案會改變交辦的哪個方向>
+3. 順著決策樹往下問：先問會決定大方向的題目，大方向定了才問細節；使用者的回答若引出新的分歧，就追那個分歧。能從工作區記憶、先前對話或檔案查到的，自己查，不要問使用者。
+4. 問到你能寫出不含糊的交辦契約為止（通常 2–6 題）。接著先給一段 **「✅ 確認清單」**：目標、範圍、交付物、驗收標準、你打算派給誰、各自做什麼。請使用者回「OK」或修正，**確認後才輸出 DISPATCH**。
+5. 使用者說「直接做」「你決定」「先跑再說」，或需求本來就清楚（單一明確任務、驗收點寫明了），就跳過追問，把你的假設寫進確認清單或交辦契約的 context，照常派工。
+6. 使用者主動說「grill me」「拷問我」「先問清楚」時，即使看起來夠清楚，也要用上面的方式追問。
+7. 無人值守（排程、自走執行、背景喚醒）時沒有人會回答：不要追問，把假設寫清楚直接做。
 
-寧可多問一句，不要讓同事做錯方向白跑一趟。
+寧可多問一題，不要讓同事做錯方向白跑一趟；但也不要問你自己查得到、或答案不會改變做法的題目。
 
 ## 第 1 步：選對模式（consult vs execute vs workflow）
 

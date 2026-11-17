@@ -1,20 +1,14 @@
 import { useEffect, useState } from "react";
 import { useVisiblePolling } from "../hooks/useVisiblePolling";
 import { api, type AgentMeta, type SearchHit, type SessionRecord, type TagInfo } from "../lib/api";
+import { fmtRelative } from "../lib/relTime";
+import { agentLabel, isAutomatedTitle, sessionHeading } from "../lib/sessionTitles";
 
 interface Props {
   agents: AgentMeta[];
   onOpen: (sessionId: string, agentId: string, title: string) => void;
 }
 
-function fmtRelative(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return "剛剛";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分鐘前`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小時前`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)} 天前`;
-  return new Date(ts).toLocaleDateString("zh-TW");
-}
 
 function highlight(text: string, q: string) {
   if (!q) return text;
@@ -37,6 +31,8 @@ export function HistoryPanel({ agents, onOpen }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
     (localStorage.getItem("agency:historyView") as ViewMode) || "timeline"
   );
+  // 排程/批次等自動產生的紀錄預設收起來（兩個主要工作區的歷史約 70% 是排程，會把真正的對話淹掉）
+  const [showAutomated, setShowAutomated] = useState(false);
   const [collapsedAgents, setCollapsedAgents] = useState<Set<string>>(new Set());
 
   const setMode = (m: ViewMode) => {
@@ -70,7 +66,7 @@ export function HistoryPanel({ agents, onOpen }: Props) {
     return () => clearTimeout(handle);
   }, [query]);
 
-  const agentName = (id: string) => agents.find((a) => a.id === id)?.name || id;
+  const agentName = (id: string) => agentLabel(id, agents.find((a) => a.id === id)?.name);
 
   const remove = async (e: React.MouseEvent, id: string, title: string) => {
     e.stopPropagation();
@@ -191,7 +187,15 @@ export function HistoryPanel({ agents, onOpen }: Props) {
 
         {/* full list */}
         {hits === null && (() => {
-          const filtered = activeTag ? sessions.filter((s) => (s.tags || []).includes(activeTag)) : sessions;
+          const tagged = activeTag ? sessions.filter((s) => (s.tags || []).includes(activeTag)) : sessions;
+          const automatedCount = tagged.filter((s) => isAutomatedTitle(s.title)).length;
+          const filtered = showAutomated ? tagged : tagged.filter((s) => !isAutomatedTitle(s.title));
+          const automatedToggle = automatedCount > 0 && (
+            <label className="flex items-center gap-2 text-xs text-zinc-500 mb-2 cursor-pointer select-none">
+              <input type="checkbox" checked={showAutomated} onChange={(e) => setShowAutomated(e.target.checked)} />
+              顯示排程與自動執行紀錄（{automatedCount}）
+            </label>
+          );
 
           const renderCard = (s: SessionRecord) => (
             <div
@@ -206,14 +210,21 @@ export function HistoryPanel({ agents, onOpen }: Props) {
                       s.status === "busy" ? "bg-amber-400 animate-pulse" :
                       s.status === "error" ? "bg-rose-500" : "bg-zinc-600"
                     }`} />
-                    <span className="font-medium truncate">{s.title}</span>
+                    <span className="font-medium truncate">{sessionHeading(s)}</span>
                     {(s.tags || []).map((t) => (
                       <span key={t} className="text-[11px] px-1.5 py-0.5 bg-accent/20 text-accent rounded">#{t}</span>
                     ))}
                   </div>
+                  {s.lastSnippet && (
+                    <div className="mt-1 text-xs text-zinc-400 line-clamp-2">
+                      <span className="text-zinc-500 mr-1">停在［{s.lastRole === "user" ? "我" : agentName(s.agentId).replace(/^\S+\s/, "")}］</span>
+                      {s.lastSnippet}
+                    </div>
+                  )}
                   <div className="flex gap-3 mt-1 text-xs text-zinc-500">
                     {viewMode === "timeline" && <><span>{agentName(s.agentId)}</span><span>·</span></>}
                     <span>{fmtRelative(s.updatedAt)}</span>
+                    {s.messageCount != null && <><span>·</span><span>{s.messageCount} 則</span></>}
                   </div>
                 </div>
                 <button
@@ -228,16 +239,19 @@ export function HistoryPanel({ agents, onOpen }: Props) {
 
           if (filtered.length === 0) {
             return (
-              <div className="bg-panel border border-zinc-800 rounded-lg p-8 text-center text-zinc-500">
-                <div className="text-4xl mb-2">💭</div>
-                <div className="text-sm">{sessions.length === 0 ? "還沒有任何對話紀錄" : `沒有標籤為 #${activeTag} 的對話`}</div>
+              <div>
+                {automatedToggle}
+                <div className="bg-panel border border-zinc-800 rounded-lg p-8 text-center text-zinc-500">
+                  <div className="text-4xl mb-2">💭</div>
+                  <div className="text-sm">{sessions.length === 0 ? "還沒有任何對話紀錄" : activeTag ? `沒有標籤為 #${activeTag} 的對話` : "只有排程與自動執行紀錄（勾選上方即可顯示）"}</div>
+                </div>
               </div>
             );
           }
 
           // ==== Timeline view (default) ====
           if (viewMode === "timeline") {
-            return <div className="space-y-2">{filtered.map(renderCard)}</div>;
+            return <div>{automatedToggle}<div className="space-y-2">{filtered.map(renderCard)}</div></div>;
           }
 
           // ==== By-agent grouped view ====
@@ -252,6 +266,7 @@ export function HistoryPanel({ agents, onOpen }: Props) {
 
           return (
             <div className="space-y-3">
+              {automatedToggle}
               {sortedGroups.map(([agentId, list]) => {
                 const collapsed = collapsedAgents.has(agentId);
                 return (

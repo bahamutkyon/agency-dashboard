@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
-import { api, type BriefingRow, type BriefingItem } from "../lib/api";
+import { api, type BriefingRow, type BriefingItem, type SessionRecord } from "../lib/api";
+import { ResumeStrip } from "./ResumeStrip";
 import { getActiveWorkspace } from "../lib/workspace";
 import { scopeBriefing, type ScopedEntry } from "../lib/cockpitScope";
 
 interface Props {
   onDiscuss: (item: BriefingItem) => void;
+  /** 「接續上次」：本工作區可接續的專案經理對話 */
+  resumable?: SessionRecord[];
+  onResume?: (s: SessionRecord) => void;
+  onNewTopic?: () => void;
 }
 
-export function CockpitPanel({ onDiscuss }: Props) {
+export function CockpitPanel({ onDiscuss, resumable = [], onResume, onNewTopic }: Props) {
   const [row, setRow] = useState<BriefingRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<{ status: string; raw: string; at: number } | undefined>(undefined);
@@ -74,7 +79,16 @@ export function CockpitPanel({ onDiscuss }: Props) {
     );
   };
 
-  if (!row) return <div className="p-6 text-zinc-500">尚無今日簡報。<button onClick={refresh} className="underline ml-2">立即生成</button></div>;
+  // 放在「尚無簡報」判斷之前也要顯示：接續上次不依賴簡報
+  const resumeStrip = onResume && onNewTopic
+    ? <ResumeStrip sessions={resumable} onResume={onResume} onNewTopic={onNewTopic} /> : null;
+
+  if (!row) return (
+    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-5">
+      {resumeStrip}
+      <div className="text-zinc-500">尚無今日簡報。<button onClick={refresh} className="underline ml-2">立即生成</button></div>
+    </div>
+  );
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-5 overflow-y-auto h-full">
@@ -85,6 +99,8 @@ export function CockpitPanel({ onDiscuss }: Props) {
           <button onClick={refresh} disabled={busy} className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40">🔄 再想一次</button>
         </div>
       </div>
+
+      {resumeStrip}
 
       {lastError && (
         <div className="text-xs text-amber-400 border border-amber-800/40 rounded p-2">

@@ -7,11 +7,13 @@ import { runClaudeOneShot } from "./claudeOneShot.js";
 import { getSession, upsertSession } from "./store.js";
 import { loadAgents } from "./agentLoader.js";
 import { modelFor } from "./models.js";
+import { isDefaultTitle, displayTitle } from "./sessionTitles.js";
 
 // sessions we've already attempted (avoid retrying on every result)
 const attempted = new Set<string>();
 
-export function maybeAutoTitle(sessionId: string) {
+/** onTitled：取名成功後通知（agentManager 用 socket 推給前端，讓分頁標題即時更新）。 */
+export function maybeAutoTitle(sessionId: string, onTitled?: (sessionId: string, title: string) => void): Promise<void> | undefined {
   if (attempted.has(sessionId)) return;
   const rec = getSession(sessionId);
   if (!rec) return;
@@ -30,19 +32,16 @@ export function maybeAutoTitle(sessionId: string) {
   // Only the first two count as "default — please replace me".
   const agent = loadAgents().find((a) => a.id === rec.agentId);
   const agentDisplayName = agent?.name || rec.agentId;
-  const looksLikeDefault =
-    rec.title === `${rec.agentId} 對話` ||
-    rec.title === agentDisplayName ||
-    rec.title.endsWith(" 對話");
-  if (!looksLikeDefault) {
+  if (!isDefaultTitle(rec.title, rec.agentId, agentDisplayName)) {
     console.log(`[auto-titler] skip ${sessionId.slice(0, 8)} (custom title: "${rec.title.slice(0, 30)}")`);
     return;
   }
-  if (rec.title.includes("[排程") || rec.title.includes("[批次") || rec.title.includes("[workflow")) return;
 
   attempted.add(sessionId);
 
-  const transcript = rec.messages.slice(0, 4).map((m) => {
+  // 前 2 則＋最後 2 則：長對話（補命名舊紀錄時）標題才不會只反映開場
+  const picked = rec.messages.length > 4 ? [...rec.messages.slice(0, 2), ...rec.messages.slice(-2)] : rec.messages.slice(0, 4);
+  const transcript = picked.map((m) => {
     const who = m.role === "user" ? "USER" : "ASSISTANT";
     return `### ${who}\n${m.content.slice(0, 1500)}`;
   }).join("\n\n");
@@ -62,7 +61,7 @@ TAGS: tag1 / tag2 / tag3
 `;
 
   // 走 runClaudeOneShot：spawn 失敗 / 逾時安全回 ok:false（背景任務，靜默略過只 log 一行，絕不拋）。
-  runClaudeOneShot([
+  return runClaudeOneShot([
     "-p", "--output-format", "json", "--model", modelFor("fast"),
     "--no-session-persistence",
     "--disable-slash-commands",
@@ -77,12 +76,8 @@ TAGS: tag1 / tag2 / tag3
       if (!cur) return;
       const rawTitle = tm?.[1]?.trim().slice(0, 40);
       const tags = gm?.[1]?.split(/[\/、,，]/).map((t) => t.trim()).filter(Boolean).slice(0, 4);
-      // Prefix with agent display name so titles never lose the "who" —
-      // e.g. "👨‍💼 專案經理 · 三週衝刺規劃" instead of just "三週衝刺規劃".
-      // Skip if AI happens to already include the name (avoid duplication).
-      const newTitle = rawTitle
-        ? (rawTitle.includes(agentDisplayName) ? rawTitle : `${agentDisplayName} · ${rawTitle}`)
-        : null;
+      // 專案經理不加前綴（歷史/分頁已標示角色）；其他 agent 維持「名稱 · 標題」。
+      const newTitle = rawTitle ? displayTitle(rawTitle, rec.agentId, agentDisplayName) : null;
       if (newTitle) cur.title = newTitle;
       if (tags && tags.length > 0) {
         // merge with existing
@@ -91,6 +86,7 @@ TAGS: tag1 / tag2 / tag3
       }
       cur.updatedAt = Date.now();
       upsertSession({ ...cur, messages: undefined as any });
+      if (newTitle) onTitled?.(sessionId, newTitle);
       console.log(`[auto-titler] ${sessionId.slice(0, 8)} → "${newTitle}" tags=${tags?.join(",")}`);
     } catch (e: any) {
       console.warn("[auto-titler] parse failed:", e.message);

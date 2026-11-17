@@ -86,4 +86,16 @@ describe("AgentSidebar 分組折疊", () => {
     render(<AgentSidebar {...baseProps} />);
     expect(screen.getByText("找專案經理討論")).toBeTruthy();
   });
+
+  it("有上一場專案經理對話時：主按鈕是「繼續：標題」，另有「開新話題」", () => {
+    const onResumePm = vi.fn();
+    const onAsk = vi.fn();
+    render(<AgentSidebar {...baseProps} onAskOrchestrator={onAsk} onResumePm={onResumePm}
+      resumePm={{ title: "M83421 電容定價", updatedAt: Date.now() - 2 * 86_400_000, messageCount: 6 }} />);
+    fireEvent.click(screen.getByText(/繼續：M83421 電容定價/));
+    expect(onResumePm).toHaveBeenCalled();
+    expect(screen.getByText(/6 則/)).toBeTruthy();
+    fireEvent.click(screen.getByText(/開新話題/));
+    expect(onAsk).toHaveBeenCalled();
+  });
 });

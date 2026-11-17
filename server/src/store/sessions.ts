@@ -62,7 +62,8 @@ export function listSessionsWithCounts(workspaceId?: string): SessionSummary[] {
     return {
       ...rest,
       messageCount: Number(r.message_count) || 0,
-      lastSnippet: r.last_content != null ? String(r.last_content) : null,
+      // 列表只需預覽：截 200 字（舊版回整則，歷史 API 一次 100KB+）
+      lastSnippet: r.last_content != null ? String(r.last_content).slice(0, 200) : null,
       lastRole: (r.last_role as Message["role"]) || null,
     };
   });

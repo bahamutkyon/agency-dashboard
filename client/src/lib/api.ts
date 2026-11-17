@@ -102,6 +102,10 @@ export interface SessionRecord {
   liveModel?: string | null;
   /** 本 session 帶的 --effort（null＝模型預設）。 */
   effort?: string | null;
+  /** 列表 API（GET /sessions）才有：訊息數、最後一則（截 200 字）與誰說的。 */
+  messageCount?: number;
+  lastSnippet?: string | null;
+  lastRole?: "user" | "assistant" | "system" | null;
 }
 
 export interface RoutingDecision {
@@ -200,7 +204,8 @@ export const api = {
     }).then(j<{ workspaceId: string; imported: { notes: number; templates: number; schedules: number } }>),
 
   // workspace-scoped
-  sessions: () => fetch(withWorkspace("/api/sessions")).then(j<SessionRecord[]>),
+  sessions: (opts?: { includeEmpty?: boolean }) =>
+    fetch(withWorkspace("/api/sessions" + (opts?.includeEmpty ? "?includeEmpty=1" : ""))).then(j<SessionRecord[]>),
   session: (id: string) => fetch(`/api/sessions/${id}`).then(j<SessionRecord>),
   startSession: (agentId: string, title?: string, provider?: Provider) =>
     fetch(withWorkspace("/api/sessions"), {
@@ -213,8 +218,12 @@ export const api = {
       body: JSON.stringify({ prompt, defaultProvider }),
     }).then(j<RoutingDecision>),
   providers: () => fetch("/api/providers").then(j<ProviderAvailability>),
-  startOrchestrator: () =>
-    fetch(withWorkspace("/api/orchestrator"), { method: "POST" }).then(j<{ id: string }>),
+  /** title 選填：總管簡報「展開討論」帶項目標題，下次同項目可接回同一場 */
+  startOrchestrator: (title?: string) =>
+    fetch(withWorkspace("/api/orchestrator"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(title ? { title } : {}),
+    }).then(j<{ id: string }>),
   startOnboarding: () =>
     fetch(withWorkspace("/api/onboarding"), { method: "POST" }).then(j<{ id: string }>),
   applyOnboarding: (sessionId: string, workspaceId: string, memo: string) =>

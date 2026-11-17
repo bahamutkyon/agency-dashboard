@@ -32,9 +32,7 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
 
   const switchTo = (id: string) => {
     if (id === active) { setOpen(false); return; }
-    if (hasActiveTabs && !confirm("切換工作區會關掉目前所有對話 tab(對話內容仍保留在歷史紀錄)。要切換嗎?")) {
-      return;
-    }
+    // 分頁依工作區保存（App restoreTabs），切回來會還原，不用再確認
     setActive(id);
     setActiveWorkspace(id);
     setOpen(false);

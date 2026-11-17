@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getSocket, joinSession, leaveSession } from "../lib/socket";
 import { notify } from "../lib/notifications";
+import { applyDelta, applyFinal } from "../lib/chatMerge";
 
 export interface Msg {
   role: "user" | "assistant" | "system";
@@ -40,23 +41,13 @@ export function useChatSession(
       switch (evt.type) {
         case "delta": {
           streamingRef.current += evt.payload;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last && last.partial) {
-              return [...prev.slice(0, -1), { ...last, content: streamingRef.current }];
-            }
-            return [...prev, { role: "assistant", content: streamingRef.current, ts: Date.now(), partial: true }];
-          });
+          const streamed = streamingRef.current;
+          setMessages((prev) => applyDelta(prev, streamed));
           break;
         }
         case "message": {
           streamingRef.current = "";
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            const finalMsg: Msg = { role: "assistant", content: evt.payload.content, ts: Date.now() };
-            if (last && last.partial) return [...prev.slice(0, -1), finalMsg];
-            return [...prev, finalMsg];
-          });
+          setMessages((prev) => applyFinal(prev, evt.payload.content));
           break;
         }
         case "status": {

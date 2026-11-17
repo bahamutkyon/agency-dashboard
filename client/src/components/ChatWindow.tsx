@@ -36,6 +36,9 @@ interface Props {
   onMemoApplied?: () => void;
   onAcceptFork?: (toAgentId: string, message: string, fromAgentName: string) => void;
   onOpenSession?: (sessionId: string, agentId: string, title: string) => void;
+  /** 對話標題（自動取名或自訂）；標頭顯示，點擊可改名 */
+  topic?: string;
+  onRename?: (title: string) => void | Promise<void>;
 }
 
 function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
@@ -73,8 +76,14 @@ function exportMarkdown(agentName: string, sessionId: string, messages: Msg[]) {
 
 export function ChatWindow({
   sessionId, agentId, agentName, provider, onStatusChange, onOpenAgentById, onHandoff,
-  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork, onOpenSession,
+  knownAgentIds, agents, onboardingTargetWorkspaceId, onMemoApplied, onAcceptFork, onOpenSession, topic, onRename,
 }: Props) {
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const commitTitle = async () => {
+    const t = (editingTitle ?? "").trim();
+    setEditingTitle(null);
+    if (t && t !== topic) { try { await onRename?.(t); } catch { alert("改名失敗，請稍後再試"); } }
+  };
   const [input, setInput] = useState("");
   const [showMemory, setShowMemory] = useState(false);
   const [showProjectMemory, setShowProjectMemory] = useState(false);
@@ -284,7 +293,27 @@ export function ChatWindow({
               </span>
             )}
           </div>
-          <div className="text-xs text-zinc-500">session: {sessionId.slice(0, 8)}</div>
+          {editingTitle !== null ? (
+            <input
+              autoFocus
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") setEditingTitle(null); }}
+              className="text-xs bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-200 w-64"
+              maxLength={60}
+              aria-label="對話標題"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => onRename && setEditingTitle(topic || "")}
+              className="text-xs text-zinc-400 hover:text-zinc-200 text-left"
+              title={onRename ? "點一下改名" : `session: ${sessionId}`}
+            >
+              {topic || "（未命名對話，回覆一輪後會自動取名）"}{onRename && <span className="ml-1 text-zinc-600">✎</span>}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {/* === 專案選擇器 === */}

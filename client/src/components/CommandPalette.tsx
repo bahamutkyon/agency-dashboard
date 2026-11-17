@@ -18,9 +18,12 @@ interface Props {
   onPickSession: (sessionId: string, agentId: string, title: string) => void;
   onOpenView: (view: "history" | "templates" | "schedules" | "notes" | "batch" | "settings") => void;
   onAskOrchestrator: () => void;
+  /** 有上一場專案經理對話時才有 */
+  onResumePm?: () => void;
+  resumePmTitle?: string;
 }
 
-export function CommandPalette({ agents, open, onClose, onPickAgent, onPickSession, onOpenView, onAskOrchestrator }: Props) {
+export function CommandPalette({ agents, open, onClose, onPickAgent, onPickSession, onOpenView, onAskOrchestrator, onResumePm, resumePmTitle }: Props) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -60,7 +63,8 @@ export function CommandPalette({ agents, open, onClose, onPickAgent, onPickSessi
     const matches = (s: string) => !q || s.toLowerCase().includes(q);
 
     const panelActions: Action[] = [
-      { id: "p:orchestrator", group: "panel", label: "👨‍💼 找專案經理討論", hint: "Enter", run: onAskOrchestrator },
+      ...(onResumePm ? [{ id: "p:resume-pm", group: "panel" as const, label: `👨‍💼 繼續：${resumePmTitle || "上一場專案經理對話"}`, hint: "Enter", run: onResumePm }] : []),
+      { id: "p:orchestrator", group: "panel", label: onResumePm ? "👨‍💼 ＋ 開新話題（專案經理）" : "👨‍💼 找專案經理討論", hint: onResumePm ? undefined : "Enter", run: onAskOrchestrator },
       { id: "p:batch", group: "panel", label: "🎯 批次同題", run: () => onOpenView("batch") },
       { id: "p:notes", group: "panel", label: "📒 共享筆記", run: () => onOpenView("notes") },
       { id: "p:templates", group: "panel", label: "📋 Prompt 模板庫", run: () => onOpenView("templates") },
@@ -93,7 +97,7 @@ export function CommandPalette({ agents, open, onClose, onPickAgent, onPickSessi
       ...agentActions,
       ...searchActions,
     ];
-  }, [query, agents, hits, onAskOrchestrator, onOpenView, onPickAgent, onPickSession]);
+  }, [query, agents, hits, onAskOrchestrator, onResumePm, resumePmTitle, onOpenView, onPickAgent, onPickSession]);
 
   // clamp cursor
   useEffect(() => {

@@ -21,7 +21,7 @@ const baseProps = (over: Partial<React.ComponentProps<typeof Composer>> = {}) =>
   ...over,
 });
 
-const textarea = () => screen.getByPlaceholderText(/跟這位員工說話/);
+const textarea = () => screen.getByRole("textbox");
 
 describe("Composer", () => {
   it("輸入文字呼叫 setInput", () => {
@@ -58,9 +58,21 @@ describe("Composer", () => {
     expect(screen.getByText("送出")).toBeDisabled();
   });
 
-  it("busy 狀態下 textarea 停用", () => {
-    render(<Composer {...baseProps({ status: "busy", input: "x" })} />);
-    expect(textarea()).toBeDisabled();
+  it("AI 思考中（busy）仍可打字，送出鈕變「補充」並可按", () => {
+    const onSend = vi.fn();
+    render(<Composer {...baseProps({ status: "busy", input: "x", onSend })} />);
+    expect(textarea()).not.toBeDisabled();
+    const btn = screen.getByRole("button", { name: /補充/ });
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(onSend).toHaveBeenCalled();
+  });
+
+  it("busy 時 Enter 也能送出補充（伺服器會排在這輪回覆之後）", () => {
+    const onSend = vi.fn();
+    render(<Composer {...baseProps({ status: "busy", input: "x", onSend })} />);
+    fireEvent.keyDown(textarea(), { key: "Enter" });
+    expect(onSend).toHaveBeenCalled();
   });
 
   it("點範本呼叫 insertTemplate", () => {

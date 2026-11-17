@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentSidebar } from "./components/AgentSidebar";
 import { UsageBar } from "./components/UsageBar";
 import { SecurityBadge } from "./components/SecurityBadge";
@@ -11,7 +11,9 @@ import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
 import { setActiveWorkspace, getActiveWorkspace } from "./lib/workspace";
-import { api, onUnauthorized, type AgentMeta, type CategoryMeta, type BriefingItem } from "./lib/api";
+import { api, onUnauthorized, type AgentMeta, type CategoryMeta, type BriefingItem, type SessionRecord } from "./lib/api";
+import { isDefaultTitle, pickResumable, sessionHeading, ORCHESTRATOR_ID, PM_TITLE } from "./lib/sessionTitles";
+import { saveTabs, loadTabs } from "./lib/tabStore";
 
 // ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
 const ChatWindow = lazy(() =>
@@ -197,10 +199,13 @@ export default function App() {
   // session counts by agent — for sidebar 「💬 N」 badges. Refetched whenever
   // workspace changes, tabs change, or user comes back to a panel view.
   const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
+  // 本工作區的對話清單：給「繼續上一場專案經理對話」與總管簡報「接續上次」用
+  const [wsSessions, setWsSessions] = useState<SessionRecord[]>([]);
   useEffect(() => {
     let alive = true;
     api.sessions().then((all) => {
       if (!alive) return;
+      setWsSessions(all);
       const counts: Record<string, number> = {};
       for (const s of all) counts[s.agentId] = (counts[s.agentId] || 0) + 1;
       setSessionCounts(counts);
@@ -211,12 +216,43 @@ export default function App() {
     return () => { alive = false; };
   }, [reloadKey, tabs.length, view?.kind]);
 
-  // When the workspace changes, drop all open tabs (they belong to the old
-  // workspace) and force-reload the active panel by bumping reloadKey.
+  // 分頁依工作區存在 localStorage：切工作區時換成該工作區上次開著的分頁，不再整批關掉。
+  // restoringRef：還原期間不寫回，否則切換瞬間的空分頁會先蓋掉新工作區存好的分頁。
+  const restoringRef = useRef(true);
+  const restoreTabs = useCallback(async () => {
+    restoringRef.current = true;
+    const ws = getActiveWorkspace();
+    try {
+      const existing = await api.sessions({ includeEmpty: true });
+      if (getActiveWorkspace() !== ws) return; // 期間又切走了，交給下一次還原
+      const loaded = loadTabs(ws, new Set(existing.map((x) => x.id)));
+      // 還原期間新開的分頁（如簡報「展開討論」）保留在後面
+      setTabs((prev) => [...loaded, ...prev.filter((t) => !loaded.some((l) => l.sessionId === t.sessionId))]);
+    } catch { /* 讀不到就維持現狀 */ }
+    restoringRef.current = false;
+  }, []);
+  useEffect(() => { restoreTabs(); }, [restoreTabs]);
+  useEffect(() => {
+    if (!restoringRef.current) saveTabs(getActiveWorkspace(), tabs);
+  }, [tabs]);
+
   const onWorkspaceSwitched = useCallback(() => {
+    restoringRef.current = true;
     setTabs([]);
     setView({ kind: "cockpit" });
     setReloadKey((k) => k + 1);
+    restoreTabs();
+  }, [restoreTabs]);
+
+  // 自動取名完成（server 推 session:titled）→ 分頁標題、繼續按鈕即時更新
+  useEffect(() => {
+    const sock = getSocket();
+    const h = ({ sessionId, title }: { sessionId: string; title: string }) => {
+      setTabs((prev) => prev.map((t) => (t.sessionId === sessionId ? { ...t, topic: title } : t)));
+      setWsSessions((prev) => prev.map((x) => (x.id === sessionId ? { ...x, title } : x)));
+    };
+    sock.on("session:titled", h);
+    return () => { sock.off("session:titled", h); };
   }, []);
 
   const liveAgentIds = useMemo(() => new Set(tabs.map((t) => t.agentId)), [tabs]);
@@ -253,6 +289,9 @@ export default function App() {
     setView({ kind: "chat", sessionId: r.id });
   }, []);
 
+  // onCockpitDiscuss 定義在 openHistorySession 之前，用 ref 取最新版本
+  const openHistorySessionRef = useRef<((sessionId: string, agentId: string, title: string) => void) | null>(null);
+
   const askOrchestrator = useCallback(async () => {
     const { id } = await api.startOrchestrator();
     setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", status: "idle" }]);
@@ -266,8 +305,16 @@ export default function App() {
       setActiveWorkspace(item.workspaceId);
       onWorkspaceSwitched();
     }
-    const { id } = await api.startOrchestrator();
-    setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", status: "idle" }]);
+    // 同一個簡報項目每天都會出現：同工作區已有同標題的專案經理對話就接回那一場，不再每按一次多一場
+    const title = item.title.trim().slice(0, 60);
+    const existing = (await api.sessions().catch(() => [] as SessionRecord[]))
+      .find((x) => x.agentId === ORCHESTRATOR_ID && x.title === title);
+    if (existing) {
+      openHistorySessionRef.current?.(existing.id, existing.agentId, existing.title);
+      return;
+    }
+    const { id } = await api.startOrchestrator(title);
+    setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", topic: title, status: "idle" }]);
     setView({ kind: "chat", sessionId: id });
     const seed = item.discussSeed || item.title;
     setTimeout(() => {
@@ -337,20 +384,34 @@ ${message}
     // Resolve agent name from the agents catalog so the tab always shows
     // "who" first; topic (title minus agent prefix) becomes a subtitle.
     const agent = agents.find((a) => a.id === agentId);
-    const agentName = agent?.name || agentId;
-    const isDefaultTitle =
-      title === `${agentId} 對話` ||
-      title === agentName ||
-      title.endsWith(" 對話");
+    const agentName = agentId === ORCHESTRATOR_ID ? PM_TITLE : (agent?.name || agentId);
     // Strip leading "{agentName} · " prefix from auto-titled / meeting-room titles
     let topic: string | undefined;
-    if (!isDefaultTitle) {
+    if (!isDefaultTitle(title, agentId, agent?.name || agentId)) {
       const prefix = `${agentName} · `;
       topic = title.startsWith(prefix) ? title.slice(prefix.length) : title;
     }
     setTabs((prev) => [...prev, { sessionId, agentId, agentName, topic, status: "idle" }]);
     setView({ kind: "chat", sessionId });
   }, [tabs, agents]);
+  openHistorySessionRef.current = openHistorySession;
+
+  // 「繼續：〈標題〉」——本工作區最近一場互動式專案經理對話
+  const resumable = useMemo(() => pickResumable(wsSessions, 3), [wsSessions]);
+  const latestPm = resumable[0];
+  const resumePm = useCallback(() => {
+    if (latestPm) openHistorySession(latestPm.id, latestPm.agentId, latestPm.title);
+  }, [latestPm, openHistorySession]);
+  const resumePmInfo = useMemo(() => latestPm
+    ? { title: sessionHeading(latestPm), updatedAt: latestPm.updatedAt, messageCount: latestPm.messageCount }
+    : undefined, [latestPm]);
+
+  // 對話標頭改名
+  const renameSession = useCallback(async (sessionId: string, title: string) => {
+    await api.updateSession(sessionId, { title });
+    setTabs((prev) => prev.map((t) => (t.sessionId === sessionId ? { ...t, topic: title } : t)));
+    setWsSessions((prev) => prev.map((x) => (x.id === sessionId ? { ...x, title } : x)));
+  }, []);
 
   /**
    * Close a tab — does NOT delete the session. Conversation stays in DB,
@@ -402,6 +463,11 @@ ${message}
     askOrchestrator();
     if (window.innerWidth < 768) toggleSidebar();
   }, [askOrchestrator, toggleSidebar]);
+
+  const onResumePmMobile = useCallback(() => {
+    resumePm();
+    if (window.innerWidth < 768) toggleSidebar();
+  }, [resumePm, toggleSidebar]);
 
   const onOpenCockpitMobile = useCallback(() => {
     openCockpit();
@@ -553,6 +619,8 @@ ${message}
         onPickSession={openHistorySession}
         onOpenView={onOpenView}
         onAskOrchestrator={askOrchestrator}
+        onResumePm={latestPm ? resumePm : undefined}
+        resumePmTitle={resumePmInfo?.title}
       />
       {sidebarOpen && (
         <>
@@ -570,6 +638,8 @@ ${message}
               sessionCounts={sessionCounts}
               onPick={onPickAgentMobile}
               onAskOrchestrator={onAskOrchestratorMobile}
+              resumePm={resumePmInfo}
+              onResumePm={onResumePmMobile}
               onOpenCockpit={onOpenCockpitMobile}
               onOpenSchedules={onOpenSchedulesMobile}
               onOpenHistory={onOpenHistoryMobile}
@@ -665,7 +735,8 @@ ${message}
         <div className="flex-1 overflow-hidden">
           {isView("cockpit") && (
             <Suspense fallback={LazyFallback}>
-              <CockpitPanel key={`ck-${reloadKey}`} onDiscuss={onCockpitDiscuss} />
+              <CockpitPanel key={`ck-${reloadKey}`} onDiscuss={onCockpitDiscuss}
+                resumable={resumable} onResume={(x) => openHistorySession(x.id, x.agentId, x.title)} onNewTopic={askOrchestrator} />
             </Suspense>
           )}
           {isView("schedules") && (
@@ -782,6 +853,8 @@ ${message}
                   sessionId={tab.sessionId}
                   agentId={tab.agentId}
                   agentName={tab.agentName}
+                  topic={tab.topic}
+                  onRename={(t) => renameSession(tab.sessionId, t)}
                   provider={tab.provider}
                   onStatusChange={(s) => updateStatus(tab.sessionId, s)}
                   onOpenAgentById={openAgentById}

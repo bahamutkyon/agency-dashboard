@@ -1,6 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
 import type { AgentMeta, CategoryMeta } from "../lib/api";
+import { fmtRelative } from "../lib/relTime";
 
 interface Props {
   agents: AgentMeta[];
@@ -9,7 +10,11 @@ interface Props {
   /** agentId → past session count in current workspace; renders 「💬 N」badge */
   sessionCounts?: Record<string, number>;
   onPick: (agent: AgentMeta, provider?: "claude" | "codex" | "gemini") => void;
+  /** 開一場新的專案經理對話（「＋ 開新話題」） */
   onAskOrchestrator: () => void;
+  /** 本工作區上一場可接續的專案經理對話；有值時主按鈕變「繼續：標題」 */
+  resumePm?: { title: string; updatedAt: number; messageCount?: number };
+  onResumePm?: () => void;
   onOpenCockpit: () => void;
   onOpenSchedules: () => void;
   onOpenHistory: () => void;
@@ -128,7 +133,7 @@ const BTN = "px-2 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-
 
 function AgentSidebarInner({
   agents, categories, liveAgentIds, sessionCounts,
-  onPick, onAskOrchestrator, onOpenCockpit, onOpenSchedules,
+  onPick, onAskOrchestrator, resumePm, onResumePm, onOpenCockpit, onOpenSchedules,
   onOpenHistory, onOpenTemplates, onOpenSettings,
   onOpenBatch, onOpenNotes, onOpenLearning, onOpenCapabilityLearning, onOpenAutonomousStudy, onOpenMemoryEditor, onOpenLegacyReview, onOpenWorkflows, onOpenActivity, onOpenDelegations, onOpenGoals, onOpenOutcomes, onOpenWatchtower,
   providersAvail,
@@ -168,15 +173,38 @@ function AgentSidebarInner({
   return (
     <aside className="w-[85vw] max-w-96 md:w-96 h-full bg-panel border-r border-zinc-800 flex flex-col pt-[env(safe-area-inset-top)]">
       <div className="m-3 space-y-2">
-        <button
-          data-tour="orchestrator-btn"
-          onClick={onAskOrchestrator}
-          className="w-full px-3 py-2 rounded bg-gradient-to-r from-accent to-violet-500 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-lg shadow-accent/20"
-          title="不知道要找誰?讓專案經理幫你規劃團隊"
-        >
-          <span>👨‍💼</span>
-          <span>找專案經理討論</span>
-        </button>
+        {resumePm && onResumePm ? (
+          <div className="rounded shadow-lg shadow-accent/20 overflow-hidden" data-tour="orchestrator-btn">
+            <button
+              onClick={onResumePm}
+              className="w-full px-3 py-2 bg-gradient-to-r from-accent to-violet-500 hover:from-violet-500 hover:to-fuchsia-500 text-white text-left"
+              title="回到這個工作區上一場專案經理對話，接著聊"
+            >
+              <div className="text-sm font-medium truncate">👨‍💼 繼續：{resumePm.title}</div>
+              <div className="text-[11px] text-white/70">
+                {fmtRelative(resumePm.updatedAt)}{resumePm.messageCount != null ? ` · ${resumePm.messageCount} 則` : ""}
+                {(resumePm.messageCount ?? 0) > 150 ? " · 這場已經很長，建議開新話題" : ""}
+              </div>
+            </button>
+            <button
+              onClick={onAskOrchestrator}
+              className="w-full px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs text-left"
+              title="開一場新的專案經理對話"
+            >
+              ＋ 開新話題
+            </button>
+          </div>
+        ) : (
+          <button
+            data-tour="orchestrator-btn"
+            onClick={onAskOrchestrator}
+            className="w-full px-3 py-2 rounded bg-gradient-to-r from-accent to-violet-500 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-lg shadow-accent/20"
+            title="不知道要找誰?讓專案經理幫你規劃團隊"
+          >
+            <span>👨‍💼</span>
+            <span>找專案經理討論</span>
+          </button>
+        )}
 
         <div className="space-y-2">
           {/* 經營 group */}

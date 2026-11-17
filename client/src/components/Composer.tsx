@@ -69,7 +69,9 @@ export function Composer({
           ref={inputRef}
           className="flex-1 bg-zinc-900 px-3 py-2 rounded text-base md:text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent"
           rows={2}
-          placeholder="跟這位員工說話… (Enter 送出 / Shift+Enter 換行 / 「/」叫出模板)"
+          placeholder={busy
+            ? "回覆中…可以先打字；按送出會在這輪回覆完後接著送出（補充）"
+            : "跟這位員工說話… (Enter 送出 / Shift+Enter 換行 / 「/」叫出模板)"}
           value={input}
           onChange={(e) => {
             const v = e.target.value;
@@ -98,7 +100,7 @@ export function Composer({
               onSend();
             }
           }}
-          disabled={busy}
+          // 思考中也能打字：伺服器會把這時送出的訊息排隊，等這輪回完再送（AgentSession queue）
         />
         <div className="flex flex-col gap-1">
           <button
@@ -111,10 +113,11 @@ export function Composer({
           </button>
           <button
             onClick={onSend}
-            disabled={busy || !input.trim()}
-            className="px-4 py-1 bg-accent hover:bg-violet-500 disabled:opacity-40 rounded text-white text-sm flex-1"
+            disabled={!input.trim()}
+            className={`px-4 py-1 disabled:opacity-40 rounded text-white text-sm flex-1 ${busy ? "bg-amber-600 hover:bg-amber-500" : "bg-accent hover:bg-violet-500"}`}
+            title={busy ? "這輪回覆完成後接著送出" : undefined}
           >
-            送出
+            {busy ? "補充" : "送出"}
           </button>
         </div>
       </div>

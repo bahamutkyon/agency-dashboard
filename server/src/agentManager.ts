@@ -833,7 +833,7 @@ export class AgentManager {
         try { noteClaudeResult(evt.payload); } catch {}
         usageTracker.recordTurn(evt.payload);
         // background auto-titler: kicks in once after first turn
-        setTimeout(() => maybeAutoTitle(s.id), 500);
+        setTimeout(() => maybeAutoTitle(s.id, (sid, title) => this.io?.emit("session:titled", { sessionId: sid, title })), 500);
       } else if (evt.type === "tool_image") {
         // MCP 工具回傳的圖片(主要是 playwright 截圖)— 存到 uploads 目錄,
         // 在對話裡插一條 markdown 圖訊息,讓使用者直接看得到。
