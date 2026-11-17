@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type BriefingRow, type BriefingItem } from "../lib/api";
+import { getActiveWorkspace } from "../lib/workspace";
+import { scopeBriefing, type ScopedEntry } from "../lib/cockpitScope";
 
 interface Props {
   onDiscuss: (item: BriefingItem) => void;
@@ -9,6 +11,12 @@ export function CockpitPanel({ onDiscuss }: Props) {
   const [row, setRow] = useState<BriefingRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<{ status: string; raw: string; at: number } | undefined>(undefined);
+
+  const [wsNames, setWsNames] = useState<Record<string, string>>({});
+  const activeWs = getActiveWorkspace(); // 工作區切換時 App 會以 reloadKey 重掛本面板
+  useEffect(() => {
+    api.workspaces().then((ws) => setWsNames(Object.fromEntries(ws.map((w) => [w.id, w.name])))).catch(() => {});
+  }, []);
 
   const load = () => api.cockpit().then((r) => { setRow(r.briefing); setLastError(r.lastError); }).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -43,6 +51,29 @@ export function CockpitPanel({ onDiscuss }: Props) {
     } finally { setBusy(false); }
   };
 
+  const scoped = row?.content ? scopeBriefing(row.content.sections, activeWs) : null;
+
+  const renderItem = ({ item: it, sectionIdx, itemIdx }: ScopedEntry, foreign: boolean) => {
+    const wsName = it.workspaceId ? (wsNames[it.workspaceId] || it.workspaceId) : "";
+    return (
+      <div key={`${sectionIdx}-${itemIdx}`} className="rounded-lg border border-zinc-800 bg-panel p-3">
+        {foreign && <div className="text-[11px] text-zinc-500 mb-1">📁 {wsName}</div>}
+        <div className="font-medium text-sm">{it.title}</div>
+        <div className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{it.body}</div>
+        <div className="flex gap-2 mt-2">
+          <button onClick={() => onDiscuss(it)} className="text-xs px-2 py-1 rounded bg-accent hover:bg-violet-500 text-white">
+            {foreign ? `↪ 切到「${wsName}」討論` : "💬 展開討論"}
+          </button>
+          {it.action && (
+            <button onClick={() => applyAction(sectionIdx, itemIdx, it)} disabled={busy} className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-40">
+              照建議{it.action.type === "approve" ? "批准" : "駁回"}（{it.action.proposalIds.length}）
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (!row) return <div className="p-6 text-zinc-500">尚無今日簡報。<button onClick={refresh} className="underline ml-2">立即生成</button></div>;
 
   return (
@@ -68,25 +99,23 @@ export function CockpitPanel({ onDiscuss }: Props) {
         </div>
       )}
 
-      {row.content?.sections.map((sec, i) => (
+      {scoped && scoped.current.map((sec, i) => (
         <section key={i} className="space-y-2">
           <h2 className="text-sm font-medium text-zinc-300">{sec.title}</h2>
-          {sec.items.map((it, j) => (
-            <div key={j} className="rounded-lg border border-zinc-800 bg-panel p-3">
-              <div className="font-medium text-sm">{it.title}</div>
-              <div className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{it.body}</div>
-              <div className="flex gap-2 mt-2">
-                <button onClick={() => onDiscuss(it)} className="text-xs px-2 py-1 rounded bg-accent hover:bg-violet-500 text-white">💬 展開討論</button>
-                {it.action && (
-                  <button onClick={() => applyAction(i, j, it)} disabled={busy} className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-40">
-                    照建議{it.action.type === "approve" ? "批准" : "駁回"}（{it.action.proposalIds.length}）
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+          {sec.entries.map((e) => renderItem(e, false))}
         </section>
       ))}
+
+      {scoped && scoped.current.length === 0 && (
+        <div className="text-sm text-zinc-500">今天的簡報沒有「{wsNames[activeWs] || "本工作區"}」的項目。</div>
+      )}
+
+      {scoped && scoped.others.length > 0 && (
+        <details className="rounded-lg border border-zinc-800/60 p-3">
+          <summary className="text-sm text-zinc-500 cursor-pointer">其他工作區的項目（{scoped.others.length}）</summary>
+          <div className="space-y-2 mt-2 opacity-80">{scoped.others.map((e) => renderItem(e, true))}</div>
+        </details>
+      )}
     </div>
   );
 }

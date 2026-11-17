@@ -10,7 +10,7 @@ import { ClaudeHealthBanner } from "./components/ClaudeHealthBanner";
 import { isTourDone } from "./lib/tour";
 import { getSocket } from "./lib/socket";
 import { applyAll } from "./lib/settings";
-import { setActiveWorkspace } from "./lib/workspace";
+import { setActiveWorkspace, getActiveWorkspace } from "./lib/workspace";
 import { api, onUnauthorized, type AgentMeta, type CategoryMeta, type BriefingItem } from "./lib/api";
 
 // ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
@@ -262,7 +262,7 @@ export default function App() {
   // 從駕駛艙簡報的某個項目「展開討論」：若有 workspaceId 先切換工作區,
   // 再開一場新的專案經理對話,把 discussSeed(或標題)當第一句話丟進去。
   const onCockpitDiscuss = useCallback(async (item: BriefingItem) => {
-    if (item.workspaceId) {
+    if (item.workspaceId && item.workspaceId !== getActiveWorkspace()) {
       setActiveWorkspace(item.workspaceId);
       onWorkspaceSwitched();
     }

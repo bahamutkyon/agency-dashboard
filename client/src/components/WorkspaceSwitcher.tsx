@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Workspace, type MCPServerInfo } from "../lib/api";
-import { getActiveWorkspace, setActiveWorkspace } from "../lib/workspace";
+import { getActiveWorkspace, setActiveWorkspace, onWorkspaceChange } from "../lib/workspace";
 import { MEMO_TEMPLATES } from "../lib/memoTemplates";
 
 interface Props {
@@ -18,6 +18,10 @@ export function WorkspaceSwitcher({ onSwitched, onOpenOnboarding, hasActiveTabs 
   const [mcpServers, setMcpServers] = useState<MCPServerInfo[]>([]);
   const [chromeStatus, setChromeStatus] = useState<string>("");
   const [saveError, setSaveError] = useState<string>("");
+
+  // 別處（如總管簡報「展開討論」）切換工作區時，選單標籤要跟著變——
+  // 舊版只在自己點選時更新，曾造成「畫面寫 LP audio、實際在個人IP 對話」。
+  useEffect(() => onWorkspaceChange(setActive), []);
 
   useEffect(() => {
     api.mcpServers().then(setMcpServers).catch(() => {});

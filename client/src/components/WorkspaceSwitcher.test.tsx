@@ -24,9 +24,11 @@ vi.mock("../lib/api", async (importOriginal) => {
 });
 
 // mock workspace lib
+const wsListeners = new Set<(id: string) => void>();
 vi.mock("../lib/workspace", () => ({
   getActiveWorkspace: vi.fn().mockReturnValue("ws1"),
   setActiveWorkspace: vi.fn(),
+  onWorkspaceChange: (cb: (id: string) => void) => { wsListeners.add(cb); return () => { wsListeners.delete(cb); }; },
 }));
 
 const makeWorkspace = (overrides: Partial<Workspace> = {}): Workspace => ({
@@ -115,5 +117,20 @@ describe("WorkspaceSwitcher — 工作目錄欄位", () => {
     await waitFor(() => {
       expect(screen.getByText(/非法路徑|工作目錄錯誤|儲存失敗/)).toBeTruthy();
     });
+  });
+});
+
+describe("WorkspaceSwitcher — 外部切換同步", () => {
+  it("別處（總管簡報展開討論）切換工作區時，選單標籤跟著變", async () => {
+    const { api } = await import("../lib/api");
+    (api.workspaces as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeWorkspace({ id: "ws1", name: "LP audio" }),
+      makeWorkspace({ id: "ws2", name: "個人IP" }),
+    ]);
+    const { act } = await import("@testing-library/react");
+    render(<WorkspaceSwitcher onSwitched={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTitle(/切換工作區/).textContent).toContain("LP audio"));
+    act(() => { wsListeners.forEach((cb) => cb("ws2")); });
+    expect(screen.getByTitle(/切換工作區/).textContent).toContain("個人IP");
   });
 });
