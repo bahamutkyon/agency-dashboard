@@ -660,3 +660,60 @@ describe("workflow run 開機對帳", () => {
     expect(updated?.stepOutputs).toMatchObject({ s1: "saved output" });
   });
 });
+
+describe("對話狀態與交接端點（2026-11-17）", () => {
+  const mkPm = (title: string) => {
+    const sid = `apst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    upsertSession({ id: sid, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title, provider: "claude", createdAt: Date.now(), updatedAt: Date.now(), messages: [
+      { role: "user", content: "怎麼定價", ts: 1 }, { role: "assistant", content: "等你拍外殼照片", ts: 2 }] });
+    createdSessionIds.push(sid);
+    return sid;
+  };
+
+  it("PATCH state=done 標記完成、state=null 重新開啟；列表帶出狀態", async () => {
+    const sid = mkPm("電容定價");
+    let r = await fetch(`${base}/api/sessions/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: "done" }) });
+    expect(r.status).toBe(200);
+    let list: any = await (await fetch(`${base}/api/sessions?workspace=${DEFAULT_WORKSPACE_ID}`)).json();
+    expect(list.find((x: any) => x.id === sid).state).toBe("done");
+    await fetch(`${base}/api/sessions/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: null }) });
+    list = await (await fetch(`${base}/api/sessions?workspace=${DEFAULT_WORKSPACE_ID}`)).json();
+    expect(list.find((x: any) => x.id === sid).state).toBeNull();
+  });
+
+  it("PATCH state 給不認得的值 → 400", async () => {
+    const sid = mkPm("x");
+    const r = await fetch(`${base}/api/sessions/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: "whatever" }) });
+    expect(r.status).toBe(400);
+  });
+
+  it("GET /api/sessions/:id/handoff：有交接來源時回上一場重點，沒有回 null", async () => {
+    const prev = mkPm("電容定價");
+    const cur = mkPm("新話題");
+    const { setHandoffFrom } = await import("./store/sessionState.js");
+    setHandoffFrom(cur, prev);
+    const j: any = await (await fetch(`${base}/api/sessions/${cur}/handoff`)).json();
+    expect(j.handoff).toMatchObject({ fromId: prev, fromTitle: "電容定價", summary: "等你拍外殼照片", source: "excerpt" });
+    const j2: any = await (await fetch(`${base}/api/sessions/${prev}/handoff`)).json();
+    expect(j2.handoff).toBeNull();
+  });
+
+  it("DELETE /api/sessions/:id/handoff：不要帶入 → 清掉交接來源", async () => {
+    const prev = mkPm("電容定價");
+    const cur = mkPm("新話題");
+    const { setHandoffFrom, getSessionState } = await import("./store/sessionState.js");
+    setHandoffFrom(cur, prev);
+    const r = await fetch(`${base}/api/sessions/${cur}/handoff`, { method: "DELETE" });
+    expect(r.status).toBe(200);
+    expect(getSessionState(cur)!.handoffFrom).toBeNull();
+  });
+
+  it("只改 state 不動 updatedAt（不打亂「最近一場」排序）", async () => {
+    const sid = mkPm("排序");
+    const before = getSession(sid)!.updatedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    await fetch(`${base}/api/sessions/${sid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: "done" }) });
+    expect(getSession(sid)!.updatedAt).toBe(before);
+  });
+});
+

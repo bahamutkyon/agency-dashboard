@@ -84,7 +84,7 @@ TAGS: tag1 / tag2 / tag3
         const set = new Set([...(cur.tags || []), ...tags]);
         cur.tags = Array.from(set).slice(0, 6);
       }
-      cur.updatedAt = Date.now();
+      // 不動 updatedAt：取名不是對話活動，改了會讓「最近一場」排序錯亂（補命名舊紀錄時曾把 18 場全推到今天）
       upsertSession({ ...cur, messages: undefined as any });
       if (newTitle) onTitled?.(sessionId, newTitle);
       console.log(`[auto-titler] ${sessionId.slice(0, 8)} → "${newTitle}" tags=${tags?.join(",")}`);

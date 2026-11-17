@@ -21,6 +21,7 @@ import { useNotes } from "../hooks/useNotes";
 import { useTags } from "../hooks/useTags";
 import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useProjects } from "../hooks/useProjects";
+import { HandoffCard } from "./HandoffCard";
 
 interface Props {
   sessionId: string;
@@ -533,6 +534,7 @@ export function ChatWindow({
           <MarkdownView className="text-zinc-200">{summary}</MarkdownView>
         </div>
       )}
+      {agentId === "agents-orchestrator" && <HandoffCard sessionId={sessionId} onOpenSession={onOpenSession} />}
       <MessageList
         scrollerRef={scrollerRef}
         messages={messages}

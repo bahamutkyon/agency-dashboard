@@ -53,6 +53,8 @@ const MERGE_TOTAL_MAX = 100_000;
 const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
 
 import { ORCHESTRATOR_TITLE } from "../sessionTitles.js";
+import { setManualState, getSessionState, setHandoffFrom } from "../store/sessionState.js";
+import { buildHandoff, handoffPromptBlock } from "../sessionHandoff.js";
 
 export const sessionsRouter = Router();
 
@@ -72,6 +74,24 @@ sessionsRouter.get("/sessions", (req, res) => {
   })).filter((s) => includeEmpty || s.messageCount > 0 || s.status === "busy" || s.status === "starting")
     .filter((s) => !DISPATCH_SUB_TITLE_PREFIXES.some((p) => s.title.startsWith(p)));
   res.json(out);
+});
+
+// 這場是從哪一場交接來的、帶了什麼重點（對話頂端「已帶入上一場重點」卡片用）
+sessionsRouter.get("/sessions/:id/handoff", (req, res) => {
+  const st = getSessionState(req.params.id);
+  if (!st) return res.status(404).json({ error: "not found" });
+  res.json({ handoff: st.handoffFrom ? buildHandoff(st.handoffFrom) : null });
+});
+
+// 「不要帶入」：清掉交接來源。還沒開聊（0 則）就順便停掉程序，下一句話會用不含交接的 prompt 重新喚醒；
+// 已經聊過就只清來源（之後喚醒時不再注入），PM 已被告知無關就忽略。
+sessionsRouter.delete("/sessions/:id/handoff", (req, res) => {
+  const cur = getSession(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  setHandoffFrom(req.params.id, null);
+  const restarted = (cur.messages || []).length === 0;
+  if (restarted) agentManager.stop(req.params.id);
+  res.json({ ok: true, restarted });
 });
 
 sessionsRouter.get("/sessions/:id", (req, res) => {
@@ -124,6 +144,18 @@ sessionsRouter.patch("/sessions/:id", (req, res) => {
   const { title, tags, projectId } = req.body || {};
   const cur = getSession(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  // state：手動標記完成（"done"）或重新開啟（null）。自動摘要不會覆蓋手動標記。
+  if (req.body && "state" in req.body) {
+    const st = req.body.state;
+    if (st !== null && st !== "done" && st !== "open" && st !== "waiting_user") {
+      return res.status(400).json({ error: "state 只能是 done / open / waiting_user / null" });
+    }
+    setManualState(req.params.id, st);
+    // 只改狀態就到此為止：不更新 updatedAt（標記完成/重新開啟不是對話活動，不該改變「最近一場」排序）
+    if (title === undefined && tags === undefined && projectId === undefined) {
+      return res.json({ ...cur, messages: undefined, state: st });
+    }
+  }
   const next = { ...cur };
   if (typeof title === "string") next.title = title;
   if (Array.isArray(tags)) next.tags = tags.map((t) => String(t)).filter(Boolean);
@@ -374,7 +406,12 @@ sessionsRouter.post("/orchestrator", (req, res) => {
   const { systemExtra, standing } = buildOrchestratorSeed(wsId);
   // 選填 title：總管簡報「展開討論」帶項目標題，之後同項目可接回同一場而非每天多一場
   const rawTitle = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 60) : "";
-  const session = agentManager.start("agents-orchestrator", rawTitle || ORCHESTRATOR_TITLE, standing + systemExtra, wsId, false, "claude", orchProjectId || undefined);
+  // 選填 handoffFrom：「＋ 開新話題」時帶入上一場重點（只帶一場）；同工作區才接受
+  const fromId = typeof req.body?.handoffFrom === "string" ? req.body.handoffFrom : "";
+  const fromSess = fromId ? getSession(fromId) : undefined;
+  const handoff = fromSess && (fromSess.workspaceId || DEFAULT_WORKSPACE_ID) === wsId ? buildHandoff(fromId) : null;
+  const session = agentManager.start("agents-orchestrator", rawTitle || ORCHESTRATOR_TITLE, standing + systemExtra + (handoff ? handoffPromptBlock(handoff) : ""), wsId, false, "claude", orchProjectId || undefined);
+  if (handoff) setHandoffFrom(session.id, handoff.fromId);
   res.json({ id: session.id });
 });
 
@@ -469,9 +506,12 @@ export function startOrchestratorSession(wsId: string, title: string, projectId?
 
 // 專案經理的額外 prompt（派工手冊＋團隊名單＋目標帳本）在 reattach 時重新產生——
 // 喚醒舊對話也拿得到最新的同事名單與目標（見 agentManager.registerSeedBuilder）。
-agentManager.registerSeedBuilder?.("agents-orchestrator", (wsId) => {
+agentManager.registerSeedBuilder?.("agents-orchestrator", (wsId, sessionId) => {
   const { systemExtra, standing } = buildOrchestratorSeed(wsId);
-  return standing + systemExtra;
+  // 喚醒時保留開場那段「上一場交接」（否則閒置回收後再聊，交接內容就從 prompt 消失）
+  const from = getSessionState(sessionId)?.handoffFrom;
+  const handoff = from ? buildHandoff(from) : null;
+  return standing + systemExtra + (handoff ? handoffPromptBlock(handoff) : "");
 });
 
 /** dispatchGuide 字串（從 POST /orchestrator 路由獨立出來以便 buildOrchestratorSeed 複用）。*/

@@ -49,7 +49,9 @@ export function listSessionsWithCounts(workspaceId?: string): SessionSummary[] {
     SELECT s.*,
       (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS message_count,
       (SELECT m.content FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_content,
-      (SELECT m.role    FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_role
+      (SELECT m.role    FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_role,
+      (SELECT COUNT(*) FROM pending_actions p WHERE p.session_id = s.id AND p.status = 'pending') AS pending_count,
+      (SELECT COUNT(*) FROM delegations d WHERE d.pm_session_id = s.id AND d.status IN ('queued','running')) AS running_delegations
     FROM sessions s
     ${workspaceId ? "WHERE s.workspace_id = ?" : ""}
     ORDER BY s.updated_at DESC
@@ -65,6 +67,11 @@ export function listSessionsWithCounts(workspaceId?: string): SessionSummary[] {
       // 列表只需預覽：截 200 字（舊版回整則，歷史 API 一次 100KB+）
       lastSnippet: r.last_content != null ? String(r.last_content).slice(0, 200) : null,
       lastRole: (r.last_role as Message["role"]) || null,
+      state: r.state ?? null,
+      stoppedAt: r.stopped_at ?? null,
+      handoffFrom: r.handoff_from ?? null,
+      pendingCount: Number(r.pending_count) || 0,
+      runningDelegations: Number(r.running_delegations) || 0,
     };
   });
 }

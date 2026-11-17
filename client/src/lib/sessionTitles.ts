@@ -24,10 +24,11 @@ export function agentLabel(agentId: string, catalogName?: string): string {
   return agentId === ORCHESTRATOR_ID ? PM_TITLE : (catalogName || agentId);
 }
 
-/** 可「繼續」的專案經理對話：互動式、有訊息，新到舊。 */
+/** 可「繼續」的專案經理對話：互動式、有訊息、沒被標記完成，新到舊。 */
 export function pickResumable(sessions: SessionRecord[], limit: number): SessionRecord[] {
   return sessions
-    .filter((x) => x.agentId === ORCHESTRATOR_ID && (x.messageCount ?? x.messages?.length ?? 0) > 0 && !isAutomatedTitle(x.title))
+    .filter((x) => x.agentId === ORCHESTRATOR_ID && (x.messageCount ?? x.messages?.length ?? 0) > 0
+      && !isAutomatedTitle(x.title) && x.state !== "done")
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, limit);
 }

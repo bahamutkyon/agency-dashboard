@@ -19,6 +19,7 @@ import { noteRateLimited, withBackgroundSlot, unmarkShadow } from "./backgroundL
 import { positiveMsFromEnv } from "./activityDeadline.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
+import { maybeDigestOnReclaim } from "./sessionDigest.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
@@ -270,7 +271,7 @@ export class AgentManager {
   /** 每個 session 最後一次發出任何事件的時間——busy 看門狗據此分辨「還在做事」與「卡住」。 */
   private lastEventAt = new Map<string, number>();
   /** reattach 時重新產生額外 prompt 的函式（agentId → builder），見 registerSeedBuilder。 */
-  private seedBuilders = new Map<string, (workspaceId: string) => string>();
+  private seedBuilders = new Map<string, (workspaceId: string, sessionId: string) => string>();
   /** 模型 → { 回報過的 session 數, 最後時間 }（modelsSeen 用）。 */
   private modelStats = new Map<string, { sessions: number; lastSeenAt: number }>();
   private io?: any;
@@ -282,6 +283,9 @@ export class AgentManager {
   _distillHook: (sessionId: string, workspaceId: string, agentId: string) => void = (sid, wsId, aid) => {
     withBackgroundSlot(() => maybeDistillOnReclaim(sid, wsId, aid))
       .catch((e: any) => console.warn(`[agentManager] reclaim distill error ${sid.slice(0, 8)}:`, e?.message || e));
+    // 專案經理對話「停在哪」摘要（只對互動式 PM 場次跑，其餘在 maybeDigestOnReclaim 內直接略過）
+    withBackgroundSlot(() => maybeDigestOnReclaim(sid), { label: "digest" })
+      .catch((e: any) => console.warn(`[agentManager] reclaim digest error ${sid.slice(0, 8)}:`, e?.message || e));
   };
 
   setIo(io: any) { this.io = io; }
@@ -556,7 +560,7 @@ export class AgentManager {
    * 註冊「某 agent 的額外 prompt 要在 reattach 時重新產生」的函式（例如專案經理的派工手冊＋
    * 團隊名單＋目標帳本，重新產生才拿得到最新的同事與目標）。由 routes/sessions 註冊，避免循環依賴。
    */
-  registerSeedBuilder(agentId: string, build: (workspaceId: string) => string): void {
+  registerSeedBuilder(agentId: string, build: (workspaceId: string, sessionId: string) => string): void {
     this.seedBuilders.set(agentId, build);
   }
 
@@ -582,7 +586,7 @@ export class AgentManager {
       const builder = this.seedBuilders.get(rec.agentId);
       let extra = recipe?.extra ?? "";
       if (builder) {
-        try { extra = builder(rec.workspaceId); } catch (e: any) {
+        try { extra = builder(rec.workspaceId, sessionId); } catch (e: any) {
           console.warn(`[agentManager] seed builder 失敗 ${rec.agentId}:`, e?.message || e);
         }
       }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useVisiblePolling } from "../hooks/useVisiblePolling";
 import { api, type AgentMeta, type SearchHit, type SessionRecord, type TagInfo } from "../lib/api";
 import { fmtRelative } from "../lib/relTime";
+import { sessionBadge } from "../lib/sessionStatus";
 import { agentLabel, isAutomatedTitle, sessionHeading } from "../lib/sessionTitles";
 
 interface Props {
@@ -211,11 +212,16 @@ export function HistoryPanel({ agents, onOpen }: Props) {
                       s.status === "error" ? "bg-rose-500" : "bg-zinc-600"
                     }`} />
                     <span className="font-medium truncate">{sessionHeading(s)}</span>
+                    {(() => { const b = sessionBadge(s); return b && <span className={`text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap ${b.className}`}>{b.icon} {b.label}</span>; })()}
                     {(s.tags || []).map((t) => (
                       <span key={t} className="text-[11px] px-1.5 py-0.5 bg-accent/20 text-accent rounded">#{t}</span>
                     ))}
                   </div>
-                  {s.lastSnippet && (
+                  {s.stoppedAt ? (
+                    <div className="mt-1 text-xs text-zinc-400 line-clamp-2">
+                      <span className="text-zinc-500 mr-1">停在：</span>{s.stoppedAt}
+                    </div>
+                  ) : s.lastSnippet && (
                     <div className="mt-1 text-xs text-zinc-400 line-clamp-2">
                       <span className="text-zinc-500 mr-1">停在［{s.lastRole === "user" ? "我" : agentName(s.agentId).replace(/^\S+\s/, "")}］</span>
                       {s.lastSnippet}
@@ -227,6 +233,19 @@ export function HistoryPanel({ agents, onOpen }: Props) {
                     {s.messageCount != null && <><span>·</span><span>{s.messageCount} 則</span></>}
                   </div>
                 </div>
+                {s.state === "done" && (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try { await api.setSessionState(s.id, null); setSessions((prev) => prev.map((x) => (x.id === s.id ? { ...x, state: null } : x))); }
+                      catch { alert("重新開啟失敗"); }
+                    }}
+                    className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white mr-1 whitespace-nowrap"
+                    title="重新列回「繼續」與「接續上次」"
+                  >
+                    重新開啟
+                  </button>
+                )}
                 <button
                   onClick={(e) => remove(e, s.id, s.title)}
                   className="text-xs px-2 py-1 bg-zinc-800 hover:bg-rose-700 rounded text-zinc-400 hover:text-white"

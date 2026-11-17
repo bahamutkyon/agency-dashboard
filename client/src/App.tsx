@@ -292,8 +292,10 @@ export default function App() {
   // onCockpitDiscuss 定義在 openHistorySession 之前，用 ref 取最新版本
   const openHistorySessionRef = useRef<((sessionId: string, agentId: string, title: string) => void) | null>(null);
 
+  // 「＋ 開新話題」：本工作區有上一場就帶入它的重點（新對話頂端可按「不要帶入」）
+  const latestPmIdRef = useRef<string | undefined>(undefined);
   const askOrchestrator = useCallback(async () => {
-    const { id } = await api.startOrchestrator();
+    const { id } = await api.startOrchestrator(undefined, latestPmIdRef.current);
     setTabs((prev) => [...prev, { sessionId: id, agentId: "agents-orchestrator", agentName: "👨‍💼 專案經理", status: "idle" }]);
     setView({ kind: "chat", sessionId: id });
   }, []);
@@ -399,12 +401,21 @@ ${message}
   // 「繼續：〈標題〉」——本工作區最近一場互動式專案經理對話
   const resumable = useMemo(() => pickResumable(wsSessions, 3), [wsSessions]);
   const latestPm = resumable[0];
+  latestPmIdRef.current = latestPm?.id;
   const resumePm = useCallback(() => {
     if (latestPm) openHistorySession(latestPm.id, latestPm.agentId, latestPm.title);
   }, [latestPm, openHistorySession]);
   const resumePmInfo = useMemo(() => latestPm
     ? { title: sessionHeading(latestPm), updatedAt: latestPm.updatedAt, messageCount: latestPm.messageCount }
     : undefined, [latestPm]);
+
+  // 標記完成／重新開啟：從「繼續」與「接續上次」移除，歷史裡仍在、可重新開啟
+  const setPmState = useCallback(async (sessionId: string, state: "done" | null) => {
+    try {
+      await api.setSessionState(sessionId, state);
+      setWsSessions((prev) => prev.map((x) => (x.id === sessionId ? { ...x, state } : x)));
+    } catch { alert("更新狀態失敗，請稍後再試"); }
+  }, []);
 
   // 對話標頭改名
   const renameSession = useCallback(async (sessionId: string, title: string) => {
@@ -736,7 +747,8 @@ ${message}
           {isView("cockpit") && (
             <Suspense fallback={LazyFallback}>
               <CockpitPanel key={`ck-${reloadKey}`} onDiscuss={onCockpitDiscuss}
-                resumable={resumable} onResume={(x) => openHistorySession(x.id, x.agentId, x.title)} onNewTopic={askOrchestrator} />
+                resumable={resumable} onResume={(x) => openHistorySession(x.id, x.agentId, x.title)} onNewTopic={askOrchestrator}
+                onMarkDone={(x) => setPmState(x.id, "done")} />
             </Suspense>
           )}
           {isView("schedules") && (

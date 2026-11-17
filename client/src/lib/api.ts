@@ -106,6 +106,20 @@ export interface SessionRecord {
   messageCount?: number;
   lastSnippet?: string | null;
   lastRole?: "user" | "assistant" | "system" | null;
+  /** 對話狀態：手動標記或閒置時自動判斷（見 server store/sessionState.ts） */
+  state?: "open" | "waiting_user" | "done" | null;
+  /** 一句話「停在哪、下一步等誰」（閒置時自動整理） */
+  stoppedAt?: string | null;
+  handoffFrom?: string | null;
+  pendingCount?: number;
+  runningDelegations?: number;
+}
+
+export interface SessionHandoff {
+  fromId: string;
+  fromTitle: string;
+  summary: string;
+  source: "digest" | "excerpt";
 }
 
 export interface RoutingDecision {
@@ -219,11 +233,20 @@ export const api = {
     }).then(j<RoutingDecision>),
   providers: () => fetch("/api/providers").then(j<ProviderAvailability>),
   /** title 選填：總管簡報「展開討論」帶項目標題，下次同項目可接回同一場 */
-  startOrchestrator: (title?: string) =>
+  /** handoffFrom 選填：「＋ 開新話題」時帶入上一場重點 */
+  startOrchestrator: (title?: string, handoffFrom?: string) =>
     fetch(withWorkspace("/api/orchestrator"), {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(title ? { title } : {}),
+      body: JSON.stringify({ ...(title ? { title } : {}), ...(handoffFrom ? { handoffFrom } : {}) }),
     }).then(j<{ id: string }>),
+  /** 手動標記對話狀態：done＝標記完成，null＝重新開啟 */
+  setSessionState: (id: string, state: "done" | null) =>
+    fetch(`/api/sessions/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    }).then(j),
+  sessionHandoff: (id: string) => fetch(`/api/sessions/${id}/handoff`).then(j<{ handoff: SessionHandoff | null }>),
+  dropSessionHandoff: (id: string) => fetch(`/api/sessions/${id}/handoff`, { method: "DELETE" }).then(j<{ ok: boolean; restarted: boolean }>),
   startOnboarding: () =>
     fetch(withWorkspace("/api/onboarding"), { method: "POST" }).then(j<{ id: string }>),
   applyOnboarding: (sessionId: string, workspaceId: string, memo: string) =>

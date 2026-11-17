@@ -20,6 +20,7 @@ import { loadAgents } from "./agentLoader.js";
 import { modelFor } from "./models.js";
 import { clipKeepTail } from "./textClip.js";
 import { AGENT_MEMORY_MAX } from "./store/workspaces.js";
+import { ONGOING_HEADER, dropsOngoingSection } from "./memoryOngoing.js";
 
 /** 送進蒸餾的最近訊息則數。 */
 const DISTILL_RECENT_MESSAGES = 60;
@@ -52,6 +53,8 @@ export async function distillAgentMemory(
 
   const agent = loadAgents().find((a) => a.id === agentId);
   const agentName = agent?.name || agentId;
+  // 排程／批次／workflow 等無人值守的場次：使用者不在場，不能憑它改動「進行中的事」
+  const unattended = /^\[(排程|批次|workflow)/.test(session.title || "");
 
   // 取最近 60 則（舊 30 則；1M context 下整段再由 clipKeepTail 控在 DISTILL_TRANSCRIPT_MAX 內）
   const transcript = messages.slice(-DISTILL_RECENT_MESSAGES).map((m) => {
@@ -66,7 +69,13 @@ export async function distillAgentMemory(
 1. 你目前對使用者的理解(若為空則是第一次蒸餾)
 2. 這場對話的內容
 
-新版記憶要包含哪些東西(只有確認過的事實,不要推測):
+新版記憶的**第一個區塊固定是**:
+${ONGOING_HEADER}
+- 條列你和使用者手上還沒結束的事:每條寫「事情 — 停在哪 — 下一步等誰(使用者/你/某位同事)」
+- 這場對話沒提到的項目**原樣保留**;只有使用者明確說做完了、不做了,才移除
+- 沒有進行中的事就寫「- (目前沒有)」,但標題一定要在
+${unattended ? "- **這場是無人值守的自動執行(排程/批次),使用者不在場:這個區塊原封不動照抄舊版,不要增刪改**\n" : ""}
+其餘要包含哪些東西(只有確認過的事實,不要推測):
 - 使用者是誰(背景、角色、業務)
 - 進行中的專案 / 議題(本次對話相關的更新進度)
 - 使用者的偏好 / 風格 / 禁忌
@@ -126,6 +135,11 @@ ${clipKeepTail(transcript, DISTILL_TRANSCRIPT_MAX)}
       .replace(/\n?```\s*$/i, "")
       .trim();
 
+    // 後置檢查:模型不一定照規則做——舊版有「進行中的事」、新版弄丟了,就放棄這次蒸餾保留舊版
+    if (dropsOngoingSection(existingContent, cleaned)) {
+      console.warn(`[memoryDistiller] 新版記憶缺「進行中的事」區塊,保留舊版 (${workspaceId}, ${agentId}, session ${sessionId.slice(0, 8)})`);
+      return { ok: false, error: "新版記憶缺少「與使用者進行中的事」區塊,已保留舊版" };
+    }
     setAgentMemory(workspaceId, agentId, cleaned, sessionId);
     console.log(`[memoryDistiller] updated memory for (${workspaceId}, ${agentId}) — ${cleaned.length} chars`);
     return { ok: true, newMemory: cleaned };

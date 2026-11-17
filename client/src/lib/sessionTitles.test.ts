@@ -31,6 +31,7 @@ describe("sessionTitles", () => {
       s({ id: "empty", messageCount: 0, updatedAt: 8 }),
       s({ id: "other", agentId: "seo", updatedAt: 7 }),
       s({ id: "new", title: "電容定價", updatedAt: 5 }),
+      s({ id: "done", title: "已講完", updatedAt: 6, state: "done" }),
     ];
     expect(pickResumable(list, 3).map((x) => x.id)).toEqual(["new", "old"]);
   });

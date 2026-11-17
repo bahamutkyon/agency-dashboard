@@ -10,9 +10,10 @@ interface Props {
   resumable?: SessionRecord[];
   onResume?: (s: SessionRecord) => void;
   onNewTopic?: () => void;
+  onMarkDone?: (s: SessionRecord) => void;
 }
 
-export function CockpitPanel({ onDiscuss, resumable = [], onResume, onNewTopic }: Props) {
+export function CockpitPanel({ onDiscuss, resumable = [], onResume, onNewTopic, onMarkDone }: Props) {
   const [row, setRow] = useState<BriefingRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<{ status: string; raw: string; at: number } | undefined>(undefined);
@@ -80,8 +81,8 @@ export function CockpitPanel({ onDiscuss, resumable = [], onResume, onNewTopic }
   };
 
   // 放在「尚無簡報」判斷之前也要顯示：接續上次不依賴簡報
-  const resumeStrip = onResume && onNewTopic
-    ? <ResumeStrip sessions={resumable} onResume={onResume} onNewTopic={onNewTopic} /> : null;
+  const resumeStrip = onResume && onNewTopic && onMarkDone
+    ? <ResumeStrip sessions={resumable} onResume={onResume} onNewTopic={onNewTopic} onMarkDone={onMarkDone} /> : null;
 
   if (!row) return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-5">

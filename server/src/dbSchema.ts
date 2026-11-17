@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   provider TEXT NOT NULL DEFAULT 'claude',
   codex_thread_id TEXT,
   gemini_meta TEXT,
+  state TEXT,
+  state_source TEXT,
+  state_at INTEGER,
+  stopped_at TEXT,
+  digest_at INTEGER,
+  handoff_from TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -475,6 +481,11 @@ export function applyMigrations(db: DatabaseSync): void {
     }
     if (!hasColumn(db, "sessions", "gemini_meta")) {
       db.exec("ALTER TABLE sessions ADD COLUMN gemini_meta TEXT");
+    }
+    // 對話狀態／停在哪／交接來源（2026-11-17 PM 對話銜接，store/sessionState.ts）
+    for (const [col, type] of [["state", "TEXT"], ["state_source", "TEXT"], ["state_at", "INTEGER"],
+      ["stopped_at", "TEXT"], ["digest_at", "INTEGER"], ["handoff_from", "TEXT"]] as const) {
+      if (!hasColumn(db, "sessions", col)) db.exec(`ALTER TABLE sessions ADD COLUMN ${col} ${type}`);
     }
   }
   // workflows.max_concurrency
