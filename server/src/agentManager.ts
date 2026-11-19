@@ -278,6 +278,15 @@ export function getBusyWatchdogLimits(env: Record<string, string | undefined> = 
 
 export class AgentManager {
   private sessions = new Map<string, AgentSession>();
+  /** 建立／重建 session 物件時的通知（即時轉送靠它把 listener 搬到新物件，見 sessionForwarding.ts）。 */
+  private registeredListeners = new Set<(sessionId: string) => void>();
+  onSessionRegistered(cb: (sessionId: string) => void): () => void {
+    this.registeredListeners.add(cb);
+    return () => { this.registeredListeners.delete(cb); };
+  }
+  private notifyRegistered(sessionId: string): void {
+    for (const cb of this.registeredListeners) { try { cb(sessionId); } catch (e: any) { console.warn("[agentManager] onSessionRegistered", e?.message || e); } }
+  }
   // Track when each session was closed (epoch ms). Used for idle eviction.
   private sessionClosedAt = new Map<string, number>();
   /** Session-level note dedup: noteIds already injected for each sessionId.
@@ -473,6 +482,7 @@ export class AgentManager {
       (session as any)._isBackground = true;
     }
     this.attachPersistence(session);
+    this.notifyRegistered(session.id);
     return session;
   }
 
@@ -628,6 +638,7 @@ export class AgentManager {
     (session as any).workspaceId = rec.workspaceId;
     this.sessions.set(session.id, session);
     this.attachPersistence(session);
+    this.notifyRegistered(session.id);
     return session;
   }
 

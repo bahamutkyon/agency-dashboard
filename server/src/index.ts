@@ -5,6 +5,7 @@ import { Server as SocketServer } from "socket.io";
 import { loadAgents } from "./agentLoader.js";
 import { agentManager, setDispatchAutoApprover } from "./agentManager.js";
 import { approvePendingAction } from "./routes/approvalService.js";
+import { SessionForwarding } from "./sessionForwarding.js";
 import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { initGuardSettings } from "./guardSettings.js";
 import { scheduler } from "./scheduler.js";
@@ -211,38 +212,20 @@ agentManager.setIo(io);
 // PM 的內部派工（不對外）直接放行，不等使用者按批准卡；對外動作仍跳卡（見 dispatchRisk.ts）
 setDispatchAutoApprover((id) => { approvePendingAction(id, io); });
 
-// sessionObservers: sessionId → Set of socketIds currently observing that session.
-// sessionForwards: sessionId → the "event" listener attached to the AgentSession.
-// This allows proper cleanup when a socket disconnects or the last observer leaves.
-const sessionObservers = new Map<string, Set<string>>();
-const sessionForwards = new Map<string, (evt: any) => void>();
-
-function leaveSession(socketId: string, sessionId: string) {
-  const observers = sessionObservers.get(sessionId);
-  if (!observers) return;
-  observers.delete(socketId);
-  if (observers.size === 0) {
-    // Last observer gone — detach the event listener from the AgentSession.
-    const forward = sessionForwards.get(sessionId);
-    if (forward) {
-      const session = agentManager.get(sessionId);
-      if (session) session.off("event", forward);
-      sessionForwards.delete(sessionId);
-    }
-    sessionObservers.delete(sessionId);
-    console.log(`[ws] unwired session ${sessionId} (no more observers)`);
-  }
-}
+// 即時回覆轉送（觀看者／listener 管理）。session 物件被回收重建時要把 listener 搬過去，
+// 否則分頁開著放久了再送訊息會看不到即時回覆（見 sessionForwarding.ts）。
+const forwarding = new SessionForwarding(
+  (id) => agentManager.get(id),
+  (sessionId, evt) => { io.to(`session:${sessionId}`).emit("session:event", { sessionId, ...evt }); },
+);
+agentManager.onSessionRegistered((id) => forwarding.sessionRegistered(id));
 
 io.on("connection", (socket) => {
   console.log(`[ws] client connected ${socket.id}`);
 
   socket.on("disconnect", (r) => {
     console.log(`[ws] client disconnected ${socket.id} (${r})`);
-    // Clean up all sessions this socket was observing.
-    for (const [sessionId] of sessionObservers) {
-      leaveSession(socket.id, sessionId);
-    }
+    forwarding.disconnect(socket.id);
   });
 
   socket.on("session:join", (sessionId: string) => {
@@ -254,23 +237,7 @@ io.on("connection", (socket) => {
       return;
     }
     socket.join(`session:${sessionId}`);
-
-    // Register this socket as an observer.
-    if (!sessionObservers.has(sessionId)) {
-      sessionObservers.set(sessionId, new Set());
-    }
-    const observers = sessionObservers.get(sessionId)!;
-    observers.add(socket.id);
-
-    // Attach the shared forward listener only once per session.
-    if (!sessionForwards.has(sessionId)) {
-      const forward = (evt: any) => {
-        io.to(`session:${sessionId}`).emit("session:event", { sessionId, ...evt });
-      };
-      session.on("event", forward);
-      sessionForwards.set(sessionId, forward);
-      console.log(`[ws] wired session ${sessionId}`);
-    }
+    forwarding.join(socket.id, sessionId);
   });
 
   socket.on("session:send", ({ sessionId, text }: { sessionId: string; text: string }) => {
