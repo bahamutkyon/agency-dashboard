@@ -3,7 +3,8 @@ import cors from "cors";
 import { createServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { loadAgents } from "./agentLoader.js";
-import { agentManager } from "./agentManager.js";
+import { agentManager, setDispatchAutoApprover } from "./agentManager.js";
+import { approvePendingAction } from "./routes/approvalService.js";
 import { cleanupOrphanPromptFiles } from "./agentSession.js";
 import { initGuardSettings } from "./guardSettings.js";
 import { scheduler } from "./scheduler.js";
@@ -207,6 +208,8 @@ io.use((socket, next) => {
 app.set("io", io);
 app.set("studyScheduler", studyScheduler);
 agentManager.setIo(io);
+// PM 的內部派工（不對外）直接放行，不等使用者按批准卡；對外動作仍跳卡（見 dispatchRisk.ts）
+setDispatchAutoApprover((id) => { approvePendingAction(id, io); });
 
 // sessionObservers: sessionId → Set of socketIds currently observing that session.
 // sessionForwards: sessionId → the "event" listener attached to the AgentSession.

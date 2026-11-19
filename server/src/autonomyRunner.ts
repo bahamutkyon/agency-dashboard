@@ -1,6 +1,7 @@
 import { parseActions, type ParsedAction } from "./actionProtocol.js";
 import type { DispatchItem } from "./dispatchParser.js";
 import { shouldAutoApprove } from "./autonomyPolicy.js";
+import { dispatchNeedsApproval } from "./dispatchRisk.js";
 import { notify } from "./notifier.js";
 import {
   createRun, getRun, updateRunStatus, incrementStep,
@@ -303,8 +304,9 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     // 政策：自動放行的 kind 直接執行並續跑；其餘照舊建待批卡並暫停。
     // B2 安全閘：balanced 下，dispatch 若含任一 execute item → 轉待批（不自動放行）。
     if (budgetExceeded(run, deps)) { finalize(deps, runId, "budget_exhausted"); return; }
-    const hasExecuteItem = action.kind === "dispatch" &&
-      (action.dispatchItems ?? []).some((item) => item.mode === "execute");
+    // 2026-11-19 起：不再「含 execute 就攔」，改成「含對外動作才攔」（與手動派工同一把尺，見 dispatchRisk.ts）
+    const risk = action.kind === "dispatch" ? dispatchNeedsApproval(action.dispatchItems ?? []) : { needs: false, reasons: [] as string[] };
+    const hasExecuteItem = risk.needs;
     if (shouldAutoApprove(action.kind, run.policy, { hasExecute: hasExecuteItem })) {
       const pa = createPendingAction({
         runId, sessionId: run.sessionId, workspaceId: run.workspaceId,
@@ -327,7 +329,7 @@ async function loop(runId: string, deps: AutonomyDeps, firstPrompt: string): Pro
     }
     // 待批 summary：若為 balanced + dispatch 含 execute，標明原因讓使用者明白為何自走模式來問
     const pendingSummary = (hasExecuteItem && run.policy === "balanced")
-      ? `${action.summary}（含 execute 派工，自走模式下仍需你批准）`
+      ? `${action.summary}（需你批准：${risk.reasons.join("、")}）`
       : action.summary;
     const pa = createPendingAction({
       runId, sessionId: run.sessionId, workspaceId: run.workspaceId,

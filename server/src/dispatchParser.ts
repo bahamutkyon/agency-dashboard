@@ -14,6 +14,8 @@ export interface DispatchItem {
   context?: string;
   deliverable?: string;
   accept?: string[];
+  /** PM 標記這項會對外（發文、寄信、上架、付款…）→ 一定要使用者批准。 */
+  external?: boolean;
 }
 export interface DispatchPlan {
   items: DispatchItem[];
@@ -42,6 +44,7 @@ interface ParsedCurItem {
   context?: string;
   deliverable?: string;
   accept?: string[];
+  external?: boolean;
 }
 
 function finalizeField(field: ParsedField): void { /* caller applies via applyField */ }
@@ -70,6 +73,7 @@ function flushItem(cur: ParsedCurItem | null, items: DispatchItem[]): void {
   if (cur.context) it.context = cur.context;
   if (cur.deliverable) it.deliverable = cur.deliverable;
   if (cur.accept && cur.accept.length > 0) it.accept = cur.accept;
+  if (cur.external) it.external = true;
   items.push(it);
 }
 
@@ -99,6 +103,14 @@ export function parseDispatchMarker(text: string): DispatchPlan | null {
     if (modeM) {
       if (currentField) { applyField(cur, currentField); currentField = null; }
       cur.mode = modeM[1].toLowerCase() === "execute" ? "execute" : "consult";
+      continue;
+    }
+
+    // `external: true|yes|是`
+    const extM = line.match(/^external:\s*(\S+)\s*$/i);
+    if (extM) {
+      if (currentField) { applyField(cur, currentField); currentField = null; }
+      cur.external = /^(true|yes|是|y|1)$/i.test(extM[1]);
       continue;
     }
 
@@ -142,6 +154,7 @@ export function serializeDispatchItem(item: DispatchItem): string {
   const lines: string[] = [];
   lines.push(`- agentId: ${item.agentId}`);
   lines.push(`  mode: ${item.mode}`);
+  if (item.external) lines.push(`  external: true`);
 
   const writeTextField = (key: string, value: string) => {
     const parts = value.split("\n");

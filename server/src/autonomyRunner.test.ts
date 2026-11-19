@@ -301,7 +301,7 @@ describe("autonomyRunner 狀態機", () => {
     // pending summary 應含原因說明（讓使用者知道為何自走模式還來問）
     const pa = listPending("sessBalancedExecGate").find((p) => p.kind === "dispatch")!;
     expect(pa).toBeTruthy();
-    expect(pa.summary.toLowerCase()).toContain("execute");
+    expect(pa.summary).toContain("需你批准");
   });
 
   it("balanced + dispatch 含 execute → 批准後繼續執行到 done", async () => {
@@ -349,11 +349,11 @@ describe("autonomyRunner 狀態機", () => {
     expect(receivedPrompts.some((p) => p.includes("被拒") || p.includes("替代"))).toBe(true);
   });
 
-  it("balanced + dispatch 混合（含 consult 與 execute）→ 轉待批（只要含任一 execute）", async () => {
+  it("balanced + dispatch 混合（consult + 對外 execute）→ 轉待批（任一項對外就攔）", async () => {
     const dispatchCalls: any[] = [];
     const scripted = [
       "=== ACTION ===\nkind: plan\nsummary: 計畫\n=== END ACTION ===",
-      "=== ACTION ===\nkind: dispatch\nsummary: 混合派工\ndetail:\n- agentId: researcher\n  mode: consult\n  task: 調查\n- agentId: executor\n  mode: execute\n  task: 執行\n=== END ACTION ===",
+      "=== ACTION ===\nkind: dispatch\nsummary: 混合派工\ndetail:\n- agentId: researcher\n  mode: consult\n  task: 調查\n- agentId: executor\n  mode: execute\n  task: 把貼文發布到 Threads\n=== END ACTION ===",
       "=== ACTION ===\nkind: goal_done\nsummary: 完成\n=== END ACTION ===",
     ];
     let i = 0;

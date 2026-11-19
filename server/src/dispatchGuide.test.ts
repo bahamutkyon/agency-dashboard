@@ -128,3 +128,22 @@ describe("B4：PM 對話膨脹裁剪限制", () => {
     expect(fn).toContain("完整回覆見該同事的子對話");
   });
 });
+
+describe("目標導向：交給我辦（2026-11-19）", () => {
+  const src2 = fs.readFileSync(path.join(here, "routes", "sessions.ts"), "utf8");
+  const g = src2.match(/function buildDispatchGuide\(\)[^{]*\{[^`]*return `([\s\S]*?)\n`;/)![1];
+  it("追問改成先做、必要才問、一次問完", () => {
+    expect(g).not.toContain("一次只問一題");
+    expect(g).toContain("一次問完");
+    expect(g).toContain("預設");
+  });
+  it("內部派工不用等批准；對外要標 external", () => {
+    expect(g).not.toContain("按批准卡即可");
+    expect(g).toContain("external: true");
+  });
+  it("做到完才回報：不中途問要不要繼續，最後交成果報告", () => {
+    expect(g).toContain("做到完才回報");
+    expect(g).toContain("要不要繼續");
+    expect(g).toContain("成果報告");
+  });
+});

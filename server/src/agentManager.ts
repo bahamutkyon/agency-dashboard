@@ -26,6 +26,7 @@ import { buildSkillPrimingBlock } from "./skillPriming.js";
 import { ensureWorkspaceDir } from "./workspaceDir.js";
 import { parseDispatchMarker, serializeDispatchItem } from "./dispatchParser.js";
 import { createPendingAction, listPending, getActiveRunForSession } from "./store/autonomy.js";
+import { dispatchNeedsApproval } from "./dispatchRisk.js";
 import { notify } from "./notifier.js";
 import { getProjectMemory } from "./store/projects.js";
 import { getDelegationProgress } from "./store/delegationProgress.js";
@@ -55,6 +56,13 @@ export function detectAndEnqueueAutorun(
   io?.emit("autonomy:event", { sessionId: sess.id, kind: "autorun:pending", goal });
 }
 
+/** 內部派工的自動放行器（server 啟動時由 index.ts 註冊，接 approvePendingAction）。
+ *  未註冊（單元測試、未啟動）時退回舊行為：全部入待批。 */
+let dispatchAutoApprover: ((actionId: string) => void) | null = null;
+export function setDispatchAutoApprover(fn: ((actionId: string) => void) | null): void {
+  dispatchAutoApprover = fn;
+}
+
 /** 從 PM 訊息偵測 DISPATCH 並入待批佇列（手動派工，runId 空）。
  *  去重：同 session 已有相同 summary 的 pending dispatch 則跳過。
  *  有自主 run 進行中時跳過（交給 autonomyRunner，避免雙重入列）。 */
@@ -67,14 +75,22 @@ export function detectAndEnqueueDispatch(
   if (getActiveRunForSession(sess.id)) return;
   const plan = parseDispatchMarker(content);
   if (!plan || !plan.items.length) return;
-  const summary = `派工給 ${plan.items.length} 位：${plan.items.map((i) => i.agentId).join("、")}`;
+  const risk = dispatchNeedsApproval(plan.items);
+  const autoRun = !risk.needs && dispatchAutoApprover !== null;
+  const base = `派工給 ${plan.items.length} 位：${plan.items.map((i) => i.agentId).join("、")}`;
+  const summary = risk.needs ? `${base}（需你批准：${risk.reasons.join("、")}）` : base;
   const detail = plan.items.map(serializeDispatchItem).join("\n");
   // 去重用 detail（含 task），避免「同 agent 不同 task」被誤判重複漏單
   if (listPending(sess.id).some((p) => p.kind === "dispatch" && p.detail === detail)) return;
-  createPendingAction({
-    sessionId: sess.id, workspaceId: sess.workspaceId, kind: "dispatch", risk: "high",
+  const pa = createPendingAction({
+    sessionId: sess.id, workspaceId: sess.workspaceId, kind: "dispatch", risk: risk.needs ? "high" : "low",
     summary, detail,
   });
+  // 內部工作（不對外）直接放行：走同一條核可路徑（CAS、台帳、回報 PM 都一樣），只是不等人按。
+  if (autoRun) {
+    try { dispatchAutoApprover!(pa.id); return; }
+    catch (e: any) { console.warn("[agentManager] 自動放行派工失敗，改等使用者批准", e?.message || e); }
+  }
   // A2：建立 pending 成功後立即 emit，讓前端 useAutonomy 現成 refresh 即時彈出批准卡
   //（沿用既有 autonomy:event 事件名，不新增事件型別）。
   io?.emit("autonomy:event", { sessionId: sess.id, kind: "pending:new" });

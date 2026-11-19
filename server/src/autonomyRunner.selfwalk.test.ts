@@ -33,6 +33,22 @@ describe("balanced 自走", () => {
     expect(pending.some((p) => p.kind === "external_send")).toBe(true);
   });
 
+  it("balanced：內部 execute（查資料寫報告）自動跑，不停下來等批准", async () => {
+    const dispatch = A("dispatch", "- agentId: marketing-trend-researcher\n  mode: execute\n  task: 查行情並寫成報告存檔");
+    const deps = mkDeps([A("plan", "x"), dispatch, A("goal_done", "完成")]);
+    const runId = await startRun("sess-int-exec", "w1", "行情報告", { policy: "balanced", maxSteps: 10, maxWallMs: 60000 }, deps);
+    expect(getRun(runId)!.status).toBe("done");
+    expect(deps.runDispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("balanced：對外 execute（上架）仍停下等批准", async () => {
+    const dispatch = A("dispatch", "- agentId: a\n  mode: execute\n  task: 把商品上架到蝦皮");
+    const deps = mkDeps([A("plan", "x"), dispatch, A("goal_done", "完成")]);
+    const runId = await startRun("sess-ext-exec", "w1", "上架", { policy: "balanced", maxSteps: 10, maxWallMs: 60000 }, deps);
+    expect(getRun(runId)!.status).toBe("paused_for_action");
+    expect(deps.runDispatch).not.toHaveBeenCalled();
+  });
+
   it("manual：plan 仍要批准（向後相容）", async () => {
     const deps = mkDeps([A("plan", "x"), A("dispatch", "- agentId: a\n  mode: consult\n  task: t")]);
     const runId = await startRun("sess-man", "w1", "g", { policy: "manual", maxSteps: 10, maxWallMs: 60000 }, deps);
