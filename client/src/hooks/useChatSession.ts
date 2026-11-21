@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getSocket, joinSession, leaveSession } from "../lib/socket";
 import { notify } from "../lib/notifications";
 import { applyDelta, applyFinal } from "../lib/chatMerge";
+import { autoScrollMode } from "../lib/chatScroll";
 
 export interface Msg {
   role: "user" | "assistant" | "system";
@@ -107,14 +108,34 @@ export function useChatSession(
     };
   }, [sessionId, onStatusChange, agentName]);
 
-  // autoscroll — stick-to-bottom: only scroll if user is already near the bottom
+  // autoscroll：打開對話時直接跳到最底；自己送出時捲到底；其餘貼近底部才跟著捲
+  const initialScrollPendingRef = useRef(true);
+  const prevCountRef = useRef(0);
+  useEffect(() => {
+    initialScrollPendingRef.current = true;
+    prevCountRef.current = 0;
+  }, [sessionId]);
   useEffect(() => {
     const el = scrollerRef.current;
+    const prevCount = prevCountRef.current;
+    prevCountRef.current = messages.length;
     if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 80) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    const mode = autoScrollMode({
+      initialPending: initialScrollPendingRef.current,
+      prevCount,
+      count: messages.length,
+      lastRole: messages[messages.length - 1]?.role,
+      distanceFromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
+    });
+    if (mode === "none") return;
+    if (mode === "jump") {
+      initialScrollPendingRef.current = false;
+      el.scrollTop = el.scrollHeight;
+      // markdown／圖片排版完高度會再長一點，下一幀再補一次
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+      return;
     }
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   return { messages, setMessages, status, setStatus, autoInjectedNotes, scrollerRef, streamingRef, model, setModel };
