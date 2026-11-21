@@ -74,7 +74,7 @@
 - 純前端判斷函式 `client/src/lib/handoffNudge.ts`：`shouldNudge({ messageCount, totalChars, dismissed, handedOff })`，門檻 **80 則或 30,000 字**。
 - 對話頂部提示條：「這場已經很長（N 則），交接到新對話？［交接］［不用］」；［不用］寫 localStorage（以 sessionId 為 key），這場不再提醒；已交接的場次不提醒。
 - 側欄既有 150 則提示（`AgentSidebar.tsx:186`）改用同一判斷函式。
-- session 列表 API 需提供 totalChars（若目前沒有則加總計算回傳）。
+- 字數用前端已載入的 `messages` 計算，不改 session 列表 API；側欄只看則數。
 
 ## 5. 錯誤處理
 - 解析失敗／空內容：不開新對話、不改舊對話，log 一行。
