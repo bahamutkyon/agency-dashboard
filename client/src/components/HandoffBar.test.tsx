@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HandoffBar } from "./HandoffBar";
 import { HANDOFF_REQUEST_TEXT } from "../lib/handoffNudge";
+import { act } from "@testing-library/react";
+
+const sockHandlers: Record<string, ((p: any) => void)[]> = {};
+vi.mock("../lib/socket", () => ({
+  getSocket: () => ({
+    on: (ev: string, h: (p: any) => void) => { (sockHandlers[ev] ||= []).push(h); },
+    off: (ev: string, h: (p: any) => void) => { sockHandlers[ev] = (sockHandlers[ev] || []).filter((x) => x !== h); },
+  }),
+}));
+const fire = (ev: string, p: any) => act(() => { (sockHandlers[ev] || []).forEach((h) => h(p)); });
 
 const long = Array.from({ length: 80 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x" }));
 
@@ -61,5 +71,13 @@ describe("HandoffBar", () => {
     render(<HandoffBar sessionId="s1" messages={long} status="idle" onSend={vi.fn()} handedOff />);
     expect(screen.queryByRole("button", { name: /交接/ })).toBeNull();
     expect(screen.queryByText(/這場已經很長/)).toBeNull();
+  });
+  it("交接請求送出就失敗（session:error，從沒進 busy）→ 立即提示（只認本場）", () => {
+    const { rerender } = render(<HandoffBar sessionId="s1" messages={[]} status="idle" onSend={vi.fn()} handedOff={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /交接/ }));
+    fire("session:error", { sessionId: "other", error: "x" });
+    expect(screen.queryByText(/交接單沒有產生/)).toBeNull();
+    fire("session:error", { sessionId: "s1", error: "send failed" });
+    expect(screen.getByText(/交接單沒有產生/)).toBeTruthy();
   });
 });

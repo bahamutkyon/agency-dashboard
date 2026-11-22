@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { shouldNudge, nudgeDismissed, dismissNudge, HANDOFF_REQUEST_TEXT } from "../lib/handoffNudge";
+import { getSocket } from "../lib/socket";
 
 interface Props {
   sessionId: string;
@@ -22,6 +23,18 @@ export function HandoffBar({ sessionId, messages, status, onSend, handedOff, fai
   const pending = useRef<"sent" | "busy" | null>(null);
 
   useEffect(() => { setDismissed(nudgeDismissed(sessionId)); setFailed(false); pending.current = null; }, [sessionId]);
+  // 交接請求送出就失敗（伺服器回 session:error、從沒進 busy）：立即提示並清掉追蹤，
+  // 否則 pending 停在 "sent"，下一個普通回合結束會被誤判成「交接單沒有產生」。
+  useEffect(() => {
+    const sock = getSocket();
+    const h = (e: { sessionId?: string }) => {
+      if (e?.sessionId !== sessionId || pending.current !== "sent") return;
+      pending.current = null;
+      setFailed(true);
+    };
+    sock.on("session:error", h);
+    return () => { sock.off("session:error", h); };
+  }, [sessionId]);
   useEffect(() => {
     if (pending.current === "sent" && status === "busy") pending.current = "busy";
     else if (pending.current === "busy" && TURN_END.has(status)) {
