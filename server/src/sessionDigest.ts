@@ -11,7 +11,7 @@ import { modelFor } from "./models.js";
 import { ORCHESTRATOR_ID } from "./sessionTitles.js";
 
 const STATES: SessionStateValue[] = ["open", "waiting_user", "done"];
-const AUTOMATED = /^\[(排程|批次|workflow)|^🤖 工作區設定顧問|^🤝 受派諮詢|^🛠️ 外包執行/;
+export const AUTOMATED = /^\[(排程|批次|workflow)|^🤖 工作區設定顧問|^🤝 受派諮詢|^🛠️ 外包執行/;
 
 export function parseDigest(text: string): { stoppedAt: string; state: SessionStateValue } | null {
   const stopped = text.match(/STOPPED_AT:\s*(.+)/)?.[1]?.trim();
