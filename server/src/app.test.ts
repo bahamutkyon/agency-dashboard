@@ -750,6 +750,9 @@ describe("對話狀態與交接端點（2026-11-17）", () => {
     const s = buildOrchestratorSeed(DEFAULT_WORKSPACE_ID);
     expect(s.standing + s.systemExtra).toContain("=== HANDOFF ===");
     expect(s.standing + s.systemExtra).toContain("=== END HANDOFF ===");
+    // 範本佔位說明與 handoffParser 的誤觸發防護同步（改手冊範本要一起改 HANDOFF_TEMPLATE_HINTS）
+    const { HANDOFF_TEMPLATE_HINTS } = await import("./handoffParser.js");
+    for (const h of HANDOFF_TEMPLATE_HINTS) expect(s.standing + s.systemExtra).toContain(h);
   });
 
   it("只改 state 不動 updatedAt（不打亂「最近一場」排序）", async () => {

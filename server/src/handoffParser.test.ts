@@ -26,3 +26,33 @@ describe("parseHandoff", () => {
     expect(out.startsWith("😀".repeat(HANDOFF_MAX))).toBe(true);
   });
 });
+
+// 誤觸發防護：PM 手冊本身含交接單範本；使用者問「交接單長什麼樣」時 PM 照抄範本示範，
+// 不能被當成真交接（會自動開新對話、把這場標 done）。
+describe("parseHandoff — 範本示範不算交接", () => {
+  const TEMPLATE = [
+    "🎯 目標：這場要達成什麼",
+    "✅ 已決定：談定、不要再重問的事（含數字與理由）",
+    "🔄 進行中：交辦了一半的工作、等誰回報",
+    "⏭️ 下一步：接手後第一件要做的事",
+    "❓ 等你拍板：需要使用者決定的事",
+    "📎 重要資料：數字、連結、檔案路徑",
+  ].join("\n");
+  it("照抄手冊範本（佔位說明）→ null", () => {
+    expect(parseHandoff("交接單長這樣：\n" + wrap(TEMPLATE))).toBeNull();
+  });
+  it("包在 code block 裡照抄範本 → null", () => {
+    expect(parseHandoff("格式如下：\n```\n" + wrap(TEMPLATE) + "\n```")).toBeNull();
+  });
+  it("只有欄位標題、內容全空的骨架 → null", () => {
+    expect(parseHandoff(wrap("🎯 目標：\n✅ 已決定：\n🔄 進行中：\n⏭️ 下一步：\n❓ 等你拍板：\n📎 重要資料："))).toBeNull();
+  });
+  it("真交接單（即使某些欄位寫「無」）→ 照常取出", () => {
+    const real = "🎯 目標：定價策略\n✅ 已決定：不走 FBA\n🔄 進行中：無\n⏭️ 下一步：拍商品照\n❓ 等你拍板：無\n📎 重要資料：無";
+    expect(parseHandoff(wrap(real))).toBe(real);
+  });
+  it("先示範範本、後面才是真交接 → 取真交接", () => {
+    const real = "🎯 目標：定價\n⏭️ 下一步：拍照";
+    expect(parseHandoff(wrap(TEMPLATE) + "\n" + wrap(real))).toBe(real);
+  });
+});

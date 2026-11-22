@@ -50,6 +50,14 @@ describe("message 事件的交接接線", () => {
     expect(hb).not.toHaveBeenCalled();
   });
 
+  it("專案經理照抄手冊範本示範格式 → 不呼叫（誤觸發防護）", () => {
+    const { mgr, fake } = wire("agents-orchestrator", "👨‍💼 專案經理");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    const demo = "交接單長這樣：\n```\n=== HANDOFF ===\n🎯 目標：這場要達成什麼\n⏭️ 下一步：接手後第一件要做的事\n=== END HANDOFF ===\n```";
+    fake.emit("event", { type: "message", payload: { content: demo } });
+    expect(h).not.toHaveBeenCalled();
+  });
+
   it("handler 丟例外 → 不外拋，訊息照樣存檔", () => {
     const { id, mgr, fake } = wire("agents-orchestrator", "👨‍💼 專案經理");
     mgr.registerHandoffHandler(() => { throw new Error("boom"); });
