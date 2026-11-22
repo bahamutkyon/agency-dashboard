@@ -16,14 +16,19 @@ export interface SessionStateRow {
   stoppedAt: string | null;
   digestAt: number | null;
   handoffFrom: string | null;
+  /** 這場被交接出去時，專案經理寫的完整交接單 */
+  handoffDoc: string | null;
+  /** 這場交接到的新對話 id */
+  handedOffTo: string | null;
 }
 
 export function getSessionState(id: string): SessionStateRow | undefined {
-  const r = db.prepare("SELECT state, state_source, state_at, stopped_at, digest_at, handoff_from FROM sessions WHERE id = ?").get(id) as any;
+  const r = db.prepare("SELECT state, state_source, state_at, stopped_at, digest_at, handoff_from, handoff_doc, handed_off_to FROM sessions WHERE id = ?").get(id) as any;
   if (!r) return undefined;
   return {
     state: r.state ?? null, stateSource: r.state_source ?? null, stateAt: r.state_at ?? null,
     stoppedAt: r.stopped_at ?? null, digestAt: r.digest_at ?? null, handoffFrom: r.handoff_from ?? null,
+    handoffDoc: r.handoff_doc ?? null, handedOffTo: r.handed_off_to ?? null,
   };
 }
 
@@ -52,6 +57,15 @@ export function setAutoDigest(id: string, stoppedAt: string, state: SessionState
 
 export function setHandoffFrom(id: string, fromId: string | null): void {
   db.prepare("UPDATE sessions SET handoff_from = ? WHERE id = ?").run(fromId, id);
+}
+
+/** 交接單欄位 setter 不可碰 updated_at（會打亂「最近一場」排序）。 */
+export function setHandoffDoc(id: string, doc: string): void {
+  db.prepare("UPDATE sessions SET handoff_doc = ? WHERE id = ?").run(doc, id);
+}
+
+export function setHandedOffTo(id: string, toId: string | null): void {
+  db.prepare("UPDATE sessions SET handed_off_to = ? WHERE id = ?").run(toId, id);
 }
 
 /** 使用者在這場講話了：舊的狀態（等你回覆／擱置／完成）與「停在哪」都過時了，清掉等下次閒置重新整理。 */

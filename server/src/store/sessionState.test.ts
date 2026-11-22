@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { db } from "../db.js";
 import { upsertSession, listSessionsWithCounts } from "./sessions.js";
-import { setManualState, setAutoDigest, getSessionState, setHandoffFrom } from "./sessionState.js";
+import { setManualState, setAutoDigest, getSessionState, setHandoffFrom, setHandoffDoc, setHandedOffTo } from "./sessionState.js";
 
 let n = 0;
 function mk(ws = "w_state"): string {
@@ -46,5 +46,17 @@ describe("session state（C1/C2）", () => {
     db.prepare("INSERT INTO delegations (id, pm_session_id, workspace_id, agent_id, mode, task, status, created_at) VALUES (?, ?, 'w_list', 'a', 'execute', 't', 'running', 1)").run(`dl_${id}`, id);
     const row = listSessionsWithCounts("w_list").find((x) => x.id === id)!;
     expect(row).toMatchObject({ state: "waiting_user", stoppedAt: "等你決定定價", pendingCount: 1, runningDelegations: 1, handoffFrom: prev });
+  });
+});
+
+describe("交接單欄位", () => {
+  it("setHandoffDoc / setHandedOffTo 可讀回", () => {
+    const id = mk();
+    expect(getSessionState(id)!.handoffDoc).toBeNull();
+    expect(getSessionState(id)!.handedOffTo).toBeNull();
+    setHandoffDoc(id, "🎯 目標：x");
+    setHandedOffTo(id, "new_1");
+    expect(getSessionState(id)!.handoffDoc).toBe("🎯 目標：x");
+    expect(getSessionState(id)!.handedOffTo).toBe("new_1");
   });
 });
