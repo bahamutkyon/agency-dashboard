@@ -247,7 +247,10 @@ export const api = {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state }),
     }).then(j),
-  sessionHandoff: (id: string) => fetch(`/api/sessions/${id}/handoff`).then(j<{ handoff: SessionHandoff | null }>),
+  sessionHandoff: (id: string) => fetch(`/api/sessions/${id}/handoff`).then(j<{ handoff: SessionHandoff | null; handedOffTo: { id: string; title: string } | null }>),
+  updateSessionHandoff: (id: string, doc: string) => fetch(`/api/sessions/${id}/handoff`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc }),
+  }).then(j<{ ok: boolean }>),
   dropSessionHandoff: (id: string) => fetch(`/api/sessions/${id}/handoff`, { method: "DELETE" }).then(j<{ ok: boolean; restarted: boolean }>),
   startOnboarding: () =>
     fetch(withWorkspace("/api/onboarding"), { method: "POST" }).then(j<{ id: string }>),
