@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
 import type { AgentMeta, CategoryMeta } from "../lib/api";
 import { fmtRelative } from "../lib/relTime";
+import { shouldNudge } from "../lib/handoffNudge";
 
 interface Props {
   agents: AgentMeta[];
@@ -183,7 +184,7 @@ function AgentSidebarInner({
               <div className="text-sm font-medium truncate">👨‍💼 繼續：{resumePm.title}</div>
               <div className="text-[11px] text-white/70">
                 {fmtRelative(resumePm.updatedAt)}{resumePm.messageCount != null ? ` · ${resumePm.messageCount} 則` : ""}
-                {(resumePm.messageCount ?? 0) > 150 ? " · 這場已經很長，建議開新話題" : ""}
+                {shouldNudge({ messageCount: resumePm.messageCount ?? 0 }) ? " · 這場已經很長，建議交接" : ""}
               </div>
             </button>
             <button

@@ -9,8 +9,11 @@
  *  4. autorunPending=null 時不渲染卡片
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ChatWindow } from "./ChatWindow";
+import { getSocket } from "../lib/socket";
+import { useChatSession } from "../hooks/useChatSession";
+import { HANDOFF_REQUEST_TEXT } from "../lib/handoffNudge";
 
 // ─── Mock 所有外部依賴 ────────────────────────────────────────────────────────
 
@@ -40,6 +43,7 @@ vi.mock("../lib/api", async (importOriginal) => {
       tags: vi.fn().mockResolvedValue([]),
       summarize: vi.fn().mockResolvedValue({ summary: "" }),
       listProjects: vi.fn().mockResolvedValue({ projects: [] }),
+      sessionHandoff: vi.fn().mockResolvedValue({ handoff: null, handedOffTo: null }),
     },
     onUnauthorized: vi.fn().mockReturnValue(() => {}),
   };
@@ -236,5 +240,60 @@ describe("ChatWindow — AutorunApprovalCard 掛載（G1）", () => {
     await waitFor(() => expect(screen.getByText(/處理中…/)).toBeTruthy());
     const btn = screen.getByRole("button", { name: /確認啟動|處理中/ });
     expect((btn as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("ChatWindow — 專案經理一句話交接", () => {
+  function setupSocket() {
+    const handlers: Record<string, (e: any) => void> = {};
+    const sock = {
+      on: vi.fn((ev: string, fn: (e: any) => void) => { handlers[ev] = fn; }),
+      off: vi.fn(),
+      emit: vi.fn(),
+    };
+    vi.mocked(getSocket).mockReturnValue(sock as any);
+    return { sock, handlers };
+  }
+  const PM_PROPS = { sessionId: "pm_1", agentId: "agents-orchestrator", agentName: "專案經理" };
+
+  it("「🔁 交接」走一般送出路徑：樂觀顯示自己的訊息並 emit session:send", async () => {
+    mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
+    const { sock } = setupSocket();
+    // useChatSession mock 每次回傳同一個物件，取出它的 setMessages 來檢查樂觀更新
+    const setMessages = vi.mocked((useChatSession as any)().setMessages as ReturnType<typeof vi.fn>);
+    setMessages.mockClear();
+    render(<ChatWindow {...PM_PROPS} />);
+    fireEvent.click(await screen.findByRole("button", { name: /交接/ }));
+    expect(sock.emit).toHaveBeenCalledWith("session:send", { sessionId: "pm_1", text: HANDOFF_REQUEST_TEXT });
+    const updaters = setMessages.mock.calls.map((c: any[]) => c[0]).filter((u: unknown) => typeof u === "function");
+    const appended = updaters.map((u: any) => u([])).find((r: any[]) => r.length === 1 && r[0].role === "user");
+    expect(appended?.[0].content).toBe(HANDOFF_REQUEST_TEXT);
+  });
+
+  it("收到本場 session:handoff → 交接鈕隱藏；別場的不理", async () => {
+    mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
+    const { handlers } = setupSocket();
+    render(<ChatWindow {...PM_PROPS} />);
+    await screen.findByRole("button", { name: /交接/ });
+    act(() => handlers["session:handoff"]({ fromId: "other", toId: "x", toTitle: "x" }));
+    expect(screen.getByRole("button", { name: /交接/ })).toBeTruthy();
+    act(() => handlers["session:handoff"]({ fromId: "pm_1", toId: "n1", toTitle: "新對話" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /交接/ })).toBeNull());
+  });
+
+  it("收到本場 session:handoff_failed → 顯示錯誤訊息", async () => {
+    mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
+    const { handlers } = setupSocket();
+    render(<ChatWindow {...PM_PROPS} />);
+    await screen.findByRole("button", { name: /交接/ });
+    act(() => handlers["session:handoff_failed"]({ fromId: "pm_1", error: "DB 寫入失敗" }));
+    expect(await screen.findByText(/DB 寫入失敗/)).toBeTruthy();
+  });
+
+  it("非專案經理不顯示交接鈕", async () => {
+    mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
+    setupSocket();
+    render(<ChatWindow {...BASE_PROPS} />);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /🔁 交接/ })).toBeNull());
   });
 });

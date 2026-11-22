@@ -14,6 +14,7 @@ import { setActiveWorkspace, getActiveWorkspace } from "./lib/workspace";
 import { api, onUnauthorized, type AgentMeta, type CategoryMeta, type BriefingItem, type SessionRecord } from "./lib/api";
 import { isDefaultTitle, pickResumable, sessionHeading, ORCHESTRATOR_ID, PM_TITLE } from "./lib/sessionTitles";
 import { saveTabs, loadTabs } from "./lib/tabStore";
+import { handoffSwitchTarget } from "./lib/handoffNudge";
 
 // ─── Lazy-loaded panels (non-firstscreen) ────────────────────────────────────
 const ChatWindow = lazy(() =>
@@ -295,6 +296,20 @@ export default function App() {
 
   // onCockpitDiscuss 定義在 openHistorySession 之前，用 ref 取最新版本
   const openHistorySessionRef = useRef<((sessionId: string, agentId: string, title: string) => void) | null>(null);
+
+  // 交接完成（server 推 session:handoff）→ 正在看來源對話就切到新對話；在看別的就不打擾
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  useEffect(() => {
+    const sock = getSocket();
+    const h = (e: { fromId: string; toId: string; toTitle: string }) => {
+      const v = viewRef.current;
+      const target = handoffSwitchTarget(v?.kind === "chat" ? v.sessionId : undefined, e);
+      if (target) openHistorySessionRef.current?.(target, ORCHESTRATOR_ID, e.toTitle);
+    };
+    sock.on("session:handoff", h);
+    return () => { sock.off("session:handoff", h); };
+  }, []);
 
   // 「＋ 開新話題」：本工作區有上一場就帶入它的重點（新對話頂端可按「不要帶入」）
   const latestPmIdRef = useRef<string | undefined>(undefined);

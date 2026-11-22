@@ -98,4 +98,12 @@ describe("AgentSidebar 分組折疊", () => {
     fireEvent.click(screen.getByText(/開新話題/));
     expect(onAsk).toHaveBeenCalled();
   });
+  it("上一場達 80 則 → 顯示「建議交接」；79 則不顯示", () => {
+    const { rerender } = render(<AgentSidebar {...baseProps} onResumePm={vi.fn()}
+      resumePm={{ title: "長對話", updatedAt: Date.now(), messageCount: 80 }} />);
+    expect(screen.getByText(/建議交接/)).toBeTruthy();
+    rerender(<AgentSidebar {...baseProps} onResumePm={vi.fn()}
+      resumePm={{ title: "長對話", updatedAt: Date.now(), messageCount: 79 }} />);
+    expect(screen.queryByText(/建議交接/)).toBeNull();
+  });
 });

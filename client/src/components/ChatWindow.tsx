@@ -22,6 +22,7 @@ import { useTags } from "../hooks/useTags";
 import { useSessionSummary } from "../hooks/useSessionSummary";
 import { useProjects } from "../hooks/useProjects";
 import { HandoffCard } from "./HandoffCard";
+import { HandoffBar } from "./HandoffBar";
 
 interface Props {
   sessionId: string;
@@ -189,13 +190,47 @@ export function ChatWindow({
   const { run: autonomyRun, pending: autonomyPending, busy: autonomyBusy, start: autonomyStart, approvePlan: autonomyApprovePlan, stop: autonomyStop, resume: autonomyResume, sendInput: autonomySendInput, inject: autonomyInject, approveAction, rejectAction, autorunPending, confirmAutorun, dismissAutorun } =
     useAutonomy(sessionId);
 
+  // 送出一句話（樂觀顯示＋emit；busy 時由伺服器佇列）。輸入框送出與「🔁 交接」鈕共用這條路徑。
+  const sendText = (text: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: text, ts: Date.now() }]);
+    getSocket().emit("session:send", { sessionId, text });
+  };
+
   const send = () => {
     const text = input.trim();
     if (!text) return;
-    setMessages((prev) => [...prev, { role: "user", content: text, ts: Date.now() }]);
-    getSocket().emit("session:send", { sessionId, text });
+    sendText(text);
     setInput("");
   };
+
+  // 專案經理一句話交接：本場是否已交接（來源場次）、收到交接事件後重抓交接卡、伺服器回報的交接失敗。
+  const [handedOff, setHandedOff] = useState(false);
+  const [handoffReload, setHandoffReload] = useState(0);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  useEffect(() => {
+    setHandedOff(false);
+    setHandoffError(null);
+    if (agentId !== "agents-orchestrator") return;
+    let alive = true;
+    api.sessionHandoff(sessionId).then((r) => { if (alive) setHandedOff(!!r.handedOffTo); }).catch(() => {});
+    const sock = getSocket();
+    const onDone = (e: { fromId: string }) => {
+      if (e.fromId !== sessionId) return;
+      setHandedOff(true);
+      setHandoffError(null);
+      setHandoffReload((k) => k + 1);
+    };
+    const onFailed = (e: { fromId: string; error?: string }) => {
+      if (e.fromId === sessionId) setHandoffError(e.error || "開新對話失敗");
+    };
+    sock.on("session:handoff", onDone);
+    sock.on("session:handoff_failed", onFailed);
+    return () => {
+      alive = false;
+      sock.off("session:handoff", onDone);
+      sock.off("session:handoff_failed", onFailed);
+    };
+  }, [sessionId, agentId]);
 
   // Edit & resend: trim everything from the chosen user message onwards,
   // load it back into the input, ready to edit + send.
@@ -534,7 +569,15 @@ export function ChatWindow({
           <MarkdownView className="text-zinc-200">{summary}</MarkdownView>
         </div>
       )}
-      {agentId === "agents-orchestrator" && <HandoffCard sessionId={sessionId} onOpenSession={onOpenSession} />}
+      {agentId === "agents-orchestrator" && (
+        <>
+          <HandoffCard sessionId={sessionId} onOpenSession={onOpenSession} reloadKey={handoffReload}
+            canEdit={!messages.some((m) => m.role === "user")} />
+          <HandoffBar sessionId={sessionId} messages={messages} status={status} handedOff={handedOff}
+            failError={handoffError}
+            onSend={(text) => { setHandoffError(null); sendText(text); }} />
+        </>
+      )}
       <MessageList
         scrollerRef={scrollerRef}
         messages={messages}
