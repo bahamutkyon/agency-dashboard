@@ -50,6 +50,13 @@ describe("message 事件的交接接線", () => {
     expect(hb).not.toHaveBeenCalled();
   });
 
+  it("自動化場次（排程）的專案經理輸出 HANDOFF → 不呼叫", () => {
+    const { mgr, fake } = wire("agents-orchestrator", "[排程] 週報");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    fake.emit("event", { type: "message", payload: { content: HANDOFF_MSG } });
+    expect(h).not.toHaveBeenCalled();
+  });
+
   it("專案經理照抄手冊範本示範格式 → 不呼叫（誤觸發防護）", () => {
     const { mgr, fake } = wire("agents-orchestrator", "👨‍💼 專案經理");
     const h = vi.fn(); mgr.registerHandoffHandler(h);

@@ -833,11 +833,11 @@ export class AgentManager {
         }
         // 交接：PM 輸出 HANDOFF 標記 → 存交接單、開新對話並通知前端切換（handoffService）。
         // 整段包 try/catch：任何例外都不能影響上面已完成的存檔，以及後續串流/佇列/回收。
+        // 先解析再查標題：getSession 會載入整場訊息，不要每則 assistant 訊息都付這個成本。
         try {
-          const title = getSession(s.id)?.title ?? "";
-          if (shouldDetectHandoff({ agentId: s.agentId, workspaceId: wsForDispatch, title })) {
-            const doc = parseHandoff(String(evt.payload.content));
-            if (doc) this.handoffHandler?.(s.id, doc, this.io);
+          const doc = s.agentId === "agents-orchestrator" && wsForDispatch ? parseHandoff(String(evt.payload.content)) : null;
+          if (doc && shouldDetectHandoff({ agentId: s.agentId, workspaceId: wsForDispatch, title: getSession(s.id)?.title ?? "" })) {
+            this.handoffHandler?.(s.id, doc, this.io);
           }
         } catch (e: any) { console.warn("[agentManager] handoff", e?.message || e); }
         // 目標帳本：偵測 PM 輸出的 GOAL_UPDATE 標記 → 直接更新目標現值（低風險自動化）。
