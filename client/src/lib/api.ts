@@ -121,7 +121,7 @@ export interface SessionHandoff {
   fromId: string;
   fromTitle: string;
   summary: string;
-  source: "digest" | "excerpt";
+  source: "doc" | "digest" | "excerpt";
 }
 
 export interface RoutingDecision {
