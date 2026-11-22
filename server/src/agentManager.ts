@@ -19,7 +19,8 @@ import { noteRateLimited, withBackgroundSlot, unmarkShadow } from "./backgroundL
 import { positiveMsFromEnv } from "./activityDeadline.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
-import { maybeDigestOnReclaim } from "./sessionDigest.js";
+import { maybeDigestOnReclaim, AUTOMATED } from "./sessionDigest.js";
+import { parseHandoff } from "./handoffParser.js";
 import { clearStateOnUserActivity } from "./store/sessionState.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
@@ -34,6 +35,11 @@ import { detectGoalUpdates, updateGoal } from "./store/goals.js";
 import { detectFollowups, createOutcomeCheck, hasOpenDuplicate } from "./store/outcomes.js";
 import fs from "node:fs";
 import path from "node:path";
+
+/** 交接偵測 gate：同 GOAL_UPDATE——只認專案經理、有工作區；排程/受派等自動化場次不觸發。 */
+export function shouldDetectHandoff(s: { agentId: string; workspaceId?: string; title: string }): boolean {
+  return s.agentId === "agents-orchestrator" && !!s.workspaceId && !AUTOMATED.test(s.title);
+}
 
 /**
  * G1 — 從 PM 訊息偵測 AUTORUN 標記並 emit 確認事件給前端。
@@ -298,6 +304,8 @@ export class AgentManager {
   private lastEventAt = new Map<string, number>();
   /** reattach 時重新產生額外 prompt 的函式（agentId → builder），見 registerSeedBuilder。 */
   private seedBuilders = new Map<string, (workspaceId: string, sessionId: string) => string>();
+  /** PM 輸出交接單時的處理函式（routes/sessions.ts 註冊，避免循環 import），見 handoffService.performHandoff。 */
+  private handoffHandler?: (fromId: string, doc: string, io: any) => void;
   /** 模型 → { 回報過的 session 數, 最後時間 }（modelsSeen 用）。 */
   private modelStats = new Map<string, { sessions: number; lastSeenAt: number }>();
   private io?: any;
@@ -591,6 +599,11 @@ export class AgentManager {
     this.seedBuilders.set(agentId, build);
   }
 
+  /** 註冊交接處理函式（routes/sessions.ts 模組載入時呼叫）。 */
+  registerHandoffHandler(fn: (fromId: string, doc: string, io: any) => void): void {
+    this.handoffHandler = fn;
+  }
+
   reattach(sessionId: string): AgentSession | undefined {
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
@@ -818,6 +831,15 @@ export class AgentManager {
           try { detectAndEnqueueAutorun({ id: s.id, agentId: s.agentId, workspaceId: wsForDispatch }, String(evt.payload.content), this.io); }
           catch (e: any) { console.warn("[agentManager] detectAndEnqueueAutorun", e?.message); }
         }
+        // 交接：PM 輸出 HANDOFF 標記 → 存交接單、開新對話並通知前端切換（handoffService）。
+        // 整段包 try/catch：任何例外都不能影響上面已完成的存檔，以及後續串流/佇列/回收。
+        try {
+          const title = getSession(s.id)?.title ?? "";
+          if (shouldDetectHandoff({ agentId: s.agentId, workspaceId: wsForDispatch, title })) {
+            const doc = parseHandoff(String(evt.payload.content));
+            if (doc) this.handoffHandler?.(s.id, doc, this.io);
+          }
+        } catch (e: any) { console.warn("[agentManager] handoff", e?.message || e); }
         // 目標帳本：偵測 PM 輸出的 GOAL_UPDATE 標記 → 直接更新目標現值（低風險自動化）。
         // 邊界（安全）：只認 orchestrator 的輸出——goals block 只注入 PM，子 agent 沒有
         // 正當理由改目標；且子 agent 常處理不可信外部內容（網頁/檔案），若照抄了內容裡的

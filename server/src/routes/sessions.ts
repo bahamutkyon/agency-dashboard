@@ -53,8 +53,10 @@ const MERGE_TOTAL_MAX = 100_000;
 const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
 
 import { ORCHESTRATOR_TITLE } from "../sessionTitles.js";
-import { setManualState, getSessionState, setHandoffFrom } from "../store/sessionState.js";
+import { setManualState, getSessionState, setHandoffFrom, setHandoffDoc } from "../store/sessionState.js";
 import { buildHandoff, handoffPromptBlock } from "../sessionHandoff.js";
+import { performHandoff } from "../handoffService.js";
+import { capHandoff } from "../handoffParser.js";
 
 export const sessionsRouter = Router();
 
@@ -80,7 +82,12 @@ sessionsRouter.get("/sessions", (req, res) => {
 sessionsRouter.get("/sessions/:id/handoff", (req, res) => {
   const st = getSessionState(req.params.id);
   if (!st) return res.status(404).json({ error: "not found" });
-  res.json({ handoff: st.handoffFrom ? buildHandoff(st.handoffFrom) : null });
+  // handedOffTo：這場已交接出去的話，新對話是哪一場（前端「已交接」橫幅用）
+  const to = st.handedOffTo ? getSession(st.handedOffTo) : undefined;
+  res.json({
+    handoff: st.handoffFrom ? buildHandoff(st.handoffFrom) : null,
+    handedOffTo: to ? { id: to.id, title: to.title } : null,
+  });
 });
 
 // 「不要帶入」：清掉交接來源。還沒開聊（0 則）就順便停掉程序，下一句話會用不含交接的 prompt 重新喚醒；
@@ -92,6 +99,20 @@ sessionsRouter.delete("/sessions/:id/handoff", (req, res) => {
   const restarted = (cur.messages || []).length === 0;
   if (restarted) agentManager.stop(req.params.id);
   res.json({ ok: true, restarted });
+});
+
+// 編輯帶入的交接單：只在新對話還沒有使用者訊息時允許；寫回來源場次，停掉程序讓下一句話用新版喚醒。
+sessionsRouter.put("/sessions/:id/handoff", (req, res) => {
+  const cur = getSession(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  const from = getSessionState(req.params.id)?.handoffFrom;
+  if (!from) return res.status(400).json({ error: "這場沒有交接來源" });
+  const raw = typeof req.body?.doc === "string" ? req.body.doc : "";
+  if (!raw.trim()) return res.status(400).json({ error: "交接單不能是空的" });
+  if ((cur.messages || []).some((m) => m.role === "user")) return res.status(409).json({ error: "已經開始對話，請直接跟專案經理說要補充什麼" });
+  setHandoffDoc(from, capHandoff(raw));
+  agentManager.stop(req.params.id);
+  res.json({ ok: true });
 });
 
 sessionsRouter.get("/sessions/:id", (req, res) => {
@@ -401,18 +422,38 @@ export function truncateForCatalog(desc: string, limit = CATALOG_DESC_MAX): stri
 // so it can recommend who to call for a given project.
 sessionsRouter.post("/orchestrator", (req, res) => {
   const wsId = ws(req) || DEFAULT_WORKSPACE_ID;
-  const orchProjectId = (req.body?.projectId || req.query.projectId) as string | undefined;
+  const projectId = (req.body?.projectId || req.query.projectId) as string | undefined;
+  // 選填 title：總管簡報「展開討論」帶項目標題，之後同項目可接回同一場而非每天多一場
+  const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 60) : "";
+  // 選填 handoffFrom：「＋ 開新話題」時帶入上一場重點（只帶一場）；同工作區才接受（見 startOrchestratorWithHandoff）
+  const handoffFrom = typeof req.body?.handoffFrom === "string" ? req.body.handoffFrom : "";
+  res.json({ id: startOrchestratorWithHandoff(wsId, { title, projectId, handoffFrom }) });
+});
+
+/**
+ * 開一場有完整 seeding 的互動專案經理對話；handoffFrom 同工作區才帶入。
+ * POST /orchestrator 與「一句話交接」（handoffService）共用。
+ */
+export function startOrchestratorWithHandoff(wsId: string, opts: { title?: string; projectId?: string; handoffFrom?: string } = {}): string {
   // 使用共用 seeding 函式（與 watchtower 升級路徑同一套 dispatchGuide + catalog + goals）
   const { systemExtra, standing } = buildOrchestratorSeed(wsId);
-  // 選填 title：總管簡報「展開討論」帶項目標題，之後同項目可接回同一場而非每天多一場
-  const rawTitle = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 60) : "";
-  // 選填 handoffFrom：「＋ 開新話題」時帶入上一場重點（只帶一場）；同工作區才接受
-  const fromId = typeof req.body?.handoffFrom === "string" ? req.body.handoffFrom : "";
+  const fromId = opts.handoffFrom || "";
   const fromSess = fromId ? getSession(fromId) : undefined;
   const handoff = fromSess && (fromSess.workspaceId || DEFAULT_WORKSPACE_ID) === wsId ? buildHandoff(fromId) : null;
-  const session = agentManager.start("agents-orchestrator", rawTitle || ORCHESTRATOR_TITLE, standing + systemExtra + (handoff ? handoffPromptBlock(handoff) : ""), wsId, false, "claude", orchProjectId || undefined);
+  const session = agentManager.start("agents-orchestrator", opts.title || ORCHESTRATOR_TITLE, standing + systemExtra + (handoff ? handoffPromptBlock(handoff) : ""), wsId, false, "claude", opts.projectId || undefined);
   if (handoff) setHandoffFrom(session.id, handoff.fromId);
-  res.json({ id: session.id });
+  return session.id;
+}
+
+// PM 輸出 HANDOFF 標記時：存交接單 → 開新對話帶入 → 舊對話標已交接 → 通知前端切換。
+// 在這裡註冊（agentManager 不 import routes，避免循環依賴；仿 registerSeedBuilder）。
+agentManager.registerHandoffHandler?.((fromId, doc, io) => {
+  const r = performHandoff(fromId, doc, {
+    start: (wsId, o) => startOrchestratorWithHandoff(wsId, o),
+    stop: (id) => agentManager.stop(id),
+    emit: (ev, p) => io?.emit(ev, p),
+  });
+  if (!r.ok) console.warn(`[handoff] ${fromId.slice(0, 8)} 失敗：${r.error}`);
 });
 
 // ─── Orchestrator Seeding（可重用）────────────────────────────────────────────
@@ -437,7 +478,7 @@ export function buildOrchestratorSeed(wsId: string): { systemExtra: string; stan
 請以「專案經理」身份替使用者把事辦完：理解目標 → 挑最合適的同事 → 用 DISPATCH 直接派工 → 驗收 → 交成果。不要只給「建議找誰」讓使用者自己去開對話。
 回覆用 Markdown，提到同事時用反引號包住其 \`agent-id\`。
 清單裡的描述是摘要；幾位人選相近、需要看專長細節才能決定時，可以直接讀 \`${AGENTS_DIR.replace(/\\/g, "/")}/<agent-id>.md\`（同事的完整人設）。
-${dispatchGuide}
+${dispatchGuide}${buildHandoffGuide()}
 可用團隊清單：
 ${catalog}
 `;
@@ -513,6 +554,26 @@ agentManager.registerSeedBuilder?.("agents-orchestrator", (wsId, sessionId) => {
   const handoff = from ? buildHandoff(from) : null;
   return standing + systemExtra + (handoff ? handoffPromptBlock(handoff) : "");
 });
+
+/**
+ * PM 手冊的「交接」段：使用者說交接 → PM 輸出 HANDOFF 標記（agentManager 偵測、handoffService 處理）。
+ * 獨立於 buildDispatchGuide：派工手冊有瘦身守護（dispatchGuide.test.ts，< 3,500 字），交接段另計。
+ */
+function buildHandoffGuide(): string {
+  return `
+## 🔁 交接
+使用者說要交接、換新對話、整理交接、對話太長要換一場時：讀完整場，輸出一份交接單（只輸出這一份，不要問要不要交接）：
+=== HANDOFF ===
+🎯 目標：這場要達成什麼
+✅ 已決定：談定、不要再重問的事（含數字與理由）
+🔄 進行中：交辦了一半的工作、等誰回報
+⏭️ 下一步：接手後第一件要做的事
+❓ 等你拍板：需要使用者決定的事
+📎 重要資料：數字、連結、檔案路徑
+=== END HANDOFF ===
+沒有內容的欄位寫「無」。2000 字內。系統會自動開新對話並帶入，你只要在交接單前用一句話說「交接單整理好了」。
+`;
+}
 
 /** dispatchGuide 字串（從 POST /orchestrator 路由獨立出來以便 buildOrchestratorSeed 複用）。*/
 function buildDispatchGuide(): string {

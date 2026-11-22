@@ -708,6 +708,50 @@ describe("對話狀態與交接端點（2026-11-17）", () => {
     expect(getSessionState(cur)!.handoffFrom).toBeNull();
   });
 
+  it("GET /api/sessions/:id/handoff：來源場次回 handedOffTo", async () => {
+    const prev = mkPm("長對話");
+    const cur = mkPm("新");
+    const { setHandedOffTo, setHandoffFrom, setHandoffDoc } = await import("./store/sessionState.js");
+    setHandedOffTo(prev, cur); setHandoffFrom(cur, prev); setHandoffDoc(prev, "🎯 目標：x");
+    const j: any = await (await fetch(`${base}/api/sessions/${prev}/handoff`)).json();
+    expect(j.handedOffTo).toMatchObject({ id: cur, title: "新" });
+    const j2: any = await (await fetch(`${base}/api/sessions/${cur}/handoff`)).json();
+    expect(j2.handoff).toMatchObject({ source: "doc", summary: "🎯 目標：x" });
+    expect(j2.handedOffTo).toBeNull();
+  });
+
+  it("PUT /api/sessions/:id/handoff：還沒開聊 → 改寫來源的交接單", async () => {
+    const prev = mkPm("長對話");
+    const cur = `pm_put_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    upsertSession({ id: cur, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "新", provider: "claude", createdAt: 1, updatedAt: 1, messages: [] });
+    createdSessionIds.push(cur);
+    const { setHandoffFrom, setHandoffDoc, getSessionState } = await import("./store/sessionState.js");
+    setHandoffFrom(cur, prev); setHandoffDoc(prev, "舊");
+    const r = await fetch(`${base}/api/sessions/${cur}/handoff`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc: "新版" }) });
+    expect(r.status).toBe(200);
+    expect(getSessionState(prev)!.handoffDoc).toBe("新版");
+  });
+
+  it("PUT handoff：已開聊 → 409；沒有交接來源 → 400；空內容 → 400；不存在 → 404", async () => {
+    const prev = mkPm("長對話");
+    const cur = mkPm("新"); // mkPm 會塞使用者訊息＝已開聊
+    const { setHandoffFrom, setHandoffDoc, getSessionState } = await import("./store/sessionState.js");
+    setHandoffFrom(cur, prev); setHandoffDoc(prev, "原版");
+    const put = (id: string, doc: string) => fetch(`${base}/api/sessions/${id}/handoff`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc }) });
+    expect((await put(cur, "x")).status).toBe(409);
+    expect(getSessionState(prev)!.handoffDoc).toBe("原版");
+    expect((await put(prev, "x")).status).toBe(400);
+    expect((await put(cur, "  ")).status).toBe(400);
+    expect((await put("__nonexistent_put__", "x")).status).toBe(404);
+  });
+
+  it("PM 手冊含交接標記說明", async () => {
+    const { buildOrchestratorSeed } = await import("./routes/sessions.js");
+    const s = buildOrchestratorSeed(DEFAULT_WORKSPACE_ID);
+    expect(s.standing + s.systemExtra).toContain("=== HANDOFF ===");
+    expect(s.standing + s.systemExtra).toContain("=== END HANDOFF ===");
+  });
+
   it("只改 state 不動 updatedAt（不打亂「最近一場」排序）", async () => {
     const sid = mkPm("排序");
     const before = getSession(sid)!.updatedAt;
