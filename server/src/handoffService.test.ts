@@ -53,6 +53,16 @@ describe("performHandoff", () => {
     expect(d.stop).not.toHaveBeenCalled();
   });
 
+  it("沿用時新對話已開聊 → 不改寫交接單（新對話拿到的是 v1，卡片與喚醒 prompt 不能悄悄換成 v2）", () => {
+    const from = mk();
+    const d = deps();
+    const first = performHandoff(from, "v1", d);
+    appendMessage(first.toId!, { role: "user", content: "開始", ts: 200 });
+    const r = performHandoff(from, "v2", d);
+    expect(r).toMatchObject({ ok: true, toId: first.toId, reused: true });
+    expect(getSessionState(from)!.handoffDoc).toBe("v1");
+  });
+
   it("開新對話失敗 → 交接單已存、舊對話不標 done、emit handoff_failed", () => {
     const from = mk();
     const d = deps();

@@ -16,17 +16,19 @@ export interface HandoffResult { ok: boolean; toId?: string; reused?: boolean; e
 export function performHandoff(fromId: string, doc: string, deps: HandoffDeps): HandoffResult {
   const from = getSession(fromId);
   if (!from) return { ok: false, error: "來源對話不存在" };
-  setHandoffDoc(fromId, doc);
 
   const prevTo = getSessionState(fromId)?.handedOffTo;
   const prev = prevTo ? getSession(prevTo) : undefined;
   if (prev) {
+    // 新對話還沒開聊：更新交接單並停程序，下一句話用新版喚醒。
+    // 已開聊：新對話已依舊版交接單在走，不改寫（否則卡片顯示與喚醒 prompt 會悄悄換掉，同 PUT 的限制）。
     const started = (prev.messages || []).some((m) => m.role === "user");
-    if (!started) deps.stop(prev.id);
+    if (!started) { setHandoffDoc(fromId, doc); deps.stop(prev.id); }
     deps.emit("session:handoff", { fromId, toId: prev.id, toTitle: prev.title });
     return { ok: true, toId: prev.id, reused: true };
   }
 
+  setHandoffDoc(fromId, doc);
   let toId: string;
   try {
     toId = deps.start(from.workspaceId || DEFAULT_WORKSPACE_ID, { projectId: from.projectId || undefined, handoffFrom: fromId });
