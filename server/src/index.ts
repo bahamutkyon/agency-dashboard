@@ -240,10 +240,10 @@ io.on("connection", (socket) => {
     forwarding.join(socket.id, sessionId);
   });
 
-  socket.on("session:send", ({ sessionId, text }: { sessionId: string; text: string }) => {
+  socket.on("session:send", ({ sessionId, text, handoff }: { sessionId: string; text: string; handoff?: boolean }) => {
     console.log(`[ws] session:send ${sessionId} text=${text?.slice(0, 60)}`);
     if (!sessionId || !text) return;
-    const result = agentManager.send(sessionId, text);
+    const result = agentManager.send(sessionId, text, { forceHandoff: handoff === true });
     if (!result.ok) {
       console.warn(`[ws] send failed ${sessionId}`);
       socket.emit("session:error", { sessionId, error: "send failed" });

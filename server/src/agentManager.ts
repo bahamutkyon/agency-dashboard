@@ -20,7 +20,8 @@ import { positiveMsFromEnv } from "./activityDeadline.js";
 import { maybeDistillOnReclaim } from "./memoryDistiller.js";
 import { maybeAutoTitle } from "./autoTitler.js";
 import { maybeDigestOnReclaim, AUTOMATED } from "./sessionDigest.js";
-import { parseHandoff } from "./handoffParser.js";
+import { parseHandoff, capHandoff } from "./handoffParser.js";
+import { isHandoffIntent, handoffHint } from "./handoffIntent.js";
 import { clearStateOnUserActivity } from "./store/sessionState.js";
 import { findRelevantNotes, buildNotesContext } from "./notesRetrieval.js";
 import { buildSkillPrimingBlock } from "./skillPriming.js";
@@ -306,6 +307,13 @@ export class AgentManager {
   private seedBuilders = new Map<string, (workspaceId: string, sessionId: string) => string>();
   /** PM 輸出交接單時的處理函式（routes/sessions.ts 註冊，避免循環 import），見 handoffService.performHandoff。 */
   private handoffHandler?: (fromId: string, doc: string, io: any) => void;
+  /** 按 🔁 交接鈕的回合：sessionId → 這回合最後一則回覆／是否已交接（回合結束沒交接就保底）。 */
+  private forcedHandoff = new Map<string, { last: string; done: boolean }>();
+
+  /** 標記這一回合是按鈕強制交接（send 的 forceHandoff 會呼叫；測試也直接用）。 */
+  markForcedHandoff(sessionId: string): void {
+    this.forcedHandoff.set(sessionId, { last: "", done: false });
+  }
   /** 模型 → { 回報過的 session 數, 最後時間 }（modelsSeen 用）。 */
   private modelStats = new Map<string, { sessions: number; lastSeenAt: number }>();
   private io?: any;
@@ -671,7 +679,7 @@ export class AgentManager {
     return this.sessions.get(sessionId);
   }
 
-  send(sessionId: string, text: string): { ok: boolean; injectedNotes?: { title: string }[]; turnId?: number } {
+  send(sessionId: string, text: string, opts: { forceHandoff?: boolean } = {}): { ok: boolean; injectedNotes?: { title: string }[]; turnId?: number } {
     const s = this.sessions.get(sessionId) || this.reattach(sessionId);
     if (!s) return { ok: false };
 
@@ -733,10 +741,15 @@ export class AgentManager {
     // 最終會送達模型——busy 現在會排隊、回 idle 抽乾）才把使用者訊息寫入 DB。
     // 這樣杜絕舊有的「落庫了但因 busy 被丟棄、永遠不會送」的 DB↔模型永久分岔。
     // 唯一不落庫的情況是 rejected（佇列爆滿的異常保護），此時本就沒送出。
+    // 交接：專案經理＋（按鈕 或 文字像要交接）→ 附提醒逼它輸出 HANDOFF 區塊（只送模型、不落庫）。
+    const isPm = s.agentId === "agents-orchestrator";
+    const forced = isPm && !!opts.forceHandoff;
+    if (isPm && (forced || isHandoffIntent(text))) augmented = `${augmented}\n\n${handoffHint(forced)}`;
     const result = s.send(augmented);
     if (result === "rejected") {
       return { ok: false };
     }
+    if (forced) this.markForcedHandoff(sessionId);
     // 透傳這一回合的 turnId 給等待端（send 為同步，此刻 lastTurnId 即這則的 turnId）。
     // 舊/假 session 無 lastTurnId → undefined，等待端會走向後相容全收路徑。
     const turnId = (s as any).lastTurnId as number | undefined;
@@ -779,6 +792,7 @@ export class AgentManager {
       }
       // Track when session reaches a terminal state for idle eviction.
       if (evt.type === "status" && (evt.payload === "closed" || evt.payload === "error")) {
+        this.forcedHandoff.delete(s.id); // 強制交接回合中斷：放棄保底，免得下一回合誤交接
         if (!this.sessionClosedAt.has(s.id)) {
           this.sessionClosedAt.set(s.id, Date.now());
         }
@@ -835,8 +849,12 @@ export class AgentManager {
         // 整段包 try/catch：任何例外都不能影響上面已完成的存檔，以及後續串流/佇列/回收。
         // 先解析再查標題：getSession 會載入整場訊息，不要每則 assistant 訊息都付這個成本。
         try {
-          const doc = s.agentId === "agents-orchestrator" && wsForDispatch ? parseHandoff(String(evt.payload.content)) : null;
+          const content = String(evt.payload.content);
+          const forced = this.forcedHandoff.get(s.id);
+          if (forced && content.trim()) forced.last = content;
+          const doc = s.agentId === "agents-orchestrator" && wsForDispatch ? parseHandoff(content) : null;
           if (doc && shouldDetectHandoff({ agentId: s.agentId, workspaceId: wsForDispatch, title: getSession(s.id)?.title ?? "" })) {
+            if (forced) forced.done = true;
             this.handoffHandler?.(s.id, doc, this.io);
           }
         } catch (e: any) { console.warn("[agentManager] handoff", e?.message || e); }
@@ -884,6 +902,18 @@ export class AgentManager {
         }
         buffer = "";
         assistantPersisted = false;
+        // 按鈕強制交接的保底：PM 沒照格式輸出 HANDOFF → 拿這回合最後一則回覆當交接單照樣交接。
+        const forced = this.forcedHandoff.get(s.id);
+        if (forced) {
+          this.forcedHandoff.delete(s.id);
+          try {
+            const wsF = (s as any).workspaceId as string | undefined;
+            if (!forced.done && forced.last && shouldDetectHandoff({ agentId: s.agentId, workspaceId: wsF, title: getSession(s.id)?.title ?? "" })) {
+              console.log(`[agentManager] ${s.id.slice(0, 8)} 交接鈕回合沒有 HANDOFF 標記 → 以最後回覆保底交接`);
+              this.handoffHandler?.(s.id, capHandoff(forced.last), this.io);
+            }
+          } catch (e: any) { console.warn("[agentManager] forced handoff", e?.message || e); }
+        }
         // 登入健康度判讀：明確的登入錯誤 → 全站橫幅 + Telegram；成功 → 恢復（見 claudeHealth.ts）。
         try { noteClaudeResult(evt.payload); } catch {}
         usageTracker.recordTurn(evt.payload);

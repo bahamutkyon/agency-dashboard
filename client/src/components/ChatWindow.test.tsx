@@ -256,7 +256,7 @@ describe("ChatWindow — 專案經理一句話交接", () => {
   }
   const PM_PROPS = { sessionId: "pm_1", agentId: "agents-orchestrator", agentName: "專案經理" };
 
-  it("「🔁 交接」走一般送出路徑：樂觀顯示自己的訊息並 emit session:send", async () => {
+  it("「🔁 交接」樂觀顯示自己的訊息並 emit session:send（帶 handoff 旗標，伺服器強制交接）", async () => {
     mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
     const { sock } = setupSocket();
     // useChatSession mock 每次回傳同一個物件，取出它的 setMessages 來檢查樂觀更新
@@ -264,7 +264,7 @@ describe("ChatWindow — 專案經理一句話交接", () => {
     setMessages.mockClear();
     render(<ChatWindow {...PM_PROPS} />);
     fireEvent.click(await screen.findByRole("button", { name: /交接/ }));
-    expect(sock.emit).toHaveBeenCalledWith("session:send", { sessionId: "pm_1", text: HANDOFF_REQUEST_TEXT });
+    expect(sock.emit).toHaveBeenCalledWith("session:send", { sessionId: "pm_1", text: HANDOFF_REQUEST_TEXT, handoff: true });
     const updaters = setMessages.mock.calls.map((c: any[]) => c[0]).filter((u: unknown) => typeof u === "function");
     const appended = updaters.map((u: any) => u([])).find((r: any[]) => r.length === 1 && r[0].role === "user");
     expect(appended?.[0].content).toBe(HANDOFF_REQUEST_TEXT);

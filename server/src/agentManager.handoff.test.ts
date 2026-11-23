@@ -72,3 +72,92 @@ describe("message 事件的交接接線", () => {
     expect(getSession(id)!.messages.some((m) => m.role === "assistant" && m.content === HANDOFF_MSG)).toBe(true);
   });
 });
+
+// 按鈕強制交接：PM 沒照格式也要交接（拿它最後一則回覆當交接單）。
+describe("按鈕強制交接的保底", () => {
+  it("強制回合結束沒有 HANDOFF 標記 → 用最後一則回覆當交接單呼叫 handler", () => {
+    const { id, mgr, io, fake } = wire("agents-orchestrator", "👨‍💼 專案經理");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    (mgr as any).markForcedHandoff(id);
+    fake.emit("event", { type: "message", payload: { content: "我先看一下檔案" } });
+    fake.emit("event", { type: "message", payload: { content: "交接整理好了：售價 1200、不走 FBA" } });
+    expect(h).not.toHaveBeenCalled();
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).toHaveBeenCalledTimes(1);
+    expect(h).toHaveBeenCalledWith(id, "交接整理好了：售價 1200、不走 FBA", io);
+  });
+
+  it("強制回合有 HANDOFF 標記 → 只交接一次（結束時不再保底）", () => {
+    const { mgr, fake, id } = wire("agents-orchestrator", "👨‍💼 專案經理");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    (mgr as any).markForcedHandoff(id);
+    fake.emit("event", { type: "message", payload: { content: HANDOFF_MSG } });
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).toHaveBeenCalledTimes(1);
+  });
+
+  it("沒按鈕（一般回合）結束 → 不保底", () => {
+    const { mgr, fake } = wire("agents-orchestrator", "👨‍💼 專案經理");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    fake.emit("event", { type: "message", payload: { content: "普通回覆" } });
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).not.toHaveBeenCalled();
+  });
+
+  it("強制回合出錯中斷 → 清掉，下一回合結束不會誤交接", () => {
+    const { mgr, fake, id } = wire("agents-orchestrator", "👨‍💼 專案經理");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    (mgr as any).markForcedHandoff(id);
+    fake.emit("event", { type: "status", payload: "error" });
+    fake.emit("event", { type: "message", payload: { content: "下一回合的回覆" } });
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).not.toHaveBeenCalled();
+  });
+
+  it("自動化場次即使被標強制也不交接", () => {
+    const { mgr, fake, id } = wire("agents-orchestrator", "[排程] 週報");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    (mgr as any).markForcedHandoff(id);
+    fake.emit("event", { type: "message", payload: { content: "回覆" } });
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).not.toHaveBeenCalled();
+  });
+});
+
+describe("send：交接意圖附提醒（只送模型、不進歷史）", () => {
+  function withFakeSend(agentId: string) {
+    const w = wire(agentId, "👨‍💼 專案經理");
+    const sent: string[] = [];
+    Object.assign(w.fake, { send: (t: string) => { sent.push(t); return "sent"; }, queuedMessages: [] });
+    (w.mgr as any).sessions.set(w.id, w.fake);
+    return { ...w, sent };
+  }
+
+  it("專案經理＋交接說法 → 送出的文字帶提醒，DB 存原文", () => {
+    const { id, mgr, sent } = withFakeSend("agents-orchestrator");
+    expect(mgr.send(id, "幫我接續到下個專案經理").ok).toBe(true);
+    expect(sent[0]).toContain("=== HANDOFF ===");
+    expect(sent[0]).toContain("幫我接續到下個專案經理");
+    const users = getSession(id)!.messages.filter((m) => m.role === "user");
+    expect(users.at(-1)!.content).toBe("幫我接續到下個專案經理");
+  });
+
+  it("forceHandoff → 帶按鈕版提醒並標記強制（回合結束會保底）", () => {
+    const { id, mgr, sent, fake } = withFakeSend("agents-orchestrator");
+    const h = vi.fn(); mgr.registerHandoffHandler(h);
+    mgr.send(id, "請整理交接，換到新對話繼續", { forceHandoff: true });
+    expect(sent[0]).toContain("交接鈕");
+    fake.emit("event", { type: "message", payload: { content: "整理好了" } });
+    fake.emit("event", { type: "result", payload: {} });
+    expect(h).toHaveBeenCalledTimes(1);
+  });
+
+  it("一般訊息、或非專案經理 → 不加提醒", () => {
+    const a = withFakeSend("agents-orchestrator");
+    a.mgr.send(a.id, "售價定 1200");
+    expect(a.sent[0]).not.toContain("HANDOFF");
+    const b = withFakeSend("content-creator");
+    b.mgr.send(b.id, "請整理交接");
+    expect(b.sent[0]).not.toContain("HANDOFF");
+  });
+});

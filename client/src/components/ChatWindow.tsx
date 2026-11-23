@@ -191,9 +191,10 @@ export function ChatWindow({
     useAutonomy(sessionId);
 
   // 送出一句話（樂觀顯示＋emit；busy 時由伺服器佇列）。輸入框送出與「🔁 交接」鈕共用這條路徑。
-  const sendText = (text: string) => {
+  // handoff=true（交接鈕）：伺服器強制交接——PM 沒照格式寫交接單也會拿它的回覆開新對話。
+  const sendText = (text: string, opts: { handoff?: boolean } = {}) => {
     setMessages((prev) => [...prev, { role: "user", content: text, ts: Date.now() }]);
-    getSocket().emit("session:send", { sessionId, text });
+    getSocket().emit("session:send", opts.handoff ? { sessionId, text, handoff: true } : { sessionId, text });
   };
 
   const send = () => {
@@ -575,7 +576,7 @@ export function ChatWindow({
             canEdit={!messages.some((m) => m.role === "user")} />
           <HandoffBar sessionId={sessionId} messages={messages} status={status} handedOff={handedOff}
             failError={handoffError}
-            onSend={(text) => { setHandoffError(null); sendText(text); }} />
+            onSend={(text) => { setHandoffError(null); sendText(text, { handoff: true }); }} />
         </>
       )}
       <MessageList
