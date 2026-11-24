@@ -25,6 +25,16 @@ function getAgencyToken(): string {
   return match ? decodeURIComponent(match.slice("agency_token=".length)) : "";
 }
 
+/** 重連（非第一次連線）時要做的事，例如重抓對話歷史補回斷線期間漏掉的串流。 */
+const reconnectListeners = new Set<() => void>();
+let hasConnected = false;
+
+/** 訂閱「斷線後重連」；回傳取消訂閱函式。第一次連線不觸發。 */
+export function onReconnect(cb: () => void): () => void {
+  reconnectListeners.add(cb);
+  return () => { reconnectListeners.delete(cb); };
+}
+
 /** Sessions currently joined. Re-emitted automatically on reconnect. */
 const joined = new Set<string>();
 
@@ -66,6 +76,9 @@ export function getSocket(): Socket {
       for (const id of joined) {
         socket!.emit("session:join", id);
       }
+      // 斷線期間 server 送出的 delta／message 不會重播，要靠訂閱者重抓歷史
+      if (hasConnected) for (const cb of reconnectListeners) { try { cb(); } catch { /* ignore */ } }
+      hasConnected = true;
     });
   }
   return socket;

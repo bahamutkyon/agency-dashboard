@@ -11,13 +11,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ChatWindow } from "./ChatWindow";
-import { getSocket } from "../lib/socket";
+import { getSocket, onReconnect } from "../lib/socket";
+import { api } from "../lib/api";
 import { useChatSession } from "../hooks/useChatSession";
 import { HANDOFF_REQUEST_TEXT } from "../lib/handoffNudge";
 
 // ─── Mock 所有外部依賴 ────────────────────────────────────────────────────────
 
 vi.mock("../lib/socket", () => ({
+  onReconnect: vi.fn(() => () => {}),
   getSocket: vi.fn(() => ({
     on: vi.fn(),
     off: vi.fn(),
@@ -295,5 +297,21 @@ describe("ChatWindow — 專案經理一句話交接", () => {
     setupSocket();
     render(<ChatWindow {...BASE_PROPS} />);
     await waitFor(() => expect(screen.queryByRole("button", { name: /🔁 交接/ })).toBeNull());
+  });
+});
+
+describe("ChatWindow — 斷線重連補抓訊息", () => {
+  it("重連時重抓這場的歷史並寫回訊息（不用手動刷新）", async () => {
+    mockUseAutonomy.mockReturnValue(makeAutonomyReturn());
+    let fire: (() => void) | undefined;
+    vi.mocked(onReconnect).mockImplementation((cb: () => void) => { fire = cb; return () => {}; });
+    const setMessages = vi.mocked((useChatSession as any)().setMessages as ReturnType<typeof vi.fn>);
+    render(<ChatWindow {...BASE_PROPS} />);
+    await waitFor(() => expect(fire).toBeDefined());
+    const fresh = [{ role: "assistant", content: "斷線期間的回覆", ts: 1 }];
+    vi.mocked(api.session).mockResolvedValueOnce({ messages: fresh, tags: [], status: "idle" } as any);
+    setMessages.mockClear();
+    fire!();
+    await waitFor(() => expect(setMessages).toHaveBeenCalledWith(fresh));
   });
 });

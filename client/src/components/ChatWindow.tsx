@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getSocket } from "../lib/socket";
+import { getSocket, onReconnect } from "../lib/socket";
 import { api, type SessionRecord } from "../lib/api";
 import { modelLabel } from "../lib/modelLabel";
 import { getActiveWorkspace } from "../lib/workspace";
@@ -123,7 +123,15 @@ export function ChatWindow({
       setModel(rec.liveModel ?? null);
       setEffort(rec.effort ?? null);
     }).catch(() => {});
-    return () => { cancelled = true; };
+    // 斷線重連：斷線期間的回覆不會重播，重抓訊息與狀態（不然要手動刷新才看得到）
+    const offReconnect = onReconnect(() => {
+      api.session(sessionId).then((rec: SessionRecord) => {
+        if (cancelled) return;
+        setMessages(rec.messages || []);
+        if (rec.status) setStatus(rec.status);
+      }).catch(() => {});
+    });
+    return () => { cancelled = true; offReconnect(); };
   }, [sessionId]);
 
   // 點擊下拉外部時關閉

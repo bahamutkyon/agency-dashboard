@@ -126,4 +126,19 @@ describe("socket session management", () => {
     const opts = (mockIo.mock.calls[0] as any[])[0];
     expect(opts?.auth?.token).toBe("hello:world");
   });
+
+  it("onReconnect：第一次連線不觸發，之後每次重連都觸發；取消訂閱後不再觸發（補抓斷線期間漏掉的訊息）", async () => {
+    const { onReconnect, getSocket } = await import("./socket");
+    getSocket();
+    const cb = vi.fn();
+    const off = onReconnect(cb);
+    const connectHandler = mockOn.mock.calls.find(([event]) => event === "connect")![1] as () => void;
+    connectHandler(); // 首次連線
+    expect(cb).not.toHaveBeenCalled();
+    connectHandler(); // 斷線後重連
+    expect(cb).toHaveBeenCalledTimes(1);
+    off();
+    connectHandler();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
 });
