@@ -75,7 +75,7 @@ export function applyCdpEndpoint(playwrightCfg: any, port: number): any {
     if (prev[i] === "--cdp-endpoint") { i++; continue; } // 連同它的值一起略過
     cleaned.push(prev[i]);
   }
-  return { ...playwrightCfg, args: [...cleaned, "--cdp-endpoint", `http://localhost:${port}`] };
+  return { ...playwrightCfg, args: [...cleaned, "--cdp-endpoint", `http://127.0.0.1:${port}`] };
 }
 
 /**

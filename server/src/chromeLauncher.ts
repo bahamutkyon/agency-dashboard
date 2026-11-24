@@ -30,9 +30,9 @@ function findChrome(): string | null {
 }
 
 /** 探測該 port 上是否有 Chrome 在跑；有的話回傳它的 Browser 版本字串，否則 null。 */
-async function cdpVersion(port: number): Promise<string | null> {
+export async function cdpVersion(port: number): Promise<string | null> {
   try {
-    const r = await fetch(`http://localhost:${port}/json/version`, { signal: AbortSignal.timeout(1500) });
+    const r = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1500) });
     if (!r.ok) return null;
     const j: any = await r.json().catch(() => null);
     return j?.Browser || "unknown";
