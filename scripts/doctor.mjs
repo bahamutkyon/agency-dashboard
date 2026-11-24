@@ -197,6 +197,15 @@ function main() {
     console.log(`   ${dim("修復:")} 重新跑 agency-agents-zh 的 install.sh`);
     missingCount++;
   }
+  for (const a of manifest.agents.bundled || []) {
+    const has = fs.existsSync(path.join(os.homedir(), ".claude", "agents", path.basename(a.file)));
+    if (has) {
+      console.log(`   ${ok("✅")} ${a.name} ${dim("(本 repo 自家 agent)")}`);
+    } else {
+      console.log(`   ${bad("✗")} ${a.name}  ${dim(`修復: 執行 npm run setup:full,或複製 ${a.file} 到 ~/.claude/agents/`)}`);
+      missingCount++;
+    }
+  }
   console.log();
 
   // ===== CLI Tools =====

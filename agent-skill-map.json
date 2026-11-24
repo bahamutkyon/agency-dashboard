@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-05-14T07:23:26.829Z",
   "skill_count": 47,
-  "agent_count": 212,
+  "agent_count": 213,
   "agents": {
     "academic-anthropologist": {
       "skills": [
@@ -2622,6 +2622,14 @@
     "marketing-short-video-editing-coach": {
       "skills": [
         {
+          "id": "ffmpeg-skill",
+          "why": "實際動手剪片：剪段/接片/去靜音/轉 9:16/燒字幕/響度/平台匯出與上傳前檢查，全在本機用 ffmpeg 完成，不要從頭手寫 ffmpeg 指令"
+        },
+        {
+          "id": "zh-subtitle-workflow",
+          "why": "人聲影片上字幕：本機聽寫→台灣繁體→錯字對照表→使用者在 Subtitle Edit 校對→學錯字→正黑體燒字幕"
+        },
+        {
           "id": "chinese-presentation-style",
           "why": "短視頻本質是視覺敘事+節奏設計，美學規範（字型、留白、色彩、文案密度、結構節奏）直接適用於構圖、調色、字幕排版等核心教學內容"
         },
@@ -4928,6 +4936,22 @@
         {
           "id": "dispatching-parallel-agents",
           "why": "知識庫中的多個獨立任務（如多個索引檢查、並行鏈接驗證、多領域專家應用）可以並行處理提升效率"
+        }
+      ]
+    },
+    "marketing-long-video-editor": {
+      "skills": [
+        {
+          "id": "verification-before-completion",
+          "why": "交件前必須跑 check.py 與 look.py，用量測數據證明成品合格"
+        },
+        {
+          "id": "ffmpeg-skill",
+          "why": "實際動手剪片：剪段/接片/去靜音/轉 9:16/燒字幕/響度/平台匯出與上傳前檢查，全在本機用 ffmpeg 完成，不要從頭手寫 ffmpeg 指令"
+        },
+        {
+          "id": "zh-subtitle-workflow",
+          "why": "人聲影片上字幕：本機聽寫→台灣繁體→錯字對照表→使用者在 Subtitle Edit 校對→學錯字→正黑體燒字幕"
         }
       ]
     }

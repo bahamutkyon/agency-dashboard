@@ -214,6 +214,17 @@ async function setupAgents(manifest) {
   console.log(bold("👥 Step 3/5: Agents"));
   console.log(dim(`   211 位中文 agent — 來自 agency-agents-zh,是 dashboard 的核心。`));
 
+  // 本 repo 自家的 agent（manifest.agents.bundled）：缺的才複製，不覆蓋使用者改過的版本
+  for (const a of manifest.agents.bundled || []) {
+    const dest = path.join(AGENTS_DIR, path.basename(a.file));
+    if (fs.existsSync(dest)) continue;
+    const src = path.join(PROJECT_ROOT, a.file);
+    if (!fs.existsSync(src)) { console.log(warn(`   ⚠️ 找不到本地 bundled agent ${src}`)); continue; }
+    fs.mkdirSync(AGENTS_DIR, { recursive: true });
+    fs.copyFileSync(src, dest);
+    console.log(`   ${ok("→")} 從本 repo 複製 agent ${bold(a.name)}`);
+  }
+
   const expected = manifest.agents.expected_count;
   const have = fs.existsSync(AGENTS_DIR)
     ? fs.readdirSync(AGENTS_DIR).filter((f) => f.endsWith(".md")).length
