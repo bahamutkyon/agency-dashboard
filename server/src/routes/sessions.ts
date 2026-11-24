@@ -53,7 +53,7 @@ const MERGE_TOTAL_MAX = 100_000;
 const DISPATCH_SUB_TITLE_PREFIXES = ["🤝 受派諮詢", "🛠️ 外包執行"];
 
 import { ORCHESTRATOR_TITLE } from "../sessionTitles.js";
-import { setManualState, getSessionState, setHandoffFrom, setHandoffDoc } from "../store/sessionState.js";
+import { setManualState, getSessionState, setHandoffFrom, setHandoffDoc, setHandedOffTo } from "../store/sessionState.js";
 import { buildHandoff, handoffPromptBlock } from "../sessionHandoff.js";
 import { performHandoff } from "../handoffService.js";
 import { capHandoff } from "../handoffParser.js";
@@ -83,7 +83,15 @@ sessionsRouter.get("/sessions/:id/handoff", (req, res) => {
   const st = getSessionState(req.params.id);
   if (!st) return res.status(404).json({ error: "not found" });
   // handedOffTo：這場已交接出去的話，新對話是哪一場（前端「已交接」橫幅用）
-  const to = st.handedOffTo ? getSession(st.handedOffTo) : undefined;
+  let to = st.handedOffTo ? getSession(st.handedOffTo) : undefined;
+  // 新對話一句都沒聊、使用者卻回原對話繼續講 → 視為取消交接（不然橫幅永遠指向一個空對話）
+  if (to && to.messages.length === 0) {
+    const src = getSession(req.params.id);
+    if (src?.messages.some((m) => m.role === "user" && (m.ts ?? 0) > to!.createdAt)) {
+      setHandedOffTo(req.params.id, null);
+      to = undefined;
+    }
+  }
   res.json({
     handoff: st.handoffFrom ? buildHandoff(st.handoffFrom) : null,
     handedOffTo: to ? { id: to.id, title: to.title } : null,

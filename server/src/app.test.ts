@@ -720,6 +720,25 @@ describe("對話狀態與交接端點（2026-11-17）", () => {
     expect(j2.handedOffTo).toBeNull();
   });
 
+  it("GET /api/sessions/:id/handoff：新對話沒開聊、使用者回原對話繼續講 → 視為取消交接，不再顯示已交接", async () => {
+    const t0 = Date.now();
+    const prev = mkPm("長對話");
+    const to = `pm_abandon_${t0}_${Math.random().toString(36).slice(2, 6)}`;
+    upsertSession({ id: to, workspaceId: DEFAULT_WORKSPACE_ID, agentId: "agents-orchestrator", title: "👨‍💼 專案經理", provider: "claude", createdAt: t0, updatedAt: t0, messages: [] });
+    createdSessionIds.push(to);
+    const { setHandedOffTo, getSessionState } = await import("./store/sessionState.js");
+    setHandedOffTo(prev, to);
+    // 剛交接、使用者還沒回原對話講話 → 照常顯示
+    let j: any = await (await fetch(`${base}/api/sessions/${prev}/handoff`)).json();
+    expect(j.handedOffTo).toMatchObject({ id: to });
+    // 使用者回原對話說「不用交接，在這繼續」
+    const rec = getSession(prev)!;
+    upsertSession({ ...rec, messages: [...rec.messages, { role: "user", content: "不用交接了，在這繼續", ts: t0 + 1000 }] });
+    j = await (await fetch(`${base}/api/sessions/${prev}/handoff`)).json();
+    expect(j.handedOffTo).toBeNull();
+    expect(getSessionState(prev)!.handedOffTo).toBeNull();
+  });
+
   it("PUT /api/sessions/:id/handoff：還沒開聊 → 改寫來源的交接單", async () => {
     const prev = mkPm("長對話");
     const cur = `pm_put_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
