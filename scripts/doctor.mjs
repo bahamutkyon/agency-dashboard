@@ -132,6 +132,22 @@ function main() {
     console.log();
   }
 
+  // ===== External Skills(審查後固定 commit 的第三方 skill) =====
+  if (manifest.external_skills?.list?.length) {
+    const exList = manifest.external_skills.list;
+    console.log(bold(`🧩 External Skills`) + dim(` (~/.claude/skills/,固定 commit)`));
+    for (const s of exList) {
+      if (installedSkills.has(s.name)) {
+        console.log(`   ${ok("✅")} ${s.name.padEnd(14)} ${dim(`${s.version} @ ${s.commit.slice(0, 7)}`)}`);
+      } else {
+        console.log(`   ${bad("✗")} ${s.name}  ${dim(`(需要: ${(s.requires || []).join(", ")})`)}`);
+        for (const step of s.install?.steps || []) console.log(`      ${dim("→")} ${bold(step)}`);
+        missingCount++;
+      }
+    }
+    console.log();
+  }
+
   // ===== MCPs =====
   const installedMcps = readClaudeMcps();
   console.log(bold(`🔌 MCPs`) + dim(` (~/.claude.json mcpServers)`));

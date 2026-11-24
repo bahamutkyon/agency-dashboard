@@ -76,6 +76,36 @@
     ]
   },
 
+  "external_skills": {
+    "description": "第三方 skill,逐一審查後固定在特定 commit 安裝(不用 npx 抓 npm 最新版,避免裝到沒審過的版本)。",
+    "target_dir": "~/.claude/skills/",
+    "list": [
+      {
+        "name": "ffmpeg-skill",
+        "repo": "https://github.com/kajisho5/ffmpeg-skill",
+        "commit": "c7dad34c846099e7cf606ef943abe5e12d1ab0f9",
+        "version": "4.7.1",
+        "license": "MIT",
+        "description": "本機影音剪輯:剪段/接片/去靜音/9:16/燒字幕/響度/平台匯出與檢查,42 個工具,不連網",
+        "requires": ["ffmpeg>=6.1", "python>=3.10"],
+        "install": {
+          "method": "git-pinned",
+          "steps": [
+            "git clone https://github.com/kajisho5/ffmpeg-skill.git <tmp>",
+            "git -C <tmp> checkout c7dad34c846099e7cf606ef943abe5e12d1ab0f9",
+            "node <tmp>/bin/install.js --claude",
+            "python3 ~/.claude/skills/ffmpeg-skill/scripts/_contract.py doctor"
+          ]
+        },
+        "reviewed": {
+          "date": "2026-11-25",
+          "scope": "bin/install.js、SKILL.md、mcp/server.py 全讀;scripts/ 4.3 萬行以關鍵字掃描(連網/shell/eval/憑證/刪檔/下載)",
+          "result": "無相依、無 postinstall、不連網、只寫入 ~/.claude/skills/ffmpeg-skill"
+        }
+      }
+    ]
+  },
+
   "mcps": [
     {
       "name": "shellward",
@@ -207,6 +237,16 @@
         "package": "@google/gemini-cli"
       },
       "verify": "gemini --version"
+    },
+    {
+      "name": "ffmpeg",
+      "tier": "optional",
+      "description": "影音處理(ffmpeg-skill 需要 6.1+;Windows 建議 Gyan full build,含 h264_nvenc / libass / drawtext)",
+      "install": {
+        "method": "external",
+        "url": "https://www.gyan.dev/ffmpeg/builds/ (或 winget install --id Gyan.FFmpeg -e)"
+      },
+      "verify": "ffmpeg -version"
     }
   ]
 }
