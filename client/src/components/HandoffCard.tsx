@@ -20,6 +20,14 @@ function serverError(e: unknown): string | null {
   return raw || null;
 }
 
+const OPEN_KEY = (id: string) => `handoffCardOpen:${id}`;
+function readOpenPref(id: string): boolean | null {
+  try { const v = localStorage.getItem(OPEN_KEY(id)); return v === "1" ? true : v === "0" ? false : null; } catch { return null; }
+}
+function writeOpenPref(id: string, v: boolean): void {
+  try { localStorage.setItem(OPEN_KEY(id), v ? "1" : "0"); } catch { /* 無痕模式等 */ }
+}
+
 /**
  * 對話頂端交接卡：
  * - 新對話：「已帶入上一場重點／交接單」，無關就按「不要帶入」；交接單（doc）可在開聊前編輯。
@@ -28,7 +36,12 @@ function serverError(e: unknown): string | null {
 export function HandoffCard({ sessionId, onOpenSession, canEdit, reloadKey }: Props) {
   const [h, setH] = useState<SessionHandoff | null>(null);
   const [to, setTo] = useState<{ id: string; title: string } | null>(null);
-  const [open, setOpen] = useState(true);
+  // 展開與否：手動選過就照記住的（localStorage，以場次為 key）；沒選過 → 還沒開聊才展開，
+  // 開聊後自動收成一行，不擋閱讀。canEdit 未傳視為還沒開聊。
+  const [pref, setPref] = useState<boolean | null>(() => readOpenPref(sessionId));
+  useEffect(() => { setPref(readOpenPref(sessionId)); }, [sessionId]);
+  const open = pref ?? canEdit !== false;
+  const setOpen = (v: boolean) => { setPref(v); writeOpenPref(sessionId, v); };
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -78,10 +91,11 @@ export function HandoffCard({ sessionId, onOpenSession, canEdit, reloadKey }: Pr
       {h && (
         <div className="px-4 py-2 border-b border-sky-800/30 bg-sky-950/20 text-xs">
           <div className="flex items-center gap-2">
-            <button onClick={() => setOpen((v) => !v)} className="text-sky-300 hover:text-sky-200">
+            <button onClick={() => setOpen(!open)} className="text-sky-300 hover:text-sky-200 truncate" title={open ? "收起交接單" : "展開交接單"}>
               {open ? "▾" : "▸"} 🔁 已帶入上一場「{h.fromTitle}」的{h.source === "doc" ? "交接單" : "重點"}
             </button>
             <span className="flex-1" />
+            <button onClick={() => setOpen(!open)} className="text-zinc-400 hover:text-zinc-200">{open ? "收起" : "展開"}</button>
             {h.source === "doc" && canEdit && !editing && (
               <button onClick={() => { setDraft(h.summary); setEditing(true); setOpen(true); }} className="text-zinc-400 hover:text-zinc-200" title="開聊前可以修改交接單">編輯</button>
             )}

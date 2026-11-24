@@ -100,3 +100,37 @@ describe("HandoffCard", () => {
     await waitFor(() => screen.getByText(/已交接/));
   });
 });
+
+describe("HandoffCard 收合（不擋閱讀）", () => {
+  const DOC = { handoff: { fromId: "p1", fromTitle: "長對話", summary: "🎯 目標：定價", source: "doc" }, handedOffTo: null };
+  beforeEach(() => { sessionHandoff.mockReset(); localStorage.clear(); });
+
+  it("已經開聊（canEdit=false）→ 預設收起，只剩一行；按「展開」才看得到內容", async () => {
+    sessionHandoff.mockResolvedValue(DOC);
+    render(<HandoffCard sessionId="s1" canEdit={false} />);
+    await waitFor(() => screen.getByText(/長對話/));
+    expect(screen.queryByText(/目標：定價/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /展開/ }));
+    expect(screen.getByText(/目標：定價/)).toBeTruthy();
+  });
+
+  it("還沒開聊 → 展開；送出第一句（canEdit 變 false）→ 自動收起", async () => {
+    sessionHandoff.mockResolvedValue(DOC);
+    const { rerender } = render(<HandoffCard sessionId="s1" canEdit />);
+    await waitFor(() => screen.getByText(/目標：定價/));
+    rerender(<HandoffCard sessionId="s1" canEdit={false} />);
+    await waitFor(() => expect(screen.queryByText(/目標：定價/)).toBeNull());
+  });
+
+  it("有明顯的「收起」鈕；手動選擇會記住（重開同一場維持）", async () => {
+    sessionHandoff.mockResolvedValue(DOC);
+    const { unmount } = render(<HandoffCard sessionId="s1" canEdit />);
+    await waitFor(() => screen.getByText(/目標：定價/));
+    fireEvent.click(screen.getByRole("button", { name: /收起/ }));
+    expect(screen.queryByText(/目標：定價/)).toBeNull();
+    unmount();
+    render(<HandoffCard sessionId="s1" canEdit />);
+    await waitFor(() => screen.getByText(/長對話/));
+    expect(screen.queryByText(/目標：定價/)).toBeNull();
+  });
+});
