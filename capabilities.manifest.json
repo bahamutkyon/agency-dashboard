@@ -103,6 +103,66 @@
           "scope": "bin/install.js、SKILL.md、mcp/server.py 全讀;scripts/ 4.3 萬行以關鍵字掃描(連網/shell/eval/憑證/刪檔/下載)",
           "result": "無相依、無 postinstall、不連網、只寫入 ~/.claude/skills/ffmpeg-skill"
         }
+      },
+      {
+        "name": "remotion-best-practices",
+        "repo": "https://github.com/remotion-dev/skills",
+        "commit": "a3f4098a2afd0e13f6a6f8c8760e275f75457ea9",
+        "version": "4.0.547",
+        "license": "Remotion License(個人與 3 人以下公司免費、可商用;4 人以上公司需買授權)",
+        "description": "Remotion 官方 skill(總路由,內含 create/markup/render/captions 等子篇):用 React 寫動態圖文、片頭、資料動畫並輸出 mp4",
+        "requires": ["node>=18", "專案內 npm 安裝 remotion@4.0.547 與 @remotion/cli@4.0.547(非全域)", "首次輸出會自動下載 Chrome Headless Shell"],
+        "install": {
+          "method": "git-pinned",
+          "steps": [
+            "git clone https://github.com/remotion-dev/skills.git <tmp>",
+            "git -C <tmp> checkout a3f4098a2afd0e13f6a6f8c8760e275f75457ea9",
+            "複製 <tmp>/skills/remotion-best-practices 到 ~/.claude/skills/"
+          ]
+        },
+        "usage_notes": [
+          "建專案時固定版本,不用 npx create-video@latest",
+          "輸出要給手機看:加 --pixel-format=yuv420p --color-space=bt709(預設 yuvj420p,check.py 會判 FAIL)",
+          "不帶 --license-key 就不會送授權用量回報"
+        ],
+        "reviewed": {
+          "date": "2026-11-25",
+          "scope": "14 個 SKILL.md 與 REFERENCE.md 抽讀,全目錄以關鍵字掃描(連網/shell/eval/憑證/刪檔/下載);唯一腳本 prep-cesium-path.mjs 全讀;npm 套件 install scripts 查過",
+          "result": "純文件;腳本只讀寫本機檔案;remotion/@remotion/cli 無 postinstall。repo 本身沒有 LICENSE 檔,授權依 Remotion License"
+        }
+      },
+      {
+        "name": "hyperframes",
+        "dirs": ["hyperframes", "hyperframes-cli"],
+        "repo": "https://github.com/heygen-com/hyperframes",
+        "commit": "dd3f8440b167d46d17568d84297398c1b7f92591",
+        "version": "0.9.91",
+        "license": "Apache-2.0",
+        "description": "HeyGen HyperFrames:用 HTML+GSAP 寫影片、逐格算圖輸出 mp4,有 lint/check/snapshot 品質關卡",
+        "requires": ["node>=22", "ffmpeg", "首次執行會把 hyperframes@0.9.91 下載到 npx 快取(約 190MB,非全域)並自動下載 Chrome"],
+        "install": {
+          "method": "git-pinned",
+          "steps": [
+            "git clone --filter=blob:none --no-checkout https://github.com/heygen-com/hyperframes.git <tmp>",
+            "git -C <tmp> checkout dd3f8440b167d46d17568d84297398c1b7f92591 -- skills/hyperframes skills/hyperframes-cli",
+            "複製 <tmp>/skills/hyperframes 與 <tmp>/skills/hyperframes-cli 到 ~/.claude/skills/"
+          ]
+        },
+        "env": {
+          "HYPERFRAMES_STANDALONE_CLI_VERSION": "0.9.91",
+          "HYPERFRAMES_NO_TELEMETRY": "1",
+          "HYPERFRAMES_NO_UPDATE_CHECK": "1"
+        },
+        "usage_notes": [
+          "沒設 HYPERFRAMES_STANDALONE_CLI_VERSION 時,啟動器每次都抓 npm 上最新版 CLI(沒審過的版本)",
+          "skill 會要 agent 送使用統計(events)和評分(feedback);HYPERFRAMES_NO_TELEMETRY=1 關閉,未經使用者同意不要送",
+          "版面 check 抓不到元素互相重疊:輸出後一定要抽幀看"
+        ],
+        "reviewed": {
+          "date": "2026-11-25",
+          "scope": "兩個 SKILL.md 全讀;scripts/plugin-cli.mjs、lib/trusted-package.mjs、plugin-installation.md 全讀;全目錄以關鍵字掃描",
+          "result": "無 postinstall;啟動器用 npx 下載 CLI(可用環境變數固定版本);有使用統計需關閉;雲端算圖/Lambda 需另外登入,不啟用"
+        }
       }
     ]
   },

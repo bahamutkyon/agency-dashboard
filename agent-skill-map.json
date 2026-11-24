@@ -2630,6 +2630,14 @@
           "why": "人聲影片上字幕：本機聽寫→台灣繁體→錯字對照表→使用者在 Subtitle Edit 校對→學錯字→正黑體燒字幕"
         },
         {
+          "id": "hyperframes",
+          "why": "片頭、標題卡、字卡、數字動畫等動態圖文：用 HTML+GSAP 寫、check 把關、逐格輸出 mp4；跑 CLI 前先設 HYPERFRAMES_STANDALONE_CLI_VERSION=0.9.91 與 HYPERFRAMES_NO_TELEMETRY=1"
+        },
+        {
+          "id": "remotion-best-practices",
+          "why": "需要 React 元件化、可套資料批次產生的動態影片時用 Remotion；專案內固定版本安裝，輸出加 --pixel-format=yuv420p --color-space=bt709"
+        },
+        {
           "id": "chinese-presentation-style",
           "why": "短視頻本質是視覺敘事+節奏設計，美學規範（字型、留白、色彩、文案密度、結構節奏）直接適用於構圖、調色、字幕排版等核心教學內容"
         },
@@ -4952,6 +4960,14 @@
         {
           "id": "zh-subtitle-workflow",
           "why": "人聲影片上字幕：本機聽寫→台灣繁體→錯字對照表→使用者在 Subtitle Edit 校對→學錯字→正黑體燒字幕"
+        },
+        {
+          "id": "hyperframes",
+          "why": "長片的片頭片尾、章節字卡、規格表動畫：用 HTML+GSAP 寫、check 把關、逐格輸出後接進長片；跑 CLI 前先設 HYPERFRAMES_STANDALONE_CLI_VERSION=0.9.91 與 HYPERFRAMES_NO_TELEMETRY=1"
+        },
+        {
+          "id": "remotion-best-practices",
+          "why": "需要 React 元件化、可套資料批次產生的動態影片時用 Remotion；專案內固定版本安裝，輸出加 --pixel-format=yuv420p --color-space=bt709"
         }
       ]
     }

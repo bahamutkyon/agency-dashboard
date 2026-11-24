@@ -137,10 +137,15 @@ function main() {
     const exList = manifest.external_skills.list;
     console.log(bold(`🧩 External Skills`) + dim(` (~/.claude/skills/,固定 commit)`));
     for (const s of exList) {
-      if (installedSkills.has(s.name)) {
-        console.log(`   ${ok("✅")} ${s.name.padEnd(14)} ${dim(`${s.version} @ ${s.commit.slice(0, 7)}`)}`);
+      const dirs = s.dirs?.length ? s.dirs : [s.name];
+      const missingDirs = dirs.filter((d) => !installedSkills.has(d));
+      if (missingDirs.length === 0) {
+        console.log(`   ${ok("✅")} ${s.name.padEnd(24)} ${dim(`${s.version} @ ${s.commit.slice(0, 7)}`)}`);
+        for (const [k, v] of Object.entries(s.env || {})) {
+          if (process.env[k] !== v) console.log(`      ${warn("⚠")} ${dim(`建議設定環境變數 ${k}=${v}`)}`);
+        }
       } else {
-        console.log(`   ${bad("✗")} ${s.name}  ${dim(`(需要: ${(s.requires || []).join(", ")})`)}`);
+        console.log(`   ${bad("✗")} ${s.name}  ${dim(`(缺: ${missingDirs.join(", ")};需要: ${(s.requires || []).join(", ")})`)}`);
         for (const step of s.install?.steps || []) console.log(`      ${dim("→")} ${bold(step)}`);
         missingCount++;
       }
