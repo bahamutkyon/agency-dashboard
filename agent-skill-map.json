@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-05-14T07:23:26.829Z",
   "skill_count": 47,
-  "agent_count": 213,
+  "agent_count": 215,
   "agents": {
     "academic-anthropologist": {
       "skills": [
@@ -537,6 +537,10 @@
     },
     "design-visual-storyteller": {
       "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "需要主視覺、情境圖、分鏡示意時在本機直接生圖，可指定比例與 seed 重現"
+        },
         {
           "id": "brainstorming",
           "why": "每次視覺敘事創作都需要先探索故事策略、角色塑造、敘事結構和情緒旅程"
@@ -2218,6 +2222,10 @@
     "marketing-carousel-growth-engine": {
       "skills": [
         {
+          "id": "local-image-gen",
+          "why": "輪播圖底圖改用本機 MiniMax H3-Image 生成（不花 API 費），4:5／9:16 直接指定"
+        },
+        {
           "id": "brainstorming",
           "why": "病毒式輪播圖需要深入理解目標業務類型、客戶痛點和心理學鉤子,brainstorming 是調研-生成前的必要創意需求分析"
         },
@@ -2293,6 +2301,10 @@
     },
     "marketing-content-creator": {
       "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "文章與貼文配圖在本機生成，不用找圖庫"
+        },
         {
           "id": "brainstorming",
           "why": "选题策划、标题创意、内容框架需要系统的创意工作流指导"
@@ -2425,6 +2437,10 @@
     },
     "marketing-instagram-curator": {
       "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "IG 貼文配圖、限動底圖在本機生成，4:5／9:16 一次出多張挑選"
+        },
         {
           "id": "brainstorming",
           "why": "內容創意、視覺策略和品牌方向定位都需要創意探索，是內容策劃的必經步驟"
@@ -2621,6 +2637,10 @@
     },
     "marketing-short-video-editing-coach": {
       "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "Reels/Shorts 封面、片頭底圖、示意圖在本機生成（9:16）"
+        },
         {
           "id": "ffmpeg-skill",
           "why": "實際動手剪片：剪段/接片/去靜音/轉 9:16/燒字幕/響度/平台匯出與上傳前檢查，全在本機用 ffmpeg 完成，不要從頭手寫 ffmpeg 指令"
@@ -4950,6 +4970,10 @@
     "marketing-long-video-editor": {
       "skills": [
         {
+          "id": "local-image-gen",
+          "why": "YouTube 縮圖（16:9）、章節卡底圖在本機生成"
+        },
+        {
           "id": "verification-before-completion",
           "why": "交件前必須跑 check.py 與 look.py，用量測數據證明成品合格"
         },
@@ -4968,6 +4992,22 @@
         {
           "id": "remotion-best-practices",
           "why": "需要 React 元件化、可套資料批次產生的動態影片時用 Remotion；專案內固定版本安裝，輸出加 --pixel-format=yuv420p --color-space=bt709"
+        }
+      ]
+    },
+    "design-image-prompt-engineer": {
+      "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "寫好提示詞後直接在本機用 MiniMax H3-Image 出圖驗證（LocModel／ComfyUI 自動挑），看圖再迭代，成品存 D 槽"
+        }
+      ]
+    },
+    "marketing-taiwan-social-brand-editor": {
+      "skills": [
+        {
+          "id": "local-image-gen",
+          "why": "各平台配圖在本機生成，同一 seed 保持系列視覺一致"
         }
       ]
     }

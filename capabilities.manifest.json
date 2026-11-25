@@ -21,6 +21,7 @@
       { "name": "creative-quality-gate",          "from": "agency-dashboard", "protected": true, "bundled": "skills/creative-quality-gate/" },
       { "name": "design-system-picker",           "from": "agency-dashboard", "protected": true, "bundled": "skills/design-system-picker/" },
       { "name": "zh-subtitle-workflow",           "from": "agency-dashboard", "protected": true, "bundled": "skills/zh-subtitle-workflow/", "requires": ["python>=3.10", "pip: faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12<10 av<16 opencc-python-reimplemented", "Subtitle Edit (winget install --id Nikse.SubtitleEdit -e)"] },
+      { "name": "local-image-gen",                "from": "agency-dashboard", "protected": true, "bundled": "skills/local-image-gen/", "requires": ["python>=3.10", "LocModel（畫圖頁開著，127.0.0.1:8790）或 ComfyUI 桌面版（127.0.0.1:8188，需 ComfyUI-GGUF＋minimax_sdcpp_gguf_compat 外掛與 extra_model_paths 指向 D:\\AI-Models\\image）", "MiniMax H3-Image 模型（D:\\AI-Models\\image）"] },
       { "name": "dispatching-parallel-agents",    "from": "superpowers-zh" },
       { "name": "executing-plans",                "from": "superpowers-zh" },
       { "name": "finishing-a-development-branch", "from": "superpowers-zh" },
