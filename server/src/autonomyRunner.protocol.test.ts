@@ -110,3 +110,19 @@ describe("autonomyRunner PROTOCOL 瘦身", () => {
     expect(sent2[1]).toContain(PROTOCOL_REMINDER);
   });
 });
+
+describe("autonomyRunner PROTOCOL — 派工不是高風險動作（2026-11-25 根因修正）", () => {
+  // 11-19 起內部派工已由政策直接執行（dispatchRisk 只攔對外），但 PROTOCOL 還把 dispatch 跟
+  // 對外發送/破壞/花錢並列為「高風險、嚴禁自己執行」，專案經理因此回「不派工、不對外、不花錢」。
+  const highRiskLine = PROTOCOL.split("\n").find((l) => l.includes("高風險")) ?? "";
+  it("高風險那一條不再列 dispatch，且仍保留另外三類", () => {
+    expect(highRiskLine).not.toBe("");
+    expect(highRiskLine).not.toContain("dispatch");
+    expect(highRiskLine).not.toContain("派工");
+    for (const k of ["external_send", "destructive", "spend"]) expect(highRiskLine).toContain(k);
+  });
+  it("明講派工是正常工作方式、專業的事交給同事", () => {
+    const dispatchLine = PROTOCOL.split("\n").find((l) => l.includes("dispatch") && l.includes("正常")) ?? "";
+    expect(dispatchLine).toContain("同事");
+  });
+});
